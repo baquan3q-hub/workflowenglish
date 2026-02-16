@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AppPhase, GeneratedLesson, UserSettings } from './types';
 import { generateLessonContent } from './services/geminiService';
-import { supabase, getProfile, signOut, saveLearningRecord, LearningRecord } from './services/supabaseClient';
+import { supabase, getProfile, signOut, saveLearningRecord, getLearningRecordFull, LearningRecord } from './services/supabaseClient';
 import LandingPage from './views/LandingPage';
 import AuthPage from './views/AuthPage';
 import Dashboard from './views/Dashboard';
@@ -182,17 +182,27 @@ function App() {
     }
   };
 
-  const handleOpenLesson = (record: LearningRecord) => {
+  const handleOpenLesson = async (record: LearningRecord) => {
     setCurrentRecordId(record.id);
-    if (record.lesson_data) {
-      // Direct open — has saved data
-      setLessonData(record.lesson_data as GeneratedLesson);
-      setLessonSettings({ level: record.level as any, topic: record.topic });
-      setLessonWords(record.words);
-      setPhase(AppPhase.FLASHCARDS);
-    } else {
-      // Regenerate from saved words
-      handleGenerate(record.words, { level: record.level as any, topic: record.topic });
+    setIsLoading(true);
+    setError(null);
+    try {
+      // Lazy-load the full record (with lesson_data) only when clicked
+      const fullRecord = await getLearningRecordFull(record.id);
+      if (fullRecord?.lesson_data) {
+        setLessonData(fullRecord.lesson_data as GeneratedLesson);
+        setLessonSettings({ level: record.level as any, topic: record.topic });
+        setLessonWords(record.words);
+        setPhase(AppPhase.FLASHCARDS);
+      } else {
+        // No saved lesson data — regenerate from saved words
+        await handleGenerate(record.words, { level: record.level as any, topic: record.topic });
+      }
+    } catch (err) {
+      console.error('Failed to load lesson:', err);
+      setError('Không thể tải bài học. Vui lòng thử lại.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -282,6 +292,7 @@ function App() {
             userId={currentUser.id}
             onStartLesson={() => setPhase(AppPhase.DASHBOARD)}
             onOpenLesson={handleOpenLesson}
+            isLoadingLesson={isLoading}
           />
         ) : null;
 

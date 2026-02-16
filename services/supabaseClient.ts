@@ -100,12 +100,26 @@ export const saveLearningRecord = async (record: {
 export const getLearningHistory = async (userId: string): Promise<LearningRecord[]> => {
     const { data, error } = await supabase
         .from('learning_history')
-        .select('*')
+        .select('id, user_id, topic, level, words, quiz_score, quiz_total, completed_at')
         .eq('user_id', userId)
         .order('completed_at', { ascending: false });
 
     if (error) throw error;
-    return (data || []) as LearningRecord[];
+    return (data || []).map((row: any) => ({
+        ...row,
+        lesson_data: null,
+    })) as LearningRecord[];
+};
+
+export const getLearningRecordFull = async (recordId: string): Promise<LearningRecord | null> => {
+    const { data, error } = await supabase
+        .from('learning_history')
+        .select('*')
+        .eq('id', recordId)
+        .single();
+
+    if (error) throw error;
+    return data as LearningRecord | null;
 };
 
 export const deleteLearningRecord = async (recordId: string) => {

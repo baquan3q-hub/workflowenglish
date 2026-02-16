@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { History, BookOpen, Calendar, ArrowRight, Loader2, Play, Trash2, RotateCcw } from 'lucide-react';
+import { History, BookOpen, Calendar, ArrowRight, Loader2, Play, Trash2 } from 'lucide-react';
 import { getLearningHistory, deleteLearningRecord, LearningRecord } from '../services/supabaseClient';
 import { Button } from '../components/Common';
 
@@ -7,9 +7,10 @@ interface LearningHistoryProps {
     userId: string;
     onStartLesson: () => void;
     onOpenLesson?: (record: LearningRecord) => void;
+    isLoadingLesson?: boolean;
 }
 
-const LearningHistory: React.FC<LearningHistoryProps> = ({ userId, onStartLesson, onOpenLesson }) => {
+const LearningHistory: React.FC<LearningHistoryProps> = ({ userId, onStartLesson, onOpenLesson, isLoadingLesson }) => {
     const [records, setRecords] = useState<LearningRecord[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -62,7 +63,7 @@ const LearningHistory: React.FC<LearningHistoryProps> = ({ userId, onStartLesson
     }
 
     return (
-        <div className="max-w-3xl mx-auto space-y-6 px-4 sm:px-0">
+        <div className="max-w-3xl mx-auto space-y-6 px-4 sm:px-0 relative">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
                 <div>
                     <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
@@ -82,6 +83,16 @@ const LearningHistory: React.FC<LearningHistoryProps> = ({ userId, onStartLesson
                 </Button>
             </div>
 
+            {/* Loading overlay when opening a lesson */}
+            {isLoadingLesson && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl p-8 shadow-2xl flex flex-col items-center gap-4">
+                        <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
+                        <p className="text-slate-700 dark:text-slate-200 font-semibold">Đang tải bài học...</p>
+                    </div>
+                </div>
+            )}
+
             {records.length === 0 ? (
                 <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-8 sm:p-12 text-center">
                     <div className="inline-flex items-center justify-center p-4 bg-slate-100 dark:bg-slate-700 rounded-full mb-4">
@@ -96,7 +107,6 @@ const LearningHistory: React.FC<LearningHistoryProps> = ({ userId, onStartLesson
             ) : (
                 <div className="space-y-3">
                     {records.map((record) => {
-                        const hasLessonData = !!record.lesson_data;
                         return (
                             <div
                                 key={record.id}
@@ -127,9 +137,8 @@ const LearningHistory: React.FC<LearningHistoryProps> = ({ userId, onStartLesson
 
 
                                         {/* Open/Regenerate button */}
-                                        <div className={`hidden sm:flex w-8 h-8 rounded-full items-center justify-center ${hasLessonData ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'
-                                            }`}>
-                                            {hasLessonData ? <Play className="w-4 h-4" /> : <RotateCcw className="w-4 h-4" />}
+                                        <div className="hidden sm:flex w-8 h-8 rounded-full items-center justify-center bg-blue-50 text-blue-600">
+                                            <Play className="w-4 h-4" />
                                         </div>
 
                                         {/* Delete */}
