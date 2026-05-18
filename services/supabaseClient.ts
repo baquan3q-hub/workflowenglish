@@ -47,6 +47,30 @@ export const signIn = async (email: string, password: string) => {
     return data;
 };
 
+export const signInWithGoogle = async () => {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+            redirectTo: window.location.origin,
+        },
+    });
+
+    if (error) throw error;
+    return data;
+};
+
+export const signInWithGithub = async () => {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'github',
+        options: {
+            redirectTo: window.location.origin,
+        },
+    });
+
+    if (error) throw error;
+    return data;
+};
+
 export const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
@@ -58,6 +82,28 @@ export const getProfile = async (userId: string) => {
         .select('*')
         .eq('id', userId)
         .single();
+
+    if (error && error.code === 'PGRST116') {
+        // Profile not found — create one for OAuth users
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('User not found');
+
+        const displayName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
+        const username = user.email?.split('@')[0] || `user_${userId.slice(0, 8)}`;
+
+        const { data: newProfile, error: insertError } = await supabase
+            .from('profiles')
+            .insert({
+                id: userId,
+                username: username,
+                display_name: displayName,
+            })
+            .select()
+            .single();
+
+        if (insertError) throw insertError;
+        return newProfile as { id: string; username: string; display_name: string; created_at: string };
+    }
 
     if (error) throw error;
     return data as { id: string; username: string; display_name: string; created_at: string };

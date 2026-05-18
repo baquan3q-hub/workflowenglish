@@ -1,14 +1,37 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Volume2, ChevronLeft, ChevronRight, Settings2, StopCircle } from 'lucide-react';
-import { FlashcardData } from '../types';
+import { FlashcardData, MasteryLevel, ConfidenceRating, WordMasteryRecord } from '../types';
 import { Button, Badge } from '../components/Common';
+import { MasteryBadge } from '../components/MasteryBadge';
+import {
+  bulkEnsureWords,
+  getWordMastery,
+  upsertWordMastery,
+  determineMasteryTransition,
+  normalizeWord,
+} from '../services/masteryService';
+import { calculateSRS, type SRSCard } from '../services/srsService';
 
 interface FlashcardsProps {
   cards: FlashcardData[];
+  userId: string;
   onNextPhase: () => void;
 }
 
-const Flashcards: React.FC<FlashcardsProps> = ({ cards, onNextPhase }) => {
+// 4-button rating config (matches ReviewSession styling)
+const RATING_BUTTONS: {
+  rating: ConfidenceRating;
+  label: string;
+  color: string;
+  hoverColor: string;
+}[] = [
+  { rating: 0, label: 'Lại', color: 'bg-red-500', hoverColor: 'hover:bg-red-600' },
+  { rating: 1, label: 'Khó', color: 'bg-orange-500', hoverColor: 'hover:bg-orange-600' },
+  { rating: 2, label: 'Tốt', color: 'bg-blue-500', hoverColor: 'hover:bg-blue-600' },
+  { rating: 3, label: 'Dễ', color: 'bg-emerald-500', hoverColor: 'hover:bg-emerald-600' },
+];
+
+const Flashcards: React.FC<FlashcardsProps> = ({ cards, userId, onNextPhase }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
 
@@ -19,7 +42,61 @@ const Flashcards: React.FC<FlashcardsProps> = ({ cards, onNextPhase }) => {
   // Word-level highlighting via onboundary event
   const [activeWordIndex, setActiveWordIndex] = useState<number | null>(null);
 
+  // Mastery tracking — keyed by normalized word
+  const [masteryMap, setMasteryMap] = useState<Record<string, WordMasteryRecord | null>>({});
+  const [masteryLoaded, setMasteryLoaded] = useState(false);
+  const [savingRating, setSavingRating] = useState(false);
+
   const currentCard = cards[currentIndex];
+  const currentNormalizedWord = useMemo(
+    () => (currentCard ? normalizeWord(currentCard.word) : ''),
+    [currentCard],
+  );
+  const currentMastery = masteryMap[currentNormalizedWord] ?? null;
+  const currentLevel: MasteryLevel = currentMastery?.mastery_level ?? MasteryLevel.NEW;
+
+  // Show rating prompt only when the word is already in review mode
+  // (not first-time learning). We also wait until the user has flipped the card.
+  const shouldShowRatingPrompt =
+    masteryLoaded && isFlipped && currentLevel !== MasteryLevel.NEW;
+
+  // --- Mastery bootstrap on mount / cards change ---------------------------
+  useEffect(() => {
+    let cancelled = false;
+    setMasteryLoaded(false);
+
+    const words = cards.map((c) => c.word);
+    if (words.length === 0) {
+      setMasteryLoaded(true);
+      return;
+    }
+
+    (async () => {
+      try {
+        // Ensure rows exist for every word in this lesson, then fetch them.
+        await bulkEnsureWords(userId, words);
+        const records = await Promise.all(
+          words.map((w) => getWordMastery(userId, w).catch(() => null)),
+        );
+        if (cancelled) return;
+
+        const next: Record<string, WordMasteryRecord | null> = {};
+        words.forEach((w, i) => {
+          next[normalizeWord(w)] = records[i];
+        });
+        setMasteryMap(next);
+      } catch (err) {
+        // Don't block the card display on a network error.
+        console.error('Failed to load word mastery for flashcards:', err);
+      } finally {
+        if (!cancelled) setMasteryLoaded(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, cards]);
 
   const cleanupAudio = useCallback(() => {
     window.speechSynthesis.cancel();
@@ -97,6 +174,51 @@ const Flashcards: React.FC<FlashcardsProps> = ({ cards, onNextPhase }) => {
     window.speechSynthesis.speak(utterance);
   };
 
+  // --- Rating handler ------------------------------------------------------
+  const handleRating = async (rating: ConfidenceRating, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!currentMastery || savingRating) return;
+
+    setSavingRating(true);
+    try {
+      const srsCard: SRSCard = {
+        easinessFactor: currentMastery.easiness_factor,
+        intervalDays: currentMastery.interval_days,
+        repetitionCount: currentMastery.repetition_count,
+      };
+      const srs = calculateSRS(srsCard, rating);
+      const newLevel = determineMasteryTransition(
+        currentMastery.mastery_level,
+        rating,
+        srs.repetitionCount,
+        srs.intervalDays,
+      );
+
+      const updated = await upsertWordMastery({
+        ...currentMastery,
+        word: currentMastery.word,
+        user_id: currentMastery.user_id,
+        mastery_level: newLevel,
+        easiness_factor: srs.easinessFactor,
+        interval_days: srs.intervalDays,
+        repetition_count: srs.repetitionCount,
+        next_review_date: srs.nextReviewDate.toISOString(),
+        last_reviewed_at: new Date().toISOString(),
+        correct_count:
+          rating >= 2 ? currentMastery.correct_count + 1 : currentMastery.correct_count,
+      });
+
+      setMasteryMap((prev) => ({
+        ...prev,
+        [currentNormalizedWord]: updated,
+      }));
+    } catch (err) {
+      console.error('Failed to save rating:', err);
+    } finally {
+      setSavingRating(false);
+    }
+  };
+
   const isLastCard = currentIndex === cards.length - 1;
   const isTextPlaying = (text: string) => playingText === text;
 
@@ -164,9 +286,15 @@ const Flashcards: React.FC<FlashcardsProps> = ({ cards, onNextPhase }) => {
         <div className={`relative w-full duration-500 transform-style-3d transition-transform ${isFlipped ? 'rotate-y-180' : ''}`} style={{ minHeight: '300px' }}>
 
           {/* FRONT */}
-          <div className={`${isFlipped ? 'invisible' : ''} w-full backface-hidden bg-white dark:bg-slate-800 rounded-2xl sm:rounded-3xl shadow-lg border-2 border-blue-100 dark:border-blue-900 flex flex-col items-center justify-center p-6 sm:p-8`}
+          <div className={`${isFlipped ? 'invisible' : ''} relative w-full backface-hidden bg-white dark:bg-slate-800 rounded-2xl sm:rounded-3xl shadow-lg border-2 border-blue-100 dark:border-blue-900 flex flex-col items-center justify-center p-6 sm:p-8`}
             style={{ minHeight: '300px' }}
           >
+            {/* Mastery badge — top-right corner */}
+            {masteryLoaded && (
+              <div className="absolute top-3 right-3">
+                <MasteryBadge level={currentLevel} size="md" />
+              </div>
+            )}
             <span className="text-xs font-bold tracking-widest text-blue-400 uppercase mb-3">Word</span>
             <h3 className="text-3xl sm:text-5xl font-bold text-slate-800 dark:text-white mb-3 text-center">{currentCard.word}</h3>
             <p className="text-slate-400 dark:text-slate-500 font-serif italic text-base">Tap to flip</p>
@@ -182,6 +310,7 @@ const Flashcards: React.FC<FlashcardsProps> = ({ cards, onNextPhase }) => {
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">{currentCard.word}</h3>
                   <Badge color="blue">{currentCard.partOfSpeech}</Badge>
+                  {masteryLoaded && <MasteryBadge level={currentLevel} size="md" />}
                 </div>
                 <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-mono text-sm">
                   <span>/{currentCard.ipa}/</span>
@@ -226,6 +355,30 @@ const Flashcards: React.FC<FlashcardsProps> = ({ cards, onNextPhase }) => {
           </div>
         </div>
       </div>
+
+      {/* Rating prompt — only after flip and only if word is past NEW */}
+      {shouldShowRatingPrompt && (
+        <div
+          className="w-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-3 sm:p-4 animate-in fade-in"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="text-center text-sm sm:text-base font-medium text-slate-600 dark:text-slate-300 mb-2 sm:mb-3">
+            Bạn nhớ từ này không?
+          </p>
+          <div className="grid grid-cols-4 gap-2">
+            {RATING_BUTTONS.map((btn) => (
+              <button
+                key={btn.rating}
+                onClick={(e) => handleRating(btn.rating, e)}
+                disabled={savingRating}
+                className={`${btn.color} ${btn.hoverColor} text-white font-semibold py-2 px-2 rounded-lg shadow-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm sm:text-base`}
+              >
+                {btn.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Controls */}
       <div className="flex items-center gap-4 w-full justify-between">

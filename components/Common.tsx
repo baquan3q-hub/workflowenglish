@@ -1,5 +1,5 @@
 import React from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, CheckCircle, Info, X } from 'lucide-react';
 
 // --- Button ---
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -84,6 +84,66 @@ export const ProgressBar: React.FC<{ progress: number }> = ({ progress }) => {
         className="h-2.5 rounded-full bg-blue-600 transition-all duration-500 ease-out" 
         style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
       ></div>
+    </div>
+  );
+};
+
+// --- Toast ---
+/**
+ * Lightweight top-center toast for celebrating events like reaching the
+ * daily review goal. Auto-dismisses after `durationMs` (default 3s) and
+ * cleans up its timer if the component unmounts or `visible` flips early.
+ *
+ * Positioning: fixed, top-center, z-index 100 — sits above the sticky
+ * header (z-50) and the bottom-nav (z-50). Uses the `anim-toast-in`
+ * keyframe defined in index.html for a subtle slide-down + fade entrance.
+ */
+export interface ToastProps {
+  message: string;
+  type?: 'success' | 'info';
+  visible: boolean;
+  onClose: () => void;
+  /** Auto-dismiss duration in ms. Defaults to 3000. */
+  durationMs?: number;
+}
+
+export const Toast: React.FC<ToastProps> = ({
+  message,
+  type = 'success',
+  visible,
+  onClose,
+  durationMs = 3000,
+}) => {
+  React.useEffect(() => {
+    if (!visible) return;
+    const timer = window.setTimeout(onClose, durationMs);
+    return () => window.clearTimeout(timer);
+  }, [visible, durationMs, onClose]);
+
+  if (!visible) return null;
+
+  const palette =
+    type === 'success'
+      ? 'bg-emerald-500 text-white'
+      : 'bg-blue-500 text-white';
+  const Icon = type === 'success' ? CheckCircle : Info;
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className={`anim-toast-in fixed top-4 left-1/2 flex items-center gap-3 rounded-xl px-4 py-3 shadow-lg ${palette}`}
+      style={{ zIndex: 100, transform: 'translateX(-50%)' }}
+    >
+      <Icon className="h-5 w-5 flex-shrink-0" />
+      <span className="text-sm font-medium pr-1">{message}</span>
+      <button
+        onClick={onClose}
+        aria-label="Close notification"
+        className="ml-1 rounded p-0.5 opacity-80 hover:opacity-100 hover:bg-white/15 transition-colors"
+      >
+        <X className="h-4 w-4" />
+      </button>
     </div>
   );
 };

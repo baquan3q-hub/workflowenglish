@@ -14,6 +14,22 @@ export default defineConfig(({ mode }) => {
       react(),
       VitePWA({
         registerType: 'autoUpdate',
+        // Disable SW in development to avoid cache issues during active development
+        devOptions: {
+          enabled: false,
+        },
+        workbox: {
+          // Force the new service worker to activate immediately instead of
+          // waiting for all tabs to close. This prevents the "stuck on old
+          // cache" issue where users must manually clear browser data.
+          skipWaiting: true,
+          clientsClaim: true,
+          // Don't precache the index.html — let it always fetch from network
+          // so auth redirects and new deploys work immediately.
+          navigateFallback: null,
+          // Don't cache API calls or Supabase requests
+          navigateFallbackDenylist: [/^\/auth/, /supabase/],
+        },
         includeAssets: ['logo.svg'],
         manifest: {
           name: 'VocabMaster - AI English Learning',

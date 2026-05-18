@@ -1,7 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { AppPhase, GeneratedLesson, UserSettings } from './types';
+import { AppPhase, DifficultyLevel, GeneratedLesson, UserSettings } from './types';
 import { generateLessonContent } from './services/geminiService';
 import { supabase, getProfile, signOut, saveLearningRecord, getLearningRecordFull, LearningRecord } from './services/supabaseClient';
+import {
+  checkLevelSuggestion,
+  acceptLevelChange,
+  dismissLevelSuggestion,
+  wasLevelSuggestionDismissed,
+  getNextLevel,
+} from './services/adaptiveDifficultyService';
+import { getOrCreateUserGoals } from './services/goalService';
 import LandingPage from './views/LandingPage';
 import AuthPage from './views/AuthPage';
 import Dashboard from './views/Dashboard';
@@ -10,7 +18,10 @@ import StoryMode from './views/StoryMode';
 import QuizMode from './views/QuizMode';
 import FillBlankMode from './views/FillBlankMode';
 import LearningHistory from './views/LearningHistory';
-import { Loader2, Layout, LogOut, User, History, BookOpen, Headphones, HelpCircle, PenTool, Menu, Sun, Moon } from 'lucide-react';
+import ReviewSession from './views/ReviewSession';
+import AnalyticsDashboard from './views/AnalyticsDashboard';
+import { Toast } from './components/Common';
+import { Loader2, Layout, LogOut, User, History, BookOpen, Headphones, HelpCircle, PenTool, Menu, Sun, Moon, BarChart3 } from 'lucide-react';
 
 interface AppUser {
   id: string;
@@ -31,6 +42,19 @@ function App() {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [pendingNavTarget, setPendingNavTarget] = useState<AppPhase | null>(null);
   const [currentRecordId, setCurrentRecordId] = useState<string | null>(null);
+  // Top-center notification (e.g. daily goal reached celebration).
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
+  const showToast = (message: string, type: 'success' | 'info' = 'success') =>
+    setToast({ message, type });
+
+  // Adaptive difficulty: level upgrade/downgrade suggestion modal state.
+  // Shown after quiz completion when checkLevelSuggestion returns a direction
+  // and the user hasn't previously dismissed that same (level, direction).
+  const [levelSuggestion, setLevelSuggestion] = useState<{
+    direction: 'upgrade' | 'downgrade';
+    currentLevel: DifficultyLevel;
+    nextLevel: DifficultyLevel;
+  } | null>(null);
 
   // Dark mode state
   const [darkMode, setDarkMode] = useState(() => {
@@ -53,6 +77,8 @@ function App() {
   }, [darkMode]);
 
   useEffect(() => {
+    let initialCheckDone = false;
+
     const checkSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -68,17 +94,32 @@ function App() {
       } catch (err) {
         console.error('Session check failed:', err);
       } finally {
+        initialCheckDone = true;
         setIsCheckingSession(false);
       }
     };
 
     checkSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_OUT') {
         setCurrentUser(null);
         setLessonData(null);
         setPhase(AppPhase.LANDING);
+      } else if (event === 'SIGNED_IN' && session?.user && initialCheckDone) {
+        // Only handle SIGNED_IN after initial check is done to avoid
+        // race conditions with checkSession running in parallel.
+        try {
+          const profile = await getProfile(session.user.id);
+          setCurrentUser({
+            id: session.user.id,
+            username: profile.username,
+            displayName: profile.display_name,
+          });
+          setPhase(AppPhase.DASHBOARD);
+        } catch (err) {
+          console.error('Failed to get profile after OAuth:', err);
+        }
       }
     });
 
@@ -180,6 +221,59 @@ function App() {
     } catch (err) {
       console.error('Failed to save learning record:', err);
     }
+
+    // Adaptive difficulty: after the record is saved, check whether recent
+    // performance qualifies for a level suggestion. checkLevelSuggestion
+    // already handles the C2-upgrade / A1-downgrade boundaries by returning
+    // null when getNextLevel has no valid neighbour.
+    try {
+      const direction = await checkLevelSuggestion(currentUser.id);
+      if (!direction) return;
+
+      const goals = await getOrCreateUserGoals(currentUser.id);
+      const currentLevel = goals.preferred_level as DifficultyLevel;
+      const nextLevel = getNextLevel(
+        currentLevel,
+        direction === 'upgrade' ? 'up' : 'down',
+      );
+      if (!nextLevel) return;
+
+      // Skip if the user previously dismissed this same suggestion to avoid
+      // pestering them on every quiz.
+      if (wasLevelSuggestionDismissed(currentUser.id, direction, currentLevel)) {
+        return;
+      }
+
+      setLevelSuggestion({ direction, currentLevel, nextLevel });
+    } catch (err) {
+      console.error('Failed to check level suggestion:', err);
+    }
+  };
+
+  const handleAcceptLevelSuggestion = async () => {
+    if (!currentUser || !levelSuggestion) return;
+    const { nextLevel, direction } = levelSuggestion;
+    try {
+      await acceptLevelChange(currentUser.id, nextLevel);
+      showToast(
+        direction === 'upgrade'
+          ? `Đã nâng lên cấp độ ${nextLevel}. Chúc bạn học tốt!`
+          : `Đã chuyển về cấp độ ${nextLevel}. Cùng củng cố nền tảng nhé!`,
+        'success',
+      );
+    } catch (err) {
+      console.error('Failed to accept level change:', err);
+      showToast('Không thể cập nhật cấp độ. Vui lòng thử lại.', 'info');
+    } finally {
+      setLevelSuggestion(null);
+    }
+  };
+
+  const handleDeclineLevelSuggestion = () => {
+    if (!currentUser || !levelSuggestion) return;
+    const { direction, currentLevel } = levelSuggestion;
+    dismissLevelSuggestion(currentUser.id, direction, currentLevel);
+    setLevelSuggestion(null);
   };
 
   const handleOpenLesson = async (record: LearningRecord) => {
@@ -284,7 +378,14 @@ function App() {
         return <AuthPage onLogin={handleLogin} onBack={() => setPhase(AppPhase.LANDING)} />;
 
       case AppPhase.DASHBOARD:
-        return <Dashboard onGenerate={handleGenerate} isLoading={isLoading} />;
+        return (
+          <Dashboard
+            onGenerate={handleGenerate}
+            isLoading={isLoading}
+            userId={currentUser?.id ?? ''}
+            onStartReview={() => setPhase(AppPhase.REVIEW_SESSION)}
+          />
+        );
 
       case AppPhase.HISTORY:
         return currentUser ? (
@@ -296,11 +397,50 @@ function App() {
           />
         ) : null;
 
+      case AppPhase.ANALYTICS:
+        return currentUser ? (
+          <AnalyticsDashboard
+            userId={currentUser.id}
+            onBack={() => setPhase(AppPhase.DASHBOARD)}
+            onStartLesson={() => setPhase(AppPhase.DASHBOARD)}
+            onStartTargetedLesson={async (lesson) => {
+              // Resolve the user's current preferred level so the targeted
+              // practice lesson runs at the right difficulty. Fall back to
+              // the active lesson's level (if any), then B1.
+              let level: DifficultyLevel = (lessonSettings?.level ?? DifficultyLevel.B1) as DifficultyLevel;
+              try {
+                const goals = await getOrCreateUserGoals(currentUser.id);
+                if (goals?.preferred_level) {
+                  level = goals.preferred_level as DifficultyLevel;
+                }
+              } catch (err) {
+                console.error('Failed to fetch preferred level for targeted lesson:', err);
+              }
+              setLessonData(lesson);
+              setLessonSettings({ level, topic: 'Targeted Practice' });
+              setLessonWords(lesson.flashcards.map((c) => c.word).join(', '));
+              setCurrentRecordId(null);
+              setPhase(AppPhase.FLASHCARDS);
+            }}
+          />
+        ) : null;
+
       case AppPhase.FLASHCARDS:
-        return lessonData ? (
+        return lessonData && currentUser ? (
           <Flashcards
             cards={lessonData.flashcards}
+            userId={currentUser.id}
             onNextPhase={() => setPhase(AppPhase.STORY)}
+          />
+        ) : null;
+
+      case AppPhase.REVIEW_SESSION:
+        return currentUser ? (
+          <ReviewSession
+            userId={currentUser.id}
+            onComplete={() => setPhase(AppPhase.DASHBOARD)}
+            onBack={() => setPhase(AppPhase.DASHBOARD)}
+            onShowToast={showToast}
           />
         ) : null;
 
@@ -321,6 +461,7 @@ function App() {
             onRestart={() => navigateWithConfirm(AppPhase.DASHBOARD)}
             onComplete={handleQuizComplete}
             onNextPhase={() => setPhase(AppPhase.FILL_BLANK)}
+            userId={currentUser?.id}
           />
         ) : null;
 
@@ -427,6 +568,29 @@ function App() {
                   <History className={`w-4 h-4 transition-transform ${phase !== AppPhase.HISTORY ? 'group-hover:scale-110' : ''}`} />
                   <span className="font-semibold text-sm">Lịch sử</span>
                   {/* Notification dot (optional - could check if history has items, but simple for now) */}
+                </button>
+
+                <button
+                  onClick={() => {
+                    if (lessonData && phase !== AppPhase.DASHBOARD && phase !== AppPhase.ANALYTICS) {
+                      setPendingNavTarget(AppPhase.ANALYTICS);
+                      setShowSaveModal(true);
+                    } else {
+                      setPhase(AppPhase.ANALYTICS);
+                      setMobileMenuOpen(false);
+                    }
+                  }}
+                  className={`
+                    group relative flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all border shadow-sm
+                    ${phase === AppPhase.ANALYTICS
+                      ? 'bg-emerald-100 text-emerald-700 border-emerald-200 ring-2 ring-emerald-500 ring-offset-1 font-bold dark:ring-offset-slate-800'
+                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-200 dark:hover:border-emerald-900 hover:shadow-md'
+                    }
+                  `}
+                  title="Xem thống kê học tập"
+                >
+                  <BarChart3 className={`w-4 h-4 transition-transform ${phase !== AppPhase.ANALYTICS ? 'group-hover:scale-110' : ''}`} />
+                  <span className="font-semibold text-sm">Thống kê</span>
                 </button>
 
                 <div className="hidden sm:flex items-center gap-2 bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700">
@@ -541,6 +705,64 @@ function App() {
                 className="w-full py-2.5 text-blue-600 font-semibold rounded-xl hover:bg-blue-50 transition-all text-sm"
               >
                 ← Học tiếp
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Goal completion / global notifications */}
+      <Toast
+        visible={!!toast}
+        message={toast?.message ?? ''}
+        type={toast?.type ?? 'success'}
+        onClose={() => setToast(null)}
+      />
+
+      {/* Adaptive difficulty: level upgrade/downgrade suggestion modal.
+          Shown after a quiz when checkLevelSuggestion returns a direction
+          and the user hasn't dismissed this same suggestion before. */}
+      {levelSuggestion && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-5 animate-fade-in">
+            <div className="text-center">
+              <div
+                className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 text-2xl ${
+                  levelSuggestion.direction === 'upgrade'
+                    ? 'bg-emerald-100 dark:bg-emerald-900/40'
+                    : 'bg-amber-100 dark:bg-amber-900/40'
+                }`}
+                aria-hidden="true"
+              >
+                {levelSuggestion.direction === 'upgrade' ? '🎉' : '💪'}
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                {levelSuggestion.direction === 'upgrade'
+                  ? `Bạn đang tiến bộ rất tốt! Nâng lên ${levelSuggestion.nextLevel}?`
+                  : `Hãy củng cố nền tảng! Chuyển về ${levelSuggestion.nextLevel}?`}
+              </h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
+                {levelSuggestion.direction === 'upgrade'
+                  ? `Kết quả gần đây cho thấy bạn đã sẵn sàng cho cấp độ cao hơn so với ${levelSuggestion.currentLevel}.`
+                  : `Quay lại ${levelSuggestion.nextLevel} một thời gian sẽ giúp bạn vững vàng hơn ở ${levelSuggestion.currentLevel}.`}
+              </p>
+            </div>
+            <div className="flex flex-col gap-2.5">
+              <button
+                onClick={handleAcceptLevelSuggestion}
+                className={`w-full py-3 text-white font-semibold rounded-xl hover:shadow-lg transition-all ${
+                  levelSuggestion.direction === 'upgrade'
+                    ? 'bg-gradient-to-r from-emerald-600 to-green-600 hover:shadow-emerald-200'
+                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:shadow-blue-200'
+                }`}
+              >
+                Chấp nhận
+              </button>
+              <button
+                onClick={handleDeclineLevelSuggestion}
+                className="w-full py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-all"
+              >
+                Giữ nguyên
               </button>
             </div>
           </div>

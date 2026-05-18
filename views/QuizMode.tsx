@@ -1,16 +1,33 @@
 import React, { useState } from 'react';
 import { Check, X, AlertCircle, Award, RotateCcw, ListChecks, ArrowLeft, PenTool } from 'lucide-react';
-import { QuizQuestion } from '../types';
+import { MasteryLevel, QuizQuestion, type IncorrectContext } from '../types';
 import { Button, ProgressBar } from '../components/Common';
+import {
+  recordQuizIncorrect,
+  getWordMastery,
+  upsertWordMastery,
+  determineMasteryTransition,
+} from '../services/masteryService';
 
 interface QuizModeProps {
   questions: QuizQuestion[];
   onRestart: () => void;
   onComplete?: (score: number, total: number) => void;
   onNextPhase?: () => void;
+  userId?: string;
 }
 
-const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, onNextPhase }) => {
+/**
+ * Extract the vocabulary word from a quiz question that follows the
+ * pattern: What does 'X' mean? — also tolerates double quotes.
+ * Falls back to the raw question if no quoted token is found.
+ */
+function extractWordFromQuestion(question: string): string {
+  const match = question.match(/['"]([^'"]+)['"]/);
+  return match ? match[1] : question;
+}
+
+const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, onNextPhase, userId }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'correct' | 'wrong'>('idle');
@@ -46,6 +63,47 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
       audio.play().catch(() => { });
     } else {
       setStatus('wrong');
+      // Fire-and-forget: record incorrect answer for weakness detection
+      // and trigger LAPSED transition if the word was already internalized.
+      if (userId) {
+        const word = extractWordFromQuestion(currentQuestion.question);
+        const context: IncorrectContext = {
+          question: currentQuestion.question,
+          userAnswer: option,
+          correctAnswer: currentQuestion.correctAnswer,
+          timestamp: new Date().toISOString(),
+        };
+
+        void (async () => {
+          try {
+            await recordQuizIncorrect(userId, word, context);
+
+            const existing = await getWordMastery(userId, word);
+            if (
+              existing &&
+              (existing.mastery_level === MasteryLevel.REVIEWING ||
+                existing.mastery_level === MasteryLevel.MASTERED)
+            ) {
+              // Rating 0 simulates a complete recall failure.
+              const nextLevel = determineMasteryTransition(
+                existing.mastery_level,
+                0,
+                0,
+                1,
+              );
+              await upsertWordMastery({
+                user_id: userId,
+                word,
+                mastery_level: nextLevel,
+                interval_days: 1,
+                repetition_count: 0,
+              });
+            }
+          } catch (err) {
+            console.error('[QuizMode] Failed to record incorrect answer:', err);
+          }
+        })();
+      }
     }
   };
 
