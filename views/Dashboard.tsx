@@ -11,8 +11,10 @@ import {
   Lightbulb,
   RefreshCw,
   Plus,
+  Library,
+  Sparkles,
 } from 'lucide-react';
-import { DifficultyLevel, UserGoals, UserSettings, WordRecommendation } from '../types';
+import { DifficultyLevel, UserGoals, UserSettings, VocabularyTemplate, WordRecommendation } from '../types';
 import { Button, Select } from '../components/Common';
 import { getDueWordCount } from '../services/masteryService';
 import { getOrCreateUserGoals, updateDailyGoal } from '../services/goalService';
@@ -26,6 +28,8 @@ import {
   getTopStudiedTopics,
   getMasteredWordsList,
 } from '../services/recommendationService';
+import TemplateLibraryModal from '../components/TemplateLibraryModal';
+import { VOCABULARY_TEMPLATES } from '../data/vocabularyTemplates';
 
 interface DashboardProps {
   onGenerate: (text: string, settings: UserSettings) => void;
@@ -92,6 +96,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onGenerate, isLoading, userId, on
     topic: TOPICS[0]
   });
 
+  // --- Template Library state ---
+  const [showTemplateLibrary, setShowTemplateLibrary] = useState(false);
+  const [hasLearningHistory, setHasLearningHistory] = useState<boolean | null>(null);
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
+
   // --- Personalised recommendations state (Requirement 5) ---
   /** null until we know whether to show the section; false hides it entirely. */
   const [recsVisible, setRecsVisible] = useState<boolean | null>(null);
@@ -120,6 +129,22 @@ const Dashboard: React.FC<DashboardProps> = ({ onGenerate, isLoading, userId, on
         if (!cancelled) setUserGoals(goals);
       } catch (err) {
         console.error('Failed to load user goals:', err);
+      }
+    })();
+
+    // Check if user has any learning history (for onboarding)
+    (async () => {
+      try {
+        const { count, error: countError } = await supabase
+          .from('learning_history')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', userId);
+        if (!countError && !cancelled) {
+          setHasLearningHistory((count ?? 0) > 0);
+        }
+      } catch (err) {
+        console.error('Failed to check learning history:', err);
+        if (!cancelled) setHasLearningHistory(true); // fail closed — hide onboarding
       }
     })();
 
@@ -273,6 +298,19 @@ const Dashboard: React.FC<DashboardProps> = ({ onGenerate, isLoading, userId, on
     }
   };
 
+  const handleSelectTemplate = (template: VocabularyTemplate) => {
+    setShowTemplateLibrary(false);
+    setOnboardingDismissed(true);
+    const wordsText = template.words.join(', ');
+    setInputText(wordsText);
+    setSettings({ level: template.cefrLevel, topic: template.topic });
+    // Auto-trigger generation
+    onGenerate(wordsText, { level: template.cefrLevel, topic: template.topic });
+  };
+
+  const showOnboarding = hasLearningHistory === false && inputText.trim() === '' && !onboardingDismissed;
+  const featuredTemplates = VOCABULARY_TEMPLATES.slice(0, 4);
+
   return (
     <div className="max-w-3xl mx-auto space-y-6 sm:space-y-8 animate-fade-in px-4 sm:px-0">
       <div className="text-center space-y-3 sm:space-y-4">
@@ -394,6 +432,65 @@ const Dashboard: React.FC<DashboardProps> = ({ onGenerate, isLoading, userId, on
       {dueCount === 0 && (
         <div className="text-center text-sm text-slate-500 dark:text-slate-400">
           ✅ Không có từ cần ôn hôm nay
+        </div>
+      )}
+
+      {/* Onboarding section for new users */}
+      {showOnboarding && (
+        <div className="rounded-2xl border border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-6 sm:p-8 space-y-5">
+          <div className="text-center">
+            <div className="inline-flex items-center justify-center p-3 bg-blue-100 dark:bg-blue-900/50 rounded-2xl mb-3">
+              <Sparkles className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
+              Chào mừng bạn đến VocabMaster!
+            </h3>
+            <p className="text-sm text-slate-600 dark:text-slate-300 max-w-md mx-auto">
+              Chọn một chủ đề bên dưới để bắt đầu học ngay, hoặc tự nhập từ vựng của riêng bạn.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {featuredTemplates.map((template) => (
+              <button
+                key={template.id}
+                onClick={() => handleSelectTemplate(template)}
+                disabled={isLoading}
+                className="text-left p-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all disabled:opacity-60"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                    {template.cefrLevel}
+                  </span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">{template.words.length} từ</span>
+                </div>
+                <h4 className="font-semibold text-slate-800 dark:text-white text-sm mb-1">{template.name}</h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                  {template.samplePreview.join(', ')}...
+                </p>
+              </button>
+            ))}
+          </div>
+          <div className="text-center">
+            <button
+              onClick={() => setShowTemplateLibrary(true)}
+              className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              Xem tất cả chủ đề →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Template Library Button (always visible) */}
+      {!showOnboarding && (
+        <div className="flex justify-center">
+          <button
+            onClick={() => setShowTemplateLibrary(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-blue-300 dark:hover:border-blue-600 hover:text-blue-600 dark:hover:text-blue-400 hover:shadow-sm transition-all text-sm font-medium"
+          >
+            <Library className="w-4 h-4" />
+            📚 Thư viện từ vựng
+          </button>
         </div>
       )}
 
@@ -590,7 +687,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onGenerate, isLoading, userId, on
             className="w-full h-40 p-4 rounded-xl border border-slate-300 dark:border-slate-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-900 transition-colors"
             placeholder="e.g. Serendipity, Ephemeral, Luminous..."
             value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
+            onChange={(e) => { setInputText(e.target.value); if (e.target.value.trim()) setOnboardingDismissed(true); }}
           />
           {error && (
             <div className="flex items-center gap-2 text-red-600 text-sm mt-2">
@@ -630,6 +727,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onGenerate, isLoading, userId, on
           </Button>
         </div>
       </div>
+
+      {/* Template Library Modal */}
+      <TemplateLibraryModal
+        isOpen={showTemplateLibrary}
+        onClose={() => setShowTemplateLibrary(false)}
+        onSelectTemplate={handleSelectTemplate}
+      />
     </div>
   );
 };

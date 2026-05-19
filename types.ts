@@ -85,7 +85,8 @@ export interface IncorrectContext {
 
 /**
  * Per-(user, word) SRS state. Mirrors the `word_mastery` table schema
- * defined in `docs/migrations/001_personalized_learning.sql`.
+ * defined in `docs/migrations/001_personalized_learning.sql` and
+ * `docs/migrations/002_flashcard_metadata.sql`.
  */
 export interface WordMasteryRecord {
   id: string;
@@ -102,6 +103,13 @@ export interface WordMasteryRecord {
   incorrect_contexts: IncorrectContext[];
   created_at: string;
   updated_at: string;
+  // Flashcard metadata (nullable — legacy rows may not have these)
+  ipa?: string | null;
+  meaning_vi?: string | null;
+  definition_en?: string | null;
+  example_sentence?: string | null;
+  example_sentence_vi?: string | null;
+  part_of_speech?: string | null;
 }
 
 /**
@@ -147,4 +155,18 @@ export interface WeaknessPattern {
     correctAnswer: string;
   }>;
   status: 'active' | 'improving' | 'resolved';
+}
+
+/**
+ * A pre-built vocabulary set organized by topic and CEFR level.
+ * Stored as hardcoded data in `data/vocabularyTemplates.ts`.
+ */
+export interface VocabularyTemplate {
+  id: string;
+  name: string;                  // Vietnamese display name
+  topic: string;                 // Topic tag (matches TOPICS array in Dashboard)
+  cefrLevel: DifficultyLevel;
+  words: string[];               // 8-15 English words
+  meanings: string[];            // Vietnamese meanings (same length as words)
+  samplePreview: string[];       // 3-4 words for card preview
 }

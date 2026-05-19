@@ -133,13 +133,30 @@ export const saveLearningRecord = async (record: {
     quiz_total: number;
     lesson_data?: any;
 }) => {
+    // Clean payload — remove undefined `id` to avoid Supabase upsert issues
+    const payload: any = {
+        user_id: record.user_id,
+        topic: record.topic,
+        level: record.level,
+        words: record.words,
+        quiz_score: record.quiz_score,
+        quiz_total: record.quiz_total,
+        lesson_data: record.lesson_data,
+    };
+    if (record.id) {
+        payload.id = record.id;
+    }
+
     const { data, error } = await supabase
         .from('learning_history')
-        .upsert(record)
+        .upsert(payload)
         .select()
         .single();
 
-    if (error) throw error;
+    if (error) {
+        console.error('saveLearningRecord error:', error);
+        throw new Error(error.message || 'Lỗi khi lưu bài học');
+    }
     return data as LearningRecord;
 };
 

@@ -2,21 +2,38 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
-// Force refresh stale service workers so users don't get stuck on cached
-// old versions. This runs once on page load — if a SW is active and
-// waiting, it tells it to activate immediately and reloads the page.
+// Service Worker management:
+// In development, unregister all SWs to avoid stale cache issues.
+// In production, update existing SWs and skip waiting.
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then((registrations) => {
-    for (const registration of registrations) {
-      // If there's a waiting worker, skip waiting and reload
-      if (registration.waiting) {
-        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-        window.location.reload();
-        return;
+  const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  
+  if (isDev) {
+    // Development: completely unregister all service workers
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      for (const registration of registrations) {
+        registration.unregister();
       }
-      registration.update();
-    }
-  });
+    });
+  } else {
+    // Production: update and activate new SW immediately
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      for (const registration of registrations) {
+        if (registration.waiting) {
+          registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+        registration.update();
+      }
+    });
+    // Listen for new SW activation and reload once
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!refreshing) {
+        refreshing = true;
+        window.location.reload();
+      }
+    });
+  }
 }
 
 const rootElement = document.getElementById('root');

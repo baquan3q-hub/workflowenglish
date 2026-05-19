@@ -4,7 +4,7 @@ import { FlashcardData, MasteryLevel, ConfidenceRating, WordMasteryRecord } from
 import { Button, Badge } from '../components/Common';
 import { MasteryBadge } from '../components/MasteryBadge';
 import {
-  bulkEnsureWords,
+  bulkEnsureWordsWithMetadata,
   getWordMastery,
   upsertWordMastery,
   determineMasteryTransition,
@@ -55,10 +55,8 @@ const Flashcards: React.FC<FlashcardsProps> = ({ cards, userId, onNextPhase }) =
   const currentMastery = masteryMap[currentNormalizedWord] ?? null;
   const currentLevel: MasteryLevel = currentMastery?.mastery_level ?? MasteryLevel.NEW;
 
-  // Show rating prompt only when the word is already in review mode
-  // (not first-time learning). We also wait until the user has flipped the card.
-  const shouldShowRatingPrompt =
-    masteryLoaded && isFlipped && currentLevel !== MasteryLevel.NEW;
+  // Show quick-mark buttons when card is flipped (for ALL mastery levels)
+  const shouldShowQuickMark = masteryLoaded && isFlipped;
 
   // --- Mastery bootstrap on mount / cards change ---------------------------
   useEffect(() => {
@@ -73,8 +71,8 @@ const Flashcards: React.FC<FlashcardsProps> = ({ cards, userId, onNextPhase }) =
 
     (async () => {
       try {
-        // Ensure rows exist for every word in this lesson, then fetch them.
-        await bulkEnsureWords(userId, words);
+        // Ensure rows exist for every word in this lesson with full metadata.
+        await bulkEnsureWordsWithMetadata(userId, cards);
         const records = await Promise.all(
           words.map((w) => getWordMastery(userId, w).catch(() => null)),
         );
@@ -177,41 +175,62 @@ const Flashcards: React.FC<FlashcardsProps> = ({ cards, userId, onNextPhase }) =
   // --- Rating handler ------------------------------------------------------
   const handleRating = async (rating: ConfidenceRating, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!currentMastery || savingRating) return;
+    if (savingRating) return;
 
     setSavingRating(true);
     try {
+      // If no mastery record exists yet (migration not applied or first time),
+      // create a fresh one with default SRS values
+      const existing = currentMastery || {
+        user_id: userId,
+        word: normalizeWord(currentCard.word),
+        mastery_level: MasteryLevel.NEW,
+        easiness_factor: 2.5,
+        interval_days: 0,
+        repetition_count: 0,
+        correct_count: 0,
+        incorrect_count: 0,
+      };
+
       const srsCard: SRSCard = {
-        easinessFactor: currentMastery.easiness_factor,
-        intervalDays: currentMastery.interval_days,
-        repetitionCount: currentMastery.repetition_count,
+        easinessFactor: existing.easiness_factor,
+        intervalDays: existing.interval_days,
+        repetitionCount: existing.repetition_count,
       };
       const srs = calculateSRS(srsCard, rating);
       const newLevel = determineMasteryTransition(
-        currentMastery.mastery_level,
+        existing.mastery_level,
         rating,
         srs.repetitionCount,
         srs.intervalDays,
       );
 
       const updated = await upsertWordMastery({
-        ...currentMastery,
-        word: currentMastery.word,
-        user_id: currentMastery.user_id,
+        user_id: userId,
+        word: normalizeWord(currentCard.word),
         mastery_level: newLevel,
         easiness_factor: srs.easinessFactor,
         interval_days: srs.intervalDays,
         repetition_count: srs.repetitionCount,
         next_review_date: srs.nextReviewDate.toISOString(),
         last_reviewed_at: new Date().toISOString(),
-        correct_count:
-          rating >= 2 ? currentMastery.correct_count + 1 : currentMastery.correct_count,
+        correct_count: (existing.correct_count ?? 0) + (rating >= 2 ? 1 : 0),
+        incorrect_count: (existing.incorrect_count ?? 0) + (rating < 2 ? 1 : 0),
       });
 
       setMasteryMap((prev) => ({
         ...prev,
         [currentNormalizedWord]: updated,
       }));
+
+      // Auto-advance to next card after rating
+      cleanupAudio();
+      setIsFlipped(false);
+      setTimeout(() => {
+        if (currentIndex < cards.length - 1) {
+          setCurrentIndex((prev) => prev + 1);
+        }
+      }, 300);
     } catch (err) {
       console.error('Failed to save rating:', err);
     } finally {
@@ -356,26 +375,30 @@ const Flashcards: React.FC<FlashcardsProps> = ({ cards, userId, onNextPhase }) =
         </div>
       </div>
 
-      {/* Rating prompt — only after flip and only if word is past NEW */}
-      {shouldShowRatingPrompt && (
+      {/* Quick-Mark buttons — shown after flip for ALL mastery levels */}
+      {shouldShowQuickMark && (
         <div
-          className="w-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-3 sm:p-4 animate-in fade-in"
+          className="w-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-3 sm:p-4"
           onClick={(e) => e.stopPropagation()}
         >
-          <p className="text-center text-sm sm:text-base font-medium text-slate-600 dark:text-slate-300 mb-2 sm:mb-3">
+          <p className="text-center text-sm font-medium text-slate-500 dark:text-slate-400 mb-3">
             Bạn nhớ từ này không?
           </p>
-          <div className="grid grid-cols-4 gap-2">
-            {RATING_BUTTONS.map((btn) => (
-              <button
-                key={btn.rating}
-                onClick={(e) => handleRating(btn.rating, e)}
-                disabled={savingRating}
-                className={`${btn.color} ${btn.hoverColor} text-white font-semibold py-2 px-2 rounded-lg shadow-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm sm:text-base`}
-              >
-                {btn.label}
-              </button>
-            ))}
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={(e) => handleRating(2 as ConfidenceRating, e)}
+              disabled={savingRating}
+              className="flex items-center justify-center gap-2 py-3 px-4 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed text-sm sm:text-base active:scale-95"
+            >
+              <span>✓</span> Đã nhớ
+            </button>
+            <button
+              onClick={(e) => handleRating(0 as ConfidenceRating, e)}
+              disabled={savingRating}
+              className="flex items-center justify-center gap-2 py-3 px-4 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl shadow-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed text-sm sm:text-base active:scale-95"
+            >
+              <span>↻</span> Cần ôn lại
+            </button>
           </div>
         </div>
       )}

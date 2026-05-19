@@ -395,7 +395,12 @@ export const generateLessonContent = async (
   level: DifficultyLevel,
   topic: string
 ): Promise<GeneratedLesson> => {
-  const model = "gemini-3-flash-preview";
+  // Model priority: try stable model first, fallback to alternatives
+  const MODELS = [
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+  ];
 
   const prompt = `
     You are an expert English teacher (EdTech specialist).
@@ -404,7 +409,7 @@ export const generateLessonContent = async (
     The output must strictly be a JSON object containing:
     1. 'flashcards': Detailed info for each word provided.
     2. 'story': A cohesive, engaging short story (approx 150-200 words) using the vocabulary naturally.
-    3. 'quiz': 5-8 questions.
+    3. 'quiz': ONE question for EACH word in the vocabulary list (so if there are 10 words, create exactly 10 quiz questions).
     
     CRITICAL INSTRUCTION FOR QUIZ:
     - The 'question' must be the English vocabulary word (e.g., "What does 'Serendipity' mean?").
@@ -418,26 +423,45 @@ export const generateLessonContent = async (
     - Vietnamese translations must be natural and accurate.
     - Example sentences must match the ${level} complexity.
     - Quiz should follow 'Mastery Learning' principles.
+    - IMPORTANT: The story content must be PLAIN TEXT only. Do NOT use markdown formatting like **bold** or *italic*. Just write the words naturally.
   `;
 
-  try {
-    const response = await ai.models.generateContent({
-      model: model,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: lessonSchema,
-        thinkingConfig: { thinkingBudget: 0 },
-      },
-    });
+  const config = {
+    responseMimeType: "application/json",
+    responseSchema: lessonSchema,
+    thinkingConfig: { thinkingBudget: 0 },
+  };
 
-    const text = response.text;
-    if (!text) throw new Error("No response from AI");
+  let lastError: unknown = null;
 
-    const data = JSON.parse(text) as GeneratedLesson;
-    return data;
-  } catch (error) {
-    console.error("Gemini Generation Error:", error);
-    throw error;
+  for (const model of MODELS) {
+    try {
+      console.log(`[Gemini] Trying model: ${model}`);
+      const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+        config,
+      });
+
+      const text = response.text;
+      if (!text) throw new Error("No response from AI");
+
+      const data = JSON.parse(text) as GeneratedLesson;
+      return data;
+    } catch (error: any) {
+      lastError = error;
+      const status = error?.status || error?.message?.match(/(\d{3})/)?.[1];
+      console.warn(`[Gemini] Model "${model}" failed (${status}):`, error?.message || error);
+      
+      // Only retry on 503 (overloaded) or 429 (rate limit) — other errors are not retryable
+      if (status !== 503 && status !== '503' && status !== 429 && status !== '429') {
+        break;
+      }
+      // Small delay before trying next model
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
   }
+
+  console.error("Gemini Generation Error: All models failed", lastError);
+  throw lastError;
 };

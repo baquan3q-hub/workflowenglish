@@ -42,14 +42,18 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
   const sentencesRef = useRef<string[]>([]);
   const wordTimingsRef = useRef<WordTiming[]>([]);
 
-  // Split story into sentences
+  // Split story into sentences and strip any markdown formatting (AI sometimes
+  // returns **word** bold markers in the story content)
   useEffect(() => {
+    // Strip markdown bold/italic markers from the raw content
+    const cleanContent = story.content.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1');
+    
     if ('Intl' in window && 'Segmenter' in Intl) {
       const segmenter = new (Intl as any).Segmenter('en', { granularity: 'sentence' });
-      const segments = Array.from(segmenter.segment(story.content)) as { segment: string }[];
+      const segments = Array.from(segmenter.segment(cleanContent)) as { segment: string }[];
       sentencesRef.current = segments.map(s => s.segment);
     } else {
-      sentencesRef.current = story.content.match(/[^.!?]+[.!?]+["']?|[^.!?]+$/g) || [story.content];
+      sentencesRef.current = cleanContent.match(/[^.!?]+[.!?]+["']?|[^.!?]+$/g) || [cleanContent];
     }
   }, [story.content]);
 
@@ -60,7 +64,9 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
     };
   }, []);
 
-  // Build word timings for the entire story based on audio duration
+  // Build word timings for the entire story based on audio duration.
+  // Uses word-count-based estimation (each word takes roughly equal time
+  // when spoken) which is more accurate than character-based for English TTS.
   const buildWordTimings = useCallback((totalDuration: number) => {
     const sentences = sentencesRef.current;
     const allWords: { sentIdx: number; wordIdx: number; word: string }[] = [];
@@ -72,20 +78,21 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
       });
     });
 
-    const totalChars = allWords.reduce((acc, w) => acc + w.word.length, 0);
+    if (allWords.length === 0) return;
+
+    // Each word gets roughly equal time (simple but more accurate than char-based)
+    const wordDuration = totalDuration / allWords.length;
     let cursor = 0;
 
     wordTimingsRef.current = allWords.map((w, globalIdx) => {
-      const weight = w.word.length / totalChars;
-      const wordDur = weight * totalDuration;
       const timing: WordTiming = {
         globalWordIdx: globalIdx,
         sentenceIdx: w.sentIdx,
         wordInSentenceIdx: w.wordIdx,
         start: cursor,
-        end: cursor + wordDur,
+        end: cursor + wordDuration,
       };
-      cursor += wordDur;
+      cursor += wordDuration;
       return timing;
     });
   }, []);
@@ -172,7 +179,7 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
     playerRef.current?.setSpeed(newSpeed);
   };
 
-  // Click on a sentence to seek there
+  // Click on a sentence to seek and play from that sentence's start
   const handleSentenceClick = (sentIdx: number) => {
     const player = playerRef.current;
     if (!player || audioState !== 'ready') return;
@@ -180,11 +187,10 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
     // Find first word of this sentence
     const firstWord = wordTimingsRef.current.find(t => t.sentenceIdx === sentIdx);
     if (firstWord) {
-      player.seek(firstWord.start);
-      if (!player.isPlaying) {
-        player.play(firstWord.start);
-        setIsPlaying(true);
-      }
+      // Always seek and play from this sentence (even if already playing)
+      player.play(firstWord.start);
+      setIsPlaying(true);
+      setCurrentTime(firstWord.start);
     }
   };
 
@@ -215,7 +221,7 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
                 const currentTimingIdx = isWhitespace ? -1 : timingWordCounter++;
                 const isWordActive = isSentActive && `${sentIdx}-${currentTimingIdx}` === activeWordKey;
 
-                const cleanPart = part.replace(/[.,!?;:"'()]/g, "").toLowerCase();
+                const cleanPart = part.replace(/[.,!?;:"'()*_~`\[\]#]/g, "").toLowerCase();
                 const isVocab = vocabList.some(v => v.word.toLowerCase() === cleanPart);
 
                 let textColorClass = "text-slate-800 dark:text-slate-200";

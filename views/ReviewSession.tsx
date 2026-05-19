@@ -393,27 +393,81 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
           <div
             className={`${
               !isFlipped ? 'invisible' : ''
-            } absolute inset-0 backface-hidden rotate-y-180 bg-white dark:bg-slate-800 rounded-2xl sm:rounded-3xl shadow-lg border-2 border-emerald-100 dark:border-emerald-900 flex flex-col p-6 sm:p-8 items-center justify-center text-center`}
+            } absolute inset-0 backface-hidden rotate-y-180 bg-white dark:bg-slate-800 rounded-2xl sm:rounded-3xl shadow-lg border-2 border-emerald-100 dark:border-emerald-900 flex flex-col p-4 sm:p-6 overflow-y-auto`}
             style={{ minHeight: '280px' }}
           >
-            <span className="text-xs font-bold tracking-widest text-emerald-500 uppercase mb-3">
-              Recall
-            </span>
-            <h3 className="text-2xl sm:text-3xl font-bold text-slate-800 dark:text-white mb-4 break-words">
-              {currentCard?.word}
-            </h3>
-            <div className="space-y-2 text-slate-600 dark:text-slate-300 max-w-sm">
-              <p className="text-sm">
-                Bạn nhớ nghĩa của từ này không? Hãy tự đánh giá mức độ tự tin
-                của mình bên dưới.
-              </p>
-              {currentCard && (
-                <p className="text-xs text-slate-400 dark:text-slate-500">
-                  Đã ôn {currentCard.repetition_count} lần · Cấp độ:{' '}
-                  {MasteryLevel[currentCard.mastery_level] ?? 'NEW'}
-                </p>
-              )}
-            </div>
+            {/* Rich back card with metadata */}
+            {currentCard && (currentCard.meaning_vi || currentCard.definition_en) ? (
+              <>
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">{currentCard.word}</h3>
+                      {currentCard.part_of_speech && (
+                        <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                          {currentCard.part_of_speech}
+                        </span>
+                      )}
+                    </div>
+                    {currentCard.ipa && (
+                      <p className="text-slate-500 dark:text-slate-400 font-mono text-sm">/{currentCard.ipa}/</p>
+                    )}
+                  </div>
+                  <span className="text-xs text-slate-400 dark:text-slate-500">
+                    Ôn lần {currentCard.repetition_count}
+                  </span>
+                </div>
+
+                <div className="space-y-3 text-left flex-1">
+                  {currentCard.meaning_vi && (
+                    <p className="text-lg font-medium text-emerald-700 dark:text-emerald-400">
+                      {currentCard.meaning_vi}
+                    </p>
+                  )}
+
+                  {currentCard.definition_en && (
+                    <div className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                      <p className="text-sm text-slate-500 dark:text-slate-400 font-semibold mb-1">Definition</p>
+                      <p className="text-slate-700 dark:text-slate-300 italic text-sm">{currentCard.definition_en}</p>
+                    </div>
+                  )}
+
+                  {currentCard.example_sentence && (
+                    <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">
+                      <p className="text-sm text-blue-500 dark:text-blue-400 font-semibold mb-1">Example</p>
+                      <p className="text-slate-800 dark:text-slate-200 text-sm leading-relaxed">
+                        "{currentCard.example_sentence}"
+                      </p>
+                      {currentCard.example_sentence_vi && (
+                        <p className="text-slate-500 dark:text-slate-400 text-xs mt-1">{currentCard.example_sentence_vi}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              /* Fallback minimal layout for legacy rows without metadata */
+              <>
+                <span className="text-xs font-bold tracking-widest text-emerald-500 uppercase mb-3">
+                  Recall
+                </span>
+                <h3 className="text-2xl sm:text-3xl font-bold text-slate-800 dark:text-white mb-4 break-words">
+                  {currentCard?.word}
+                </h3>
+                <div className="space-y-2 text-slate-600 dark:text-slate-300 max-w-sm">
+                  <p className="text-sm">
+                    Bạn nhớ nghĩa của từ này không? Hãy tự đánh giá mức độ tự tin
+                    của mình bên dưới.
+                  </p>
+                  {currentCard && (
+                    <p className="text-xs text-slate-400 dark:text-slate-500">
+                      Đã ôn {currentCard.repetition_count} lần · Cấp độ:{' '}
+                      {MasteryLevel[currentCard.mastery_level] ?? 'NEW'}
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

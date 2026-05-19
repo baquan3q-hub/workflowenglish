@@ -329,3 +329,75 @@ export async function bulkEnsureWords(
 
   if (error) throw error;
 }
+
+/**
+ * Ensure word_mastery rows exist for each flashcard AND store metadata
+ * (IPA, meaning, definition, example sentences, part of speech).
+ *
+ * Unlike `bulkEnsureWords`, this function UPDATES metadata columns on
+ * existing rows (so re-generating a lesson refreshes the metadata) but
+ * NEVER overwrites SRS state fields (mastery_level, easiness_factor,
+ * interval_days, repetition_count, next_review_date, etc.).
+ *
+ * Implementation: two-pass approach —
+ *   1. Upsert with ignoreDuplicates to create missing rows
+ *   2. Update metadata columns for all words (safe because metadata
+ *      columns are independent of SRS state)
+ */
+export async function bulkEnsureWordsWithMetadata(
+  userId: string,
+  flashcards: import('../types').FlashcardData[],
+): Promise<void> {
+  if (!flashcards || flashcards.length === 0) return;
+
+  // Deduplicate by normalized word
+  const seen = new Set<string>();
+  const unique: import('../types').FlashcardData[] = [];
+  for (const card of flashcards) {
+    const normalized = normalizeWord(card.word);
+    if (normalized.length === 0 || seen.has(normalized)) continue;
+    seen.add(normalized);
+    unique.push(card);
+  }
+
+  if (unique.length === 0) return;
+
+  // Pass 1: Ensure rows exist (don't overwrite anything on existing rows)
+  const insertRows = unique.map((card) => ({
+    user_id: userId,
+    word: normalizeWord(card.word),
+  }));
+
+  const { error: insertError } = await supabase
+    .from(TABLE)
+    .upsert(insertRows, { onConflict: 'user_id,word', ignoreDuplicates: true });
+
+  if (insertError) {
+    console.error('bulkEnsureWordsWithMetadata insert pass failed:', insertError);
+    throw insertError;
+  }
+
+  // Pass 2: Update metadata for all words (this is safe — only touches
+  // metadata columns, never SRS state)
+  const updatePromises = unique.map((card) => {
+    const normalized = normalizeWord(card.word);
+    return supabase
+      .from(TABLE)
+      .update({
+        ipa: card.ipa || null,
+        meaning_vi: card.meaningVietnamese || null,
+        definition_en: card.definitionEnglish || null,
+        example_sentence: card.exampleSentence || null,
+        example_sentence_vi: card.exampleSentenceVietnamese || null,
+        part_of_speech: card.partOfSpeech || null,
+      })
+      .eq('user_id', userId)
+      .eq('word', normalized);
+  });
+
+  const results = await Promise.allSettled(updatePromises);
+  const failures = results.filter((r) => r.status === 'rejected');
+  if (failures.length > 0) {
+    console.error(`bulkEnsureWordsWithMetadata: ${failures.length}/${unique.length} metadata updates failed`);
+  }
+}

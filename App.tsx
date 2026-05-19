@@ -470,6 +470,51 @@ function App() {
           <FillBlankMode
             cards={lessonData.flashcards}
             onFinish={() => navigateWithConfirm(AppPhase.DASHBOARD)}
+            onSave={async () => {
+              console.log('[Save] Starting save lesson...', {
+                hasUser: !!currentUser,
+                hasSettings: !!lessonSettings,
+                hasLesson: !!lessonData,
+                userId: currentUser?.id,
+                topic: lessonSettings?.topic,
+                level: lessonSettings?.level,
+                words: lessonWords?.substring(0, 50),
+                quizCount: lessonData?.quiz?.length,
+              });
+
+              if (!currentUser) {
+                throw new Error('Bạn chưa đăng nhập. Vui lòng đăng nhập lại.');
+              }
+              if (!lessonSettings) {
+                throw new Error('Thiếu thông tin bài học (level/topic).');
+              }
+              if (!lessonData) {
+                throw new Error('Không có dữ liệu bài học để lưu.');
+              }
+              if (!lessonWords || !lessonWords.trim()) {
+                throw new Error('Danh sách từ vựng trống.');
+              }
+
+              try {
+                const savedRecord = await saveLearningRecord({
+                  id: currentRecordId || undefined,
+                  user_id: currentUser.id,
+                  topic: lessonSettings.topic || 'General',
+                  level: lessonSettings.level,
+                  words: lessonWords,
+                  quiz_score: 0,
+                  quiz_total: lessonData.quiz.length,
+                  lesson_data: lessonData,
+                });
+                console.log('[Save] Saved successfully:', savedRecord?.id);
+                if (savedRecord && savedRecord.id) {
+                  setCurrentRecordId(savedRecord.id);
+                }
+              } catch (err: any) {
+                console.error('[Save] Failed:', err);
+                throw new Error(err?.message || 'Không thể lưu bài học. Vui lòng kiểm tra kết nối.');
+              }
+            }}
           />
         ) : null;
 
