@@ -516,6 +516,75 @@ export async function generateTargetedLesson(
   return lesson;
 }
 
+/**
+ * Ask Gemini to generate a lesson focusing specifically on the user's hardest words.
+ * The lesson will use the actual hardest words (with their recorded meanings, definition, examples, etc.).
+ */
+export async function generateHardestWordsLesson(
+  words: any[],
+  level: string,
+): Promise<GeneratedLesson> {
+  if (!words || words.length === 0) {
+    throw new Error('No words provided to generate lesson');
+  }
+  const wordDetails = words
+    .map(
+      (w, i) =>
+        `${i + 1}. word="${w.word}", meaning="${w.meaning_vi || ''}", partOfSpeech="${w.part_of_speech || ''}"`,
+    )
+    .join('\n');
+
+  const prompt = `
+You are an expert English teacher (EdTech specialist) creating a remedial mini-lesson for a Vietnamese learner at CEFR level ${level}.
+
+The learner has been struggling with these specific English words:
+${wordDetails}
+
+Task:
+Create a cohesive remedial mini-lesson that uses these EXACT words.
+
+Output MUST be a JSON object containing exactly:
+1. 'flashcards': 5 entries. For EACH entry, use the word itself, and populate its fields. Use the existing metadata where applicable, but make sure all fields are fully populated with accurate and natural details:
+   - 'id': standard unique id
+   - 'word': the English word (exactly as listed above)
+   - 'ipa': accurate IPA pronunciation
+   - 'partOfSpeech': part of speech
+   - 'meaningVietnamese': accurate and clear Vietnamese meaning
+   - 'definitionEnglish': simple English definition
+   - 'exampleSentence': a clear, high-quality example sentence matching ${level} CEFR complexity using the word
+   - 'exampleSentenceVietnamese': Vietnamese translation of the example sentence
+2. 'story': a cohesive ~120-180 word short story using all 5 words naturally.
+3. 'quiz': 5 questions where the 'question' is the English word (e.g. "What does 'X' mean?") and 'options' are Vietnamese definitions, with one correct answer.
+
+Requirements:
+- Vietnamese translations must be natural and accurate.
+- Example sentences must match ${level} complexity.
+- The lesson must focus exactly on teaching the 5 words listed above.
+`.trim();
+
+  const text = await callLessonModel(prompt);
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch (e) {
+    throw new Error(
+      `Failed to parse targeted JSON: ${(e as Error).message}`,
+    );
+  }
+
+  const lesson = parsed as GeneratedLesson;
+  if (
+    !lesson ||
+    !Array.isArray(lesson.flashcards) ||
+    !Array.isArray(lesson.quiz) ||
+    !lesson.story
+  ) {
+    throw new Error('Lesson response missing required sections');
+  }
+  return lesson;
+}
+
 // --- Status flag (localStorage) -------------------------------------------
 
 function safeLocalStorage(): Storage | null {

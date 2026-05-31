@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { History, BookOpen, Calendar, ArrowRight, Loader2, Play, Trash2 } from 'lucide-react';
-import { getLearningHistory, deleteLearningRecord, LearningRecord } from '../services/supabaseClient';
+import { getLearningHistory, deleteLearningRecord, LearningRecord, withTimeout } from '../services/supabaseClient';
 import { Button } from '../components/Common';
 
 interface LearningHistoryProps {
@@ -13,21 +13,26 @@ interface LearningHistoryProps {
 const LearningHistory: React.FC<LearningHistoryProps> = ({ userId, onStartLesson, onOpenLesson, isLoadingLesson }) => {
     const [records, setRecords] = useState<LearningRecord[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    const fetchHistory = useCallback(async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            // Wait max 10s to prevent hanging on mobile device resume / connection sync
+            const data = await withTimeout(getLearningHistory(userId), 10000);
+            setRecords(data);
+        } catch (err) {
+            console.error('Failed to fetch history:', err);
+            setError(err instanceof Error ? err.message : 'Không thể tải lịch sử học tập. Vui lòng kiểm tra kết nối mạng.');
+        } finally {
+            setIsLoading(false);
+        }
+    }, [userId]);
 
     useEffect(() => {
-        const fetchHistory = async () => {
-            try {
-                const data = await getLearningHistory(userId);
-                setRecords(data);
-            } catch (err) {
-                console.error('Failed to fetch history:', err);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
         fetchHistory();
-    }, [userId]);
+    }, [fetchHistory]);
 
     const handleDelete = async (e: React.MouseEvent, recordId: string) => {
         e.stopPropagation();
@@ -58,6 +63,19 @@ const LearningHistory: React.FC<LearningHistoryProps> = ({ userId, onStartLesson
         return (
             <div className="flex items-center justify-center py-20">
                 <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="max-w-3xl mx-auto space-y-4 px-4 sm:px-0 py-10 text-center animate-fade-in">
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-2xl p-6 space-y-4 shadow-sm">
+                    <p className="font-semibold">{error}</p>
+                    <Button onClick={fetchHistory} className="shadow-md">
+                        Thử lại
+                    </Button>
+                </div>
             </div>
         );
     }

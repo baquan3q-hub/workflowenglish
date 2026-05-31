@@ -133,7 +133,6 @@ export const saveLearningRecord = async (record: {
     quiz_total: number;
     lesson_data?: any;
 }) => {
-    // Clean payload — remove undefined `id` to avoid Supabase upsert issues
     const payload: any = {
         user_id: record.user_id,
         topic: record.topic,
@@ -143,15 +142,24 @@ export const saveLearningRecord = async (record: {
         quiz_total: record.quiz_total,
         lesson_data: record.lesson_data,
     };
+
+    let query;
     if (record.id) {
-        payload.id = record.id;
+        query = supabase
+            .from('learning_history')
+            .update(payload)
+            .eq('id', record.id)
+            .select()
+            .single();
+    } else {
+        query = supabase
+            .from('learning_history')
+            .insert(payload)
+            .select()
+            .single();
     }
 
-    const { data, error } = await supabase
-        .from('learning_history')
-        .upsert(payload)
-        .select()
-        .single();
+    const { data, error } = await query;
 
     if (error) {
         console.error('saveLearningRecord error:', error);
@@ -174,6 +182,45 @@ export const getLearningHistory = async (userId: string): Promise<LearningRecord
     })) as LearningRecord[];
 };
 
+export const getLessonAudio = async (recordId: string): Promise<string | null> => {
+    try {
+        const { data, error } = await supabase
+            .from('lesson_audio')
+            .select('audio_base64')
+            .eq('record_id', recordId)
+            .maybeSingle();
+
+        if (error) {
+            console.warn('getLessonAudio returned error (could be missing migration):', error);
+            return null;
+        }
+        return data ? data.audio_base64 : null;
+    } catch (e) {
+        console.error('Failed to fetch lesson audio:', e);
+        return null;
+    }
+};
+
+export const saveLessonAudio = async (recordId: string, audioBase64: string): Promise<boolean> => {
+    try {
+        const { error } = await supabase
+            .from('lesson_audio')
+            .upsert(
+                { record_id: recordId, audio_base64: audioBase64 },
+                { onConflict: 'record_id' }
+            );
+
+        if (error) {
+            console.warn('saveLessonAudio returned error (could be missing migration):', error);
+            return false;
+        }
+        return true;
+    } catch (e) {
+        console.error('Failed to save lesson audio:', e);
+        return false;
+    }
+};
+
 export const getLearningRecordFull = async (recordId: string): Promise<LearningRecord | null> => {
     const { data, error } = await supabase
         .from('learning_history')
@@ -182,6 +229,17 @@ export const getLearningRecordFull = async (recordId: string): Promise<LearningR
         .single();
 
     if (error) throw error;
+
+    if (data && data.lesson_data) {
+        try {
+            const audio = await getLessonAudio(recordId);
+            if (audio && data.lesson_data.story) {
+                data.lesson_data.story.audioBase64 = audio;
+            }
+        } catch (audioErr) {
+            console.warn('Could not load audio for lesson record:', audioErr);
+        }
+    }
     return data as LearningRecord | null;
 };
 
@@ -193,3 +251,16 @@ export const deleteLearningRecord = async (recordId: string) => {
 
     if (error) throw error;
 };
+
+/**
+ * Wrap a promise with a maximum execution timeout.
+ * Prevents network calls from hanging indefinitely (e.g. after sleep/resume).
+ */
+export function withTimeout<T>(promise: Promise<T>, ms: number = 10000): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Yêu cầu hết hạn thời gian (Timeout). Vui lòng thử lại.')), ms)
+    ),
+  ]);
+}

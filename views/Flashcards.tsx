@@ -16,6 +16,10 @@ interface FlashcardsProps {
   cards: FlashcardData[];
   userId: string;
   onNextPhase: () => void;
+  initialIndex?: number;
+  onIndexChange?: (index: number) => void;
+  masteryMap?: Record<string, WordMasteryRecord | null>;
+  onMasteryMapChange?: (map: Record<string, WordMasteryRecord | null>) => void;
 }
 
 // 4-button rating config (matches ReviewSession styling)
@@ -31,9 +35,25 @@ const RATING_BUTTONS: {
   { rating: 3, label: 'Dễ', color: 'bg-emerald-500', hoverColor: 'hover:bg-emerald-600' },
 ];
 
-const Flashcards: React.FC<FlashcardsProps> = ({ cards, userId, onNextPhase }) => {
-  const [currentIndex, setCurrentIndex] = useState(0);
+const Flashcards: React.FC<FlashcardsProps> = ({
+  cards,
+  userId,
+  onNextPhase,
+  initialIndex = 0,
+  onIndexChange,
+  masteryMap: parentMasteryMap,
+  onMasteryMapChange,
+}) => {
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [isFlipped, setIsFlipped] = useState(false);
+
+  // Swipe gesture states
+  const [dragStartX, setDragStartX] = useState<number | null>(null);
+  const [dragOffset, setDragOffset] = useState<number>(0);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
+  const [flyOutDirection, setFlyOutDirection] = useState<'left' | 'right' | null>(null);
+  const hasDraggedRef = React.useRef(false);
 
   // Audio state (browser SpeechSynthesis — free, no API cost)
   const [playingText, setPlayingText] = useState<string | null>(null);
@@ -43,9 +63,101 @@ const Flashcards: React.FC<FlashcardsProps> = ({ cards, userId, onNextPhase }) =
   const [activeWordIndex, setActiveWordIndex] = useState<number | null>(null);
 
   // Mastery tracking — keyed by normalized word
-  const [masteryMap, setMasteryMap] = useState<Record<string, WordMasteryRecord | null>>({});
+  const [masteryMap, setMasteryMap] = useState<Record<string, WordMasteryRecord | null>>(parentMasteryMap ?? {});
+
+  useEffect(() => {
+    onIndexChange?.(currentIndex);
+  }, [currentIndex, onIndexChange]);
   const [masteryLoaded, setMasteryLoaded] = useState(false);
   const [savingRating, setSavingRating] = useState(false);
+
+  // Compute swipe styles dynamically
+  const cardStyle = useMemo(() => {
+    if (flyOutDirection === 'right') {
+      return {
+        transform: 'translateX(150%) rotate(15deg)',
+        opacity: 0,
+        transition: 'all 300ms ease-in-out',
+      };
+    }
+    if (flyOutDirection === 'left') {
+      return {
+        transform: 'translateX(-150%) rotate(-15deg)',
+        opacity: 0,
+        transition: 'all 300ms ease-in-out',
+      };
+    }
+    if (isDragging) {
+      const rotation = dragOffset * 0.05; // 0.05 deg per pixel
+      return {
+        transform: `translateX(${dragOffset}px) rotate(${rotation}deg)`,
+        transition: 'none',
+      };
+    }
+    return {
+      transform: 'none',
+      transition: 'all 300ms cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+    };
+  }, [isDragging, dragOffset, flyOutDirection]);
+
+  // --- Swipe event handlers ------------------------------------------------
+  const handleDragStart = (clientX: number) => {
+    if (!isFlipped || savingRating) return; // Only drag when flipped and not saving
+    setDragStartX(clientX);
+    setIsDragging(true);
+    hasDraggedRef.current = false;
+  };
+
+  const handleDragMove = (clientX: number) => {
+    if (!isDragging || dragStartX === null) return;
+    const offset = clientX - dragStartX;
+    setDragOffset(offset);
+
+    if (Math.abs(offset) > 5) {
+      hasDraggedRef.current = true;
+    }
+
+    if (offset > 80) {
+      setSwipeDirection('right');
+    } else if (offset < -80) {
+      setSwipeDirection('left');
+    } else {
+      setSwipeDirection(null);
+    }
+  };
+
+  const handleDragEnd = () => {
+    if (!isDragging) return;
+    setIsDragging(false);
+    setDragStartX(null);
+
+    const threshold = 80;
+    if (dragOffset > threshold) {
+      triggerSwipeOut('right');
+    } else if (dragOffset < -threshold) {
+      triggerSwipeOut('left');
+    } else {
+      setDragOffset(0);
+      setSwipeDirection(null);
+    }
+  };
+
+  const triggerSwipeOut = (dir: 'left' | 'right') => {
+    setFlyOutDirection(dir);
+    const rating: ConfidenceRating = dir === 'right' ? 2 : 0;
+    
+    const dummyEvent = {
+      stopPropagation: () => {},
+      preventDefault: () => {}
+    } as React.MouseEvent;
+
+    setTimeout(() => {
+      handleRating(rating, dummyEvent);
+      setDragOffset(0);
+      setSwipeDirection(null);
+      setFlyOutDirection(null);
+    }, 300);
+  };
 
   const currentCard = cards[currentIndex];
   const currentNormalizedWord = useMemo(
@@ -61,6 +173,14 @@ const Flashcards: React.FC<FlashcardsProps> = ({ cards, userId, onNextPhase }) =
   // --- Mastery bootstrap on mount / cards change ---------------------------
   useEffect(() => {
     let cancelled = false;
+
+    // Use cached/parent mastery mapping if already loaded to avoid N+1 queries
+    if (parentMasteryMap && Object.keys(parentMasteryMap).length > 0) {
+      setMasteryMap(parentMasteryMap);
+      setMasteryLoaded(true);
+      return;
+    }
+
     setMasteryLoaded(false);
 
     const words = cards.map((c) => c.word);
@@ -83,6 +203,7 @@ const Flashcards: React.FC<FlashcardsProps> = ({ cards, userId, onNextPhase }) =
           next[normalizeWord(w)] = records[i];
         });
         setMasteryMap(next);
+        onMasteryMapChange?.(next);
       } catch (err) {
         // Don't block the card display on a network error.
         console.error('Failed to load word mastery for flashcards:', err);
@@ -94,7 +215,7 @@ const Flashcards: React.FC<FlashcardsProps> = ({ cards, userId, onNextPhase }) =
     return () => {
       cancelled = true;
     };
-  }, [userId, cards]);
+  }, [userId, cards, parentMasteryMap, onMasteryMapChange]);
 
   const cleanupAudio = useCallback(() => {
     window.speechSynthesis.cancel();
@@ -218,10 +339,12 @@ const Flashcards: React.FC<FlashcardsProps> = ({ cards, userId, onNextPhase }) =
         incorrect_count: (existing.incorrect_count ?? 0) + (rating < 2 ? 1 : 0),
       });
 
-      setMasteryMap((prev) => ({
-        ...prev,
+      const nextMap = {
+        ...masteryMap,
         [currentNormalizedWord]: updated,
-      }));
+      };
+      setMasteryMap(nextMap);
+      onMasteryMapChange?.(nextMap);
 
       // Auto-advance to next card after rating
       cleanupAudio();
@@ -298,9 +421,44 @@ const Flashcards: React.FC<FlashcardsProps> = ({ cards, userId, onNextPhase }) =
 
       {/* Flashcard */}
       <div
-        className="w-full perspective-1000 cursor-pointer group"
-        onClick={() => setIsFlipped(!isFlipped)}
-        style={{ minHeight: '300px' }}
+        className="w-full perspective-1000 cursor-pointer group touch-none select-none relative"
+        style={{ minHeight: '300px', ...cardStyle }}
+        onClick={(e) => {
+          if (hasDraggedRef.current) {
+            e.stopPropagation();
+            hasDraggedRef.current = false;
+            return;
+          }
+          setIsFlipped(!isFlipped);
+        }}
+        onMouseDown={(e) => {
+          if (e.button !== 0) return;
+          handleDragStart(e.clientX);
+        }}
+        onMouseMove={(e) => {
+          handleDragMove(e.clientX);
+        }}
+        onMouseUp={() => {
+          handleDragEnd();
+        }}
+        onMouseLeave={() => {
+          if (isDragging) {
+            handleDragEnd();
+          }
+        }}
+        onTouchStart={(e) => {
+          if (e.touches.length > 0) {
+            handleDragStart(e.touches[0].clientX);
+          }
+        }}
+        onTouchMove={(e) => {
+          if (e.touches.length > 0) {
+            handleDragMove(e.touches[0].clientX);
+          }
+        }}
+        onTouchEnd={() => {
+          handleDragEnd();
+        }}
       >
         <div className={`relative w-full duration-500 transform-style-3d transition-transform ${isFlipped ? 'rotate-y-180' : ''}`} style={{ minHeight: '300px' }}>
 
@@ -314,9 +472,28 @@ const Flashcards: React.FC<FlashcardsProps> = ({ cards, userId, onNextPhase }) =
                 <MasteryBadge level={currentLevel} size="md" />
               </div>
             )}
-            <span className="text-xs font-bold tracking-widest text-blue-400 uppercase mb-3">Word</span>
-            <h3 className="text-3xl sm:text-5xl font-bold text-slate-800 dark:text-white mb-3 text-center">{currentCard.word}</h3>
-            <p className="text-slate-400 dark:text-slate-500 font-serif italic text-base">Tap to flip</p>
+            <span className="text-xs font-bold tracking-widest text-blue-400 uppercase mb-2">Word</span>
+            <h3 className="text-3xl sm:text-5xl font-bold text-slate-800 dark:text-white mb-4 text-center">{currentCard.word}</h3>
+            
+            {/* English Definition for Guessing */}
+            {currentCard.definitionEnglish && (
+              <div 
+                className="w-full max-w-md p-3 sm:p-4 mb-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-center"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsFlipped(!isFlipped);
+                }}
+              >
+                <p className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5">
+                  Đoán nghĩa tiếng Việt qua định nghĩa:
+                </p>
+                <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 italic font-medium leading-relaxed">
+                  "{currentCard.definitionEnglish}"
+                </p>
+              </div>
+            )}
+
+            <p className="text-slate-400 dark:text-slate-500 font-serif italic text-xs sm:text-sm mt-2">Tap card to see Vietnamese meaning</p>
           </div>
 
           {/* BACK */}
@@ -373,6 +550,35 @@ const Flashcards: React.FC<FlashcardsProps> = ({ cards, userId, onNextPhase }) =
             </div>
           </div>
         </div>
+
+        {/* Swipe Overlays */}
+        {isFlipped && (isDragging || flyOutDirection) && (
+          <>
+            {/* Right Swipe Overlay (Remembered) */}
+            <div 
+              className="absolute inset-0 bg-emerald-500/20 dark:bg-emerald-500/30 rounded-2xl sm:rounded-3xl border-4 border-emerald-500 flex flex-col items-center justify-center pointer-events-none transition-opacity duration-150 z-50"
+              style={{
+                opacity: dragOffset > 0 ? Math.min(dragOffset / 80, 1) : flyOutDirection === 'right' ? 1 : 0
+              }}
+            >
+              <div className="bg-emerald-500 text-white font-bold text-xl sm:text-2xl px-6 py-3 rounded-2xl shadow-lg transform rotate-[-12deg] flex items-center gap-2">
+                <span>✅</span> ĐÃ NHỚ
+              </div>
+            </div>
+
+            {/* Left Swipe Overlay (Forgot) */}
+            <div 
+              className="absolute inset-0 bg-orange-500/20 dark:bg-orange-500/30 rounded-2xl sm:rounded-3xl border-4 border-orange-500 flex flex-col items-center justify-center pointer-events-none transition-opacity duration-150 z-50"
+              style={{
+                opacity: dragOffset < 0 ? Math.min(-dragOffset / 80, 1) : flyOutDirection === 'left' ? 1 : 0
+              }}
+            >
+              <div className="bg-orange-500 text-white font-bold text-xl sm:text-2xl px-6 py-3 rounded-2xl shadow-lg transform rotate-[12deg] flex items-center gap-2">
+                <span>↻</span> CHƯA NHỚ
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Quick-Mark buttons — shown after flip for ALL mastery levels */}

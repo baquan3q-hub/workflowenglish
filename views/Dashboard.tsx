@@ -236,6 +236,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onGenerate, isLoading, userId, on
     void loadRecommendations({ skipCache: true });
   };
 
+  const handleGenerateFromRecommendations = () => {
+    if (!recommendations || recommendations.length === 0) return;
+    const words = recommendations.slice(0, MAX_RECOMMENDATIONS_DISPLAYED).map(r => r.word).join(', ');
+    onGenerate(words, {
+      level: recommendations[0].cefrLevel || settings.level,
+      topic: recommendations[0].topic || settings.topic,
+    });
+  };
+
   /** Append a word to the textarea (comma-separated if non-empty). */
   const appendWordToInput = (word: string) => {
     setInputText((prev) => {
@@ -562,38 +571,51 @@ const Dashboard: React.FC<DashboardProps> = ({ onGenerate, isLoading, userId, on
             !fallbackTopicsActive &&
             recommendations &&
             recommendations.length > 0 && (
-              <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 snap-x">
-                {recommendations
-                  .slice(0, MAX_RECOMMENDATIONS_DISPLAYED)
-                  .map((rec, idx) => (
-                    <article
-                      key={`${rec.word}-${idx}`}
-                      className="flex-shrink-0 w-52 snap-start rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 flex flex-col gap-2"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-white leading-tight break-words">
-                          {rec.word}
-                        </h3>
-                        <span className="flex-shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-md bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 text-[10px] font-semibold tracking-wide">
-                          {rec.cefrLevel}
-                        </span>
-                      </div>
-                      <p className="text-sm text-slate-600 dark:text-slate-300 line-clamp-2">
-                        {rec.meaningVietnamese}
-                      </p>
-                      <span className="inline-flex self-start items-center px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[11px] font-medium">
-                        {rec.topic}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => appendWordToInput(rec.word)}
-                        className="mt-auto inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-800"
+              <div className="space-y-4">
+                <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 snap-x">
+                  {recommendations
+                    .slice(0, MAX_RECOMMENDATIONS_DISPLAYED)
+                    .map((rec, idx) => (
+                      <article
+                        key={`${rec.word}-${idx}`}
+                        className="flex-shrink-0 w-52 snap-start rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 flex flex-col gap-2 hover:border-blue-300 dark:hover:border-blue-700 transition-colors"
                       >
-                        <Plus className="w-3.5 h-3.5" aria-hidden="true" />
-                        Học từ này
-                      </button>
-                    </article>
-                  ))}
+                        <div className="flex items-start justify-between gap-2">
+                          <h3 className="text-lg font-bold text-slate-900 dark:text-white leading-tight break-words font-sans">
+                            {rec.word}
+                          </h3>
+                          <span className="flex-shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-md bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 text-[10px] font-semibold tracking-wide">
+                            {rec.cefrLevel}
+                          </span>
+                        </div>
+                        <p className="text-sm text-slate-600 dark:text-slate-300 line-clamp-2">
+                          {rec.meaningVietnamese}
+                        </p>
+                        <span className="inline-flex self-start items-center px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[11px] font-medium">
+                          {rec.topic}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => appendWordToInput(rec.word)}
+                          className="mt-auto inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-800"
+                        >
+                          <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+                          Học từ này
+                        </button>
+                      </article>
+                    ))}
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="button"
+                    onClick={handleGenerateFromRecommendations}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-sm font-bold shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Tạo bài học từ 5 gợi ý này
+                  </button>
+                </div>
               </div>
             )}
 

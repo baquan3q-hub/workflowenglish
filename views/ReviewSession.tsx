@@ -28,6 +28,17 @@ interface ReviewSessionProps {
    * above the header on any phase.
    */
   onShowToast?: (message: string, type?: 'success' | 'info') => void;
+
+  dueWords: WordMasteryRecord[] | null;
+  setDueWords: React.Dispatch<React.SetStateAction<WordMasteryRecord[] | null>>;
+  currentIndex: number;
+  setCurrentIndex: React.Dispatch<React.SetStateAction<number>>;
+  ratings: ConfidenceRating[];
+  setRatings: React.Dispatch<React.SetStateAction<ConfidenceRating[]>>;
+  goalCelebrated: boolean;
+  setGoalCelebrated: React.Dispatch<React.SetStateAction<boolean>>;
+  nextReviewIso: string | null;
+  setNextReviewIso: React.Dispatch<React.SetStateAction<string | null>>;
 }
 
 interface RatingButtonConfig {
@@ -97,24 +108,42 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
   onComplete,
   onBack,
   onShowToast,
+  dueWords: propDueWords,
+  setDueWords: propSetDueWords,
+  currentIndex: propCurrentIndex,
+  setCurrentIndex: propSetCurrentIndex,
+  ratings: propRatings,
+  setRatings: propSetRatings,
+  goalCelebrated: propGoalCelebrated,
+  setGoalCelebrated: propSetGoalCelebrated,
+  nextReviewIso: propNextReviewIso,
+  setNextReviewIso: propSetNextReviewIso,
 }) => {
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(propDueWords === null);
   const [error, setError] = useState<string | null>(null);
-  const [dueWords, setDueWords] = useState<WordMasteryRecord[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [ratings, setRatings] = useState<ConfidenceRating[]>([]);
   const [finished, setFinished] = useState(false);
-  // One-shot guard so the celebration toast fires at most once per session,
-  // even if the user keeps rating after hitting the daily goal.
-  const [goalCelebrated, setGoalCelebrated] = useState(false);
-  // Tracks the next-review date of the soonest upcoming word when the
-  // user has nothing due today. Computed once on initial load.
-  const [nextReviewIso, setNextReviewIso] = useState<string | null>(null);
+
+  // Local wrappers or references to the prop states
+  const dueWords = propDueWords || [];
+  const setDueWords = propSetDueWords;
+  const currentIndex = propCurrentIndex;
+  const setCurrentIndex = propSetCurrentIndex;
+  const ratings = propRatings;
+  const setRatings = propSetRatings;
+  const goalCelebrated = propGoalCelebrated;
+  const setGoalCelebrated = propSetGoalCelebrated;
+  const nextReviewIso = propNextReviewIso;
+  const setNextReviewIso = propSetNextReviewIso;
 
   // Initial fetch
   useEffect(() => {
+    if (propDueWords !== null) {
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
     (async () => {
       try {
@@ -139,7 +168,7 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [userId, propDueWords, setDueWords, setNextReviewIso]);
 
   const currentCard = dueWords[currentIndex];
 

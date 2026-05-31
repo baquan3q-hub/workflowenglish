@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AppPhase, DifficultyLevel, GeneratedLesson, UserSettings } from './types';
 import { generateLessonContent } from './services/geminiService';
-import { supabase, getProfile, signOut, saveLearningRecord, getLearningRecordFull, LearningRecord } from './services/supabaseClient';
+import { supabase, getProfile, signOut, saveLearningRecord, getLearningRecordFull, LearningRecord, saveLessonAudio, getLessonAudio } from './services/supabaseClient';
 import {
   checkLevelSuggestion,
   acceptLevelChange,
@@ -55,6 +55,20 @@ function App() {
     currentLevel: DifficultyLevel;
     nextLevel: DifficultyLevel;
   } | null>(null);
+
+  // Lifted flashcard state to prevent unmount loss and lag N+1 queries
+  const [flashcardIndex, setFlashcardIndex] = useState<number>(0);
+  const [lessonMasteryMap, setLessonMasteryMap] = useState<Record<string, any>>({});
+
+  // Lifted ReviewSession state to prevent unmount loss
+  const [reviewDueWords, setReviewDueWords] = useState<any[] | null>(null);
+  const [reviewCurrentIndex, setReviewCurrentIndex] = useState<number>(0);
+  const [reviewRatings, setReviewRatings] = useState<any[]>([]);
+  const [reviewGoalCelebrated, setReviewGoalCelebrated] = useState<boolean>(false);
+  const [reviewNextReviewIso, setReviewNextReviewIso] = useState<string | null>(null);
+
+  // Saving state for loading feedback in modal
+  const [isSaving, setIsSaving] = useState(false);
 
   // Dark mode state
   const [darkMode, setDarkMode] = useState(() => {
@@ -126,6 +140,48 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Keep a ref to currentUser to prevent stale closures and avoid unnecessary re-subscriptions
+  const currentUserRef = React.useRef(currentUser);
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+
+  // Proactively re-sync Supabase session & user profile on tab return / device wake
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible') {
+        console.log('App returned to foreground, checking session...');
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            const currUser = currentUserRef.current;
+            // ONLY fetch profile from DB if we don't have a user yet, or the user id changed
+            if (!currUser || currUser.id !== session.user.id) {
+              console.log('User changed or not set, syncing profile...');
+              const profile = await getProfile(session.user.id);
+              setCurrentUser({
+                id: session.user.id,
+                username: profile.username,
+                displayName: profile.display_name,
+              });
+            } else {
+              console.log('Session already in sync for active user. Skipping network profile fetch.');
+            }
+          }
+        } catch (err) {
+          console.warn('Foreground session sync failed:', err);
+        }
+      }
+    };
+
+    // Only listen to visibilitychange to avoid redundant double-triggers from focus events when clicking around
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
   const handleLogin = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -158,6 +214,8 @@ function App() {
     setError(null);
     setLessonSettings(settings);
     setLessonWords(text);
+    setFlashcardIndex(0);
+    setLessonMasteryMap({});
     try {
       const data = await generateLessonContent(text, settings.level, settings.topic);
       setLessonData(data);
@@ -172,12 +230,26 @@ function App() {
   };
 
   const saveCurrentLesson = async (overrideData?: GeneratedLesson) => {
-    if (!currentUser || !lessonSettings) return;
+    if (!currentUser) throw new Error('Bạn chưa đăng nhập. Vui lòng đăng nhập.');
+    if (!lessonSettings) throw new Error('Thiếu cấu hình bài học (level/topic).');
     const dataToSave = overrideData || lessonData;
-    if (!dataToSave) return;
+    if (!dataToSave) throw new Error('Không có dữ liệu bài học để lưu.');
 
     try {
       console.log("Auto-saving lesson...");
+      // Clean payload: strip the massive base64 audio
+      let strippedData = dataToSave;
+      let audioToSave = dataToSave.story?.audioBase64;
+      if (audioToSave && strippedData.story) {
+        strippedData = {
+          ...dataToSave,
+          story: {
+            ...dataToSave.story,
+            audioBase64: undefined
+          }
+        };
+      }
+
       const savedRecord = await saveLearningRecord({
         id: currentRecordId || undefined,
         user_id: currentUser.id,
@@ -189,14 +261,22 @@ function App() {
         // We'll trust the latest "save" updates content. 
         // Quiz completion handles score specifically.
         quiz_total: dataToSave.quiz.length,
-        lesson_data: dataToSave,
+        lesson_data: strippedData,
       });
       if (savedRecord && savedRecord.id) {
         setCurrentRecordId(savedRecord.id);
         console.log("Lesson saved with ID:", savedRecord.id);
+
+        if (audioToSave) {
+          saveLessonAudio(savedRecord.id, audioToSave).then(success => {
+            if (success) console.log("Audio saved to lesson_audio table.");
+            else console.warn("Could not save audio to lesson_audio table.");
+          });
+        }
       }
     } catch (err) {
       console.error('Failed to save learning record:', err);
+      throw err; // propagate to handleModalYes
     }
   };
 
@@ -205,6 +285,18 @@ function App() {
   const handleQuizComplete = async (score: number, total: number) => {
     if (!currentUser || !lessonSettings || !lessonData) return;
     try {
+      let strippedData = lessonData;
+      let audioToSave = lessonData.story?.audioBase64;
+      if (audioToSave && strippedData.story) {
+        strippedData = {
+          ...lessonData,
+          story: {
+            ...lessonData.story,
+            audioBase64: undefined
+          }
+        };
+      }
+
       const savedRecord = await saveLearningRecord({
         id: currentRecordId || undefined,
         user_id: currentUser.id,
@@ -213,13 +305,16 @@ function App() {
         words: lessonWords,
         quiz_score: score,
         quiz_total: total,
-        lesson_data: lessonData,
+        lesson_data: strippedData,
       });
       if (savedRecord && savedRecord.id) {
         setCurrentRecordId(savedRecord.id);
+        if (audioToSave) {
+          saveLessonAudio(savedRecord.id, audioToSave);
+        }
       }
     } catch (err) {
-      console.error('Failed to save learning record:', err);
+      console.error('Failed to save quiz complete record:', err);
     }
 
     // Adaptive difficulty: after the record is saved, check whether recent
@@ -280,6 +375,8 @@ function App() {
     setCurrentRecordId(record.id);
     setIsLoading(true);
     setError(null);
+    setFlashcardIndex(0);
+    setLessonMasteryMap({});
     try {
       // Lazy-load the full record (with lesson_data) only when clicked
       const fullRecord = await getLearningRecordFull(record.id);
@@ -347,13 +444,29 @@ function App() {
   };
 
   const handleModalYes = async () => {
-    await saveCurrentLesson();
-    setShowSaveModal(false);
-    setLessonData(null);
-    setCurrentRecordId(null);
-    setMobileMenuOpen(false);
-    if (pendingNavTarget) setPhase(pendingNavTarget);
-    setPendingNavTarget(null);
+    setIsSaving(true);
+    try {
+      await saveCurrentLesson();
+      showToast('Đã lưu bài học thành công!', 'success');
+      setShowSaveModal(false);
+      setLessonData(null);
+      setCurrentRecordId(null);
+      setMobileMenuOpen(false);
+      if (pendingNavTarget) setPhase(pendingNavTarget);
+      setPendingNavTarget(null);
+    } catch (err: any) {
+      console.error('Failed to save lesson:', err);
+      showToast(err?.message || 'Không thể lưu bài học. Vui lòng kiểm tra kết nối.', 'info');
+      // Dismiss modal anyway to prevent softlock
+      setShowSaveModal(false);
+      setLessonData(null);
+      setCurrentRecordId(null);
+      setMobileMenuOpen(false);
+      if (pendingNavTarget) setPhase(pendingNavTarget);
+      setPendingNavTarget(null);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleModalContinue = () => {
@@ -431,6 +544,10 @@ function App() {
             cards={lessonData.flashcards}
             userId={currentUser.id}
             onNextPhase={() => setPhase(AppPhase.STORY)}
+            initialIndex={flashcardIndex}
+            onIndexChange={setFlashcardIndex}
+            masteryMap={lessonMasteryMap}
+            onMasteryMapChange={setLessonMasteryMap}
           />
         ) : null;
 
@@ -438,9 +555,25 @@ function App() {
         return currentUser ? (
           <ReviewSession
             userId={currentUser.id}
-            onComplete={() => setPhase(AppPhase.DASHBOARD)}
+            onComplete={() => {
+              setReviewDueWords(null);
+              setReviewCurrentIndex(0);
+              setReviewRatings([]);
+              setReviewGoalCelebrated(false);
+              setPhase(AppPhase.DASHBOARD);
+            }}
             onBack={() => setPhase(AppPhase.DASHBOARD)}
             onShowToast={showToast}
+            dueWords={reviewDueWords}
+            setDueWords={setReviewDueWords}
+            currentIndex={reviewCurrentIndex}
+            setCurrentIndex={setReviewCurrentIndex}
+            ratings={reviewRatings}
+            setRatings={setReviewRatings}
+            goalCelebrated={reviewGoalCelebrated}
+            setGoalCelebrated={setReviewGoalCelebrated}
+            nextReviewIso={reviewNextReviewIso}
+            setNextReviewIso={setReviewNextReviewIso}
           />
         ) : null;
 
@@ -496,6 +629,18 @@ function App() {
               }
 
               try {
+                let strippedData = lessonData;
+                let audioToSave = lessonData.story?.audioBase64;
+                if (audioToSave && strippedData.story) {
+                  strippedData = {
+                    ...lessonData,
+                    story: {
+                      ...lessonData.story,
+                      audioBase64: undefined
+                    }
+                  };
+                }
+
                 const savedRecord = await saveLearningRecord({
                   id: currentRecordId || undefined,
                   user_id: currentUser.id,
@@ -504,11 +649,16 @@ function App() {
                   words: lessonWords,
                   quiz_score: 0,
                   quiz_total: lessonData.quiz.length,
-                  lesson_data: lessonData,
+                  lesson_data: strippedData,
                 });
                 console.log('[Save] Saved successfully:', savedRecord?.id);
                 if (savedRecord && savedRecord.id) {
                   setCurrentRecordId(savedRecord.id);
+                  if (audioToSave) {
+                    saveLessonAudio(savedRecord.id, audioToSave).then(success => {
+                      if (success) console.log("Audio saved successfully from FillBlank Save.");
+                    });
+                  }
                 }
               } catch (err: any) {
                 console.error('[Save] Failed:', err);
@@ -583,10 +733,38 @@ function App() {
 
             {/* Right side */}
             {currentUser && (
-              <div className="flex items-center gap-1 sm:gap-2">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                {/* Proactive Save Button during learning session */}
+                {lessonData && (phase === AppPhase.FLASHCARDS || phase === AppPhase.STORY || phase === AppPhase.QUIZ || phase === AppPhase.FILL_BLANK) && (
+                  <button
+                    disabled={isSaving}
+                    onClick={async () => {
+                      setIsSaving(true);
+                      try {
+                        await saveCurrentLesson();
+                        showToast('Đã lưu tiến trình bài học!', 'success');
+                      } catch (err: any) {
+                        console.error('Proactive save failed:', err);
+                        showToast(err?.message || 'Không thể lưu bài học.', 'info');
+                      } finally {
+                        setIsSaving(false);
+                      }
+                    }}
+                    className="flex items-center gap-1.5 p-2.5 sm:px-3 sm:py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 text-white rounded-xl sm:rounded-lg transition-all text-xs font-bold shadow-sm"
+                    title="Lưu tiến trình học chủ động"
+                  >
+                    {isSaving ? (
+                      <Loader2 className="w-4 h-4 sm:w-3.5 sm:h-3.5 animate-spin" />
+                    ) : (
+                      <BookOpen className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                    )}
+                    <span className="hidden md:inline">{isSaving ? 'Đang lưu...' : 'Lưu bài học'}</span>
+                  </button>
+                )}
+
                 <button
                   onClick={() => setDarkMode(!darkMode)}
-                  className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
+                  className="p-2 rounded-xl sm:rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
                   title={darkMode ? "Chuyển sang chế độ sáng" : "Chuyển sang chế độ tối"}
                 >
                   {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
@@ -602,7 +780,7 @@ function App() {
                     }
                   }}
                   className={`
-                    group relative flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all border shadow-sm
+                    group relative flex items-center gap-2 p-2.5 sm:px-3 sm:py-1.5 rounded-xl sm:rounded-lg transition-all border shadow-sm
                     ${phase === AppPhase.HISTORY
                       ? 'bg-indigo-100 text-indigo-700 border-indigo-200 ring-2 ring-indigo-500 ring-offset-1 font-bold dark:ring-offset-slate-800'
                       : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-200 dark:hover:border-indigo-900 hover:shadow-md'
@@ -610,9 +788,8 @@ function App() {
                   `}
                   title="Xem lịch sử học tập"
                 >
-                  <History className={`w-4 h-4 transition-transform ${phase !== AppPhase.HISTORY ? 'group-hover:scale-110' : ''}`} />
-                  <span className="font-semibold text-sm">Lịch sử</span>
-                  {/* Notification dot (optional - could check if history has items, but simple for now) */}
+                  <History className={`w-4.5 h-4.5 sm:w-4 sm:h-4 transition-transform ${phase !== AppPhase.HISTORY ? 'group-hover:scale-110' : ''}`} />
+                  <span className="font-semibold text-sm hidden md:inline">Lịch sử</span>
                 </button>
 
                 <button
@@ -626,7 +803,7 @@ function App() {
                     }
                   }}
                   className={`
-                    group relative flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all border shadow-sm
+                    group relative flex items-center gap-2 p-2.5 sm:px-3 sm:py-1.5 rounded-xl sm:rounded-lg transition-all border shadow-sm
                     ${phase === AppPhase.ANALYTICS
                       ? 'bg-emerald-100 text-emerald-700 border-emerald-200 ring-2 ring-emerald-500 ring-offset-1 font-bold dark:ring-offset-slate-800'
                       : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-200 dark:hover:border-emerald-900 hover:shadow-md'
@@ -634,8 +811,8 @@ function App() {
                   `}
                   title="Xem thống kê học tập"
                 >
-                  <BarChart3 className={`w-4 h-4 transition-transform ${phase !== AppPhase.ANALYTICS ? 'group-hover:scale-110' : ''}`} />
-                  <span className="font-semibold text-sm">Thống kê</span>
+                  <BarChart3 className={`w-4.5 h-4.5 sm:w-4 sm:h-4 transition-transform ${phase !== AppPhase.ANALYTICS ? 'group-hover:scale-110' : ''}`} />
+                  <span className="font-semibold text-sm hidden md:inline">Thống kê</span>
                 </button>
 
                 <div className="hidden sm:flex items-center gap-2 bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700">
@@ -725,7 +902,7 @@ function App() {
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-5 animate-fade-in">
             <div className="text-center">
               <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <BookOpen className="w-7 h-7 text-blue-600" />
+                <BookOpen className="w-7 h-7 text-blue-600 animate-pulse" />
               </div>
               <h3 className="text-lg font-bold text-slate-900">Lưu bài học này?</h3>
               <p className="text-sm text-slate-500 mt-1">
@@ -734,20 +911,30 @@ function App() {
             </div>
             <div className="flex flex-col gap-2.5">
               <button
+                disabled={isSaving}
                 onClick={handleModalYes}
-                className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-blue-200 transition-all"
+                className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-blue-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Lưu bài học
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Đang lưu...
+                  </>
+                ) : (
+                  'Lưu bài học'
+                )}
               </button>
               <button
+                disabled={isSaving}
                 onClick={handleModalNo}
-                className="w-full py-3 bg-slate-100 text-slate-700 font-semibold rounded-xl hover:bg-slate-200 transition-all"
+                className="w-full py-3 bg-slate-100 text-slate-700 font-semibold rounded-xl hover:bg-slate-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Không lưu
               </button>
               <button
+                disabled={isSaving}
                 onClick={handleModalContinue}
-                className="w-full py-2.5 text-blue-600 font-semibold rounded-xl hover:bg-blue-50 transition-all text-sm"
+                className="w-full py-2.5 text-blue-600 font-semibold rounded-xl hover:bg-blue-50 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 ← Học tiếp
               </button>

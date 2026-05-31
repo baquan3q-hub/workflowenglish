@@ -248,3 +248,60 @@ export async function getTotalStats(userId: string): Promise<TotalStats> {
     currentLevel: goals.preferred_level,
   };
 }
+
+/**
+ * Get top `limit` hardest words for `userId` (ordered by `incorrect_count DESC` and `correct_count ASC`).
+ * Only includes words with at least one incorrect attempt (`incorrect_count > 0`).
+ */
+export async function getHardestWords(
+  userId: string,
+  limit: number = 5,
+): Promise<any[]> {
+  const { data, error } = await supabase
+    .from(WORD_MASTERY_TABLE)
+    .select('*')
+    .eq('user_id', userId)
+    .gt('incorrect_count', 0)
+    .order('incorrect_count', { ascending: false })
+    .order('correct_count', { ascending: true })
+    .limit(limit);
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+/**
+ * Get top `limit` recently mastered words for `userId` (mastery_level = MasteryLevel.MASTERED).
+ */
+export async function getMasteredWords(
+  userId: string,
+  limit: number = 15,
+): Promise<any[]> {
+  const { data, error } = await supabase
+    .from(WORD_MASTERY_TABLE)
+    .select('*')
+    .eq('user_id', userId)
+    .eq('mastery_level', MasteryLevel.MASTERED)
+    .order('last_reviewed_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+/**
+ * Get all tracked words for `userId` with full metadata, ordered by their creation date.
+ */
+export async function getAllTrackedWords(
+  userId: string
+): Promise<any[]> {
+  const { data, error } = await supabase
+    .from(WORD_MASTERY_TABLE)
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data ?? [];
+}
+
