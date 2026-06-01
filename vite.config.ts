@@ -30,10 +30,10 @@ export default defineConfig(({ mode }) => {
           // Don't cache API calls or Supabase requests
           navigateFallbackDenylist: [/^\/auth/, /supabase/],
         },
-        includeAssets: ['logo.svg'],
+        includeAssets: ['avatarandlogo.png', 'logo.svg'],
         manifest: {
-          name: 'VocabMaster - AI English Learning',
-          short_name: 'VocabMaster',
+          name: 'Work-FlowEnglish - AI English Learning',
+          short_name: 'Work-FlowEnglish',
           description: 'Learn English vocabulary effectively with AI-powered stories and flashcards.',
           theme_color: '#ffffff',
           background_color: '#ffffff',
@@ -42,15 +42,15 @@ export default defineConfig(({ mode }) => {
           start_url: '/',
           icons: [
             {
-              src: '/logo.svg',
+              src: '/avatarandlogo.png',
               sizes: '192x192',
-              type: 'image/svg+xml',
+              type: 'image/png',
               purpose: 'any maskable'
             },
             {
-              src: '/logo.svg',
+              src: '/avatarandlogo.png',
               sizes: '512x512',
-              type: 'image/svg+xml',
+              type: 'image/png',
               purpose: 'any maskable'
             }
           ]
