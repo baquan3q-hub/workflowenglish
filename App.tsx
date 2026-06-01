@@ -900,9 +900,7 @@ function App() {
           <div className="max-w-6xl mx-auto px-4 h-14 sm:h-16 flex items-center justify-between">
             {/* Logo */}
             <div className="flex items-center gap-2 cursor-pointer flex-shrink-0" onClick={() => navigateWithConfirm(AppPhase.DASHBOARD)}>
-              <div className="bg-blue-600 text-white p-1 rounded-md">
-                <Layout className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              </div>
+              <img src="/avatarandlogo.png" className="w-7 h-7 sm:w-8 sm:h-8 object-contain rounded-lg shadow-sm border border-slate-100 dark:border-slate-700" alt="Logo" />
               <span className="font-bold text-sm sm:text-base tracking-tight hidden sm:inline">VocabMaster</span>
             </div>
 
@@ -920,7 +918,7 @@ function App() {
                         onClick={() => !isDisabled && (step.id === AppPhase.DASHBOARD ? navigateWithConfirm(step.id) : setPhase(step.id))}
                         disabled={isDisabled}
                         className={`
-                          px-2 py-0.5 rounded-full text-[10px] font-bold
+                          px-3 py-1 rounded-full text-xs font-bold
                           ${isActive ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-500 ring-offset-1' : ''}
                           ${isPassed ? 'bg-green-100 text-green-700 hover:bg-green-200' : ''}
                           ${!isActive && !isPassed ? 'text-slate-400 hover:bg-slate-100' : ''}
@@ -959,13 +957,13 @@ function App() {
                         setIsSaving(false);
                       }
                     }}
-                    className="flex items-center gap-1 p-1 sm:px-2 sm:py-0.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 text-white rounded-md text-[9px] font-bold shadow-sm"
+                    className="flex items-center gap-1.5 p-1.5 sm:px-3 sm:py-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 text-white rounded-md text-xs font-bold shadow-sm"
                     title="Lưu tiến trình học chủ động"
                   >
                     {isSaving ? (
-                      <Loader2 className="w-3 h-3" />
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     ) : (
-                      <BookOpen className="w-3 h-3" />
+                      <BookOpen className="w-3.5 h-3.5" />
                     )}
                     <span className="hidden md:inline">{isSaving ? 'Đang lưu...' : 'Lưu bài học'}</span>
                   </button>
@@ -975,10 +973,10 @@ function App() {
 
                 <button
                   onClick={() => setDarkMode(!darkMode)}
-                  className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400"
+                  className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400"
                   title={darkMode ? "Chuyển sang chế độ sáng" : "Chuyển sang chế độ tối"}
                 >
-                  {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                  {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
                 </button>
                 <button
                   onClick={() => {
@@ -991,7 +989,7 @@ function App() {
                     }
                   }}
                   className={`
-                    group relative flex items-center gap-1 p-1 sm:px-2 sm:py-0.5 rounded-md border shadow-sm
+                    group relative flex items-center gap-1.5 p-1.5 sm:px-3 sm:py-1 rounded-md border shadow-sm
                     ${phase === AppPhase.HISTORY
                       ? 'bg-indigo-100 text-indigo-700 border-indigo-200 ring-1 ring-indigo-500 font-bold dark:ring-offset-slate-800'
                       : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-200 dark:hover:border-indigo-900'
@@ -999,8 +997,8 @@ function App() {
                   `}
                   title="Xem lịch sử học tập"
                 >
-                  <History className="w-3 h-3" />
-                  <span className="font-semibold text-[10px] hidden md:inline">Lịch sử</span>
+                  <History className="w-3.5 h-3.5" />
+                  <span className="font-bold text-xs hidden md:inline">Lịch sử</span>
                 </button>
 
                 <button
@@ -1014,7 +1012,7 @@ function App() {
                     }
                   }}
                   className={`
-                    group relative flex items-center gap-1 p-1 sm:px-2 sm:py-0.5 rounded-md border shadow-sm
+                    group relative flex items-center gap-1.5 p-1.5 sm:px-3 sm:py-1 rounded-md border shadow-sm
                     ${phase === AppPhase.ANALYTICS
                       ? 'bg-emerald-100 text-emerald-700 border-emerald-200 ring-1 ring-emerald-500 font-bold dark:ring-offset-slate-800'
                       : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-200 dark:hover:border-emerald-900'
@@ -1022,21 +1020,21 @@ function App() {
                   `}
                   title="Xem thống kê học tập"
                 >
-                  <BarChart3 className="w-3 h-3" />
-                  <span className="font-semibold text-[10px] hidden md:inline">Thống kê</span>
+                  <BarChart3 className="w-3.5 h-3.5" />
+                  <span className="font-bold text-xs hidden md:inline">Thống kê</span>
                 </button>
 
-                <div className="hidden sm:flex items-center gap-1 bg-slate-50 dark:bg-slate-900/50 px-1.5 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">
-                  <User className="w-3 h-3 text-blue-600 dark:text-blue-400" />
-                  <span className="text-[10px] font-medium text-slate-700 dark:text-slate-300 max-w-[100px] truncate">{currentUser.displayName}</span>
+                <div className="hidden sm:flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/50 px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-700">
+                  <img src="/avatarandlogo.png" className="w-5 h-5 rounded-full object-cover border border-blue-100 dark:border-slate-700 shadow-sm" alt="Avatar" />
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 max-w-[100px] truncate">{currentUser.displayName}</span>
                 </div>
 
                 <button
                   onClick={handleLogout}
-                  className="p-1 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-500"
+                  className="p-1.5 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-500"
                   title="Đăng xuất"
                 >
-                  <LogOut className="w-3 h-3" />
+                  <LogOut className="w-4 h-4" />
                 </button>
               </div>
             )}

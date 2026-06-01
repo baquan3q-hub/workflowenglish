@@ -41,7 +41,7 @@ function createTimeoutError(ms: number): Error {
     return new Error(`Yêu cầu quá thời gian phản hồi (${Math.round(ms / 1000)}s). Vui lòng thử lại.`);
 }
 
-const fetchWithTimeout: typeof fetch = async (input, init = {}) => {
+const fetchWithTimeout: typeof fetch = async (input, init: RequestInit = {}) => {
     const controller = new AbortController();
     const upstreamSignal = init.signal;
     let timedOut = false;
@@ -83,7 +83,7 @@ const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
         detectSessionInUrl: true,
         storageKey: authStorageKey,
         lockAcquireTimeout: SUPABASE_AUTH_LOCK_TIMEOUT_MS,
-    },
+    } as any,
 });
 
 const supabaseData = createClient(supabaseUrl, supabaseAnonKey, {
