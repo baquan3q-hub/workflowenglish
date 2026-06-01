@@ -16,7 +16,7 @@
  *   LAPSED    --rating>=2-->                  LEARNING
  */
 
-import { supabase } from './supabaseClient';
+import { supabase, withTimeout } from './supabaseClient';
 import {
   MasteryLevel,
   type ConfidenceRating,
@@ -125,12 +125,12 @@ export async function getWordMastery(
   word: string,
 ): Promise<WordMasteryRecord | null> {
   const normalized = normalizeWord(word);
-  const { data, error } = await supabase
+  const { data, error } = await withTimeout(Promise.resolve(supabase
     .from(TABLE)
     .select('*')
     .eq('user_id', userId)
     .eq('word', normalized)
-    .single();
+    .single()));
 
   if (error) {
     if (error.code === 'PGRST116') return null; // no rows
@@ -154,11 +154,11 @@ export async function upsertWordMastery(
     word: normalizeWord(record.word),
   };
 
-  const { data, error } = await supabase
+  const { data, error } = await withTimeout(Promise.resolve(supabase
     .from(TABLE)
     .upsert(payload, { onConflict: 'user_id,word' })
     .select()
-    .single();
+    .single()));
 
   if (error) throw error;
   return data as WordMasteryRecord;
@@ -172,12 +172,12 @@ export async function getDueWords(
   userId: string,
 ): Promise<WordMasteryRecord[]> {
   const nowIso = new Date().toISOString();
-  const { data, error } = await supabase
+  const { data, error } = await withTimeout(Promise.resolve(supabase
     .from(TABLE)
     .select('*')
     .eq('user_id', userId)
     .lte('next_review_date', nowIso)
-    .order('next_review_date', { ascending: true });
+    .order('next_review_date', { ascending: true })));
 
   if (error) throw error;
   return (data ?? []) as WordMasteryRecord[];
@@ -189,11 +189,11 @@ export async function getDueWords(
  */
 export async function getDueWordCount(userId: string): Promise<number> {
   const nowIso = new Date().toISOString();
-  const { count, error } = await supabase
+  const { count, error } = await withTimeout(Promise.resolve(supabase
     .from(TABLE)
     .select('id', { count: 'exact', head: true })
     .eq('user_id', userId)
-    .lte('next_review_date', nowIso);
+    .lte('next_review_date', nowIso)));
 
   if (error) throw error;
   return count ?? 0;
@@ -216,10 +216,10 @@ export interface WordMasteryStats {
 export async function getWordMasteryStats(
   userId: string,
 ): Promise<WordMasteryStats> {
-  const { data, error } = await supabase
+  const { data, error } = await withTimeout(Promise.resolve(supabase
     .from(TABLE)
     .select('mastery_level')
-    .eq('user_id', userId);
+    .eq('user_id', userId)));
 
   if (error) throw error;
 
@@ -289,9 +289,9 @@ export async function recordQuizIncorrect(
     incorrect_contexts: nextContexts,
   };
 
-  const { error } = await supabase
+  const { error } = await withTimeout(Promise.resolve(supabase
     .from(TABLE)
-    .upsert(payload, { onConflict: 'user_id,word' });
+    .upsert(payload, { onConflict: 'user_id,word' })));
 
   if (error) throw error;
 }
@@ -323,9 +323,9 @@ export async function bulkEnsureWords(
     word,
   }));
 
-  const { error } = await supabase
+  const { error } = await withTimeout(Promise.resolve(supabase
     .from(TABLE)
-    .upsert(rows, { onConflict: 'user_id,word', ignoreDuplicates: true });
+    .upsert(rows, { onConflict: 'user_id,word', ignoreDuplicates: true })));
 
   if (error) throw error;
 }
@@ -368,9 +368,9 @@ export async function bulkEnsureWordsWithMetadata(
     word: normalizeWord(card.word),
   }));
 
-  const { error: insertError } = await supabase
+  const { error: insertError } = await withTimeout(Promise.resolve(supabase
     .from(TABLE)
-    .upsert(insertRows, { onConflict: 'user_id,word', ignoreDuplicates: true });
+    .upsert(insertRows, { onConflict: 'user_id,word', ignoreDuplicates: true })));
 
   if (insertError) {
     console.error('bulkEnsureWordsWithMetadata insert pass failed:', insertError);
@@ -381,7 +381,7 @@ export async function bulkEnsureWordsWithMetadata(
   // metadata columns, never SRS state)
   const updatePromises = unique.map((card) => {
     const normalized = normalizeWord(card.word);
-    return supabase
+    return withTimeout(Promise.resolve(supabase
       .from(TABLE)
       .update({
         ipa: card.ipa || null,
@@ -392,7 +392,7 @@ export async function bulkEnsureWordsWithMetadata(
         part_of_speech: card.partOfSpeech || null,
       })
       .eq('user_id', userId)
-      .eq('word', normalized);
+      .eq('word', normalized)));
   });
 
   const results = await Promise.allSettled(updatePromises);

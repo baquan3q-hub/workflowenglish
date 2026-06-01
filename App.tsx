@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { AppPhase, DifficultyLevel, GeneratedLesson, UserSettings } from './types';
+import React, { useState, useEffect, useRef } from 'react';
+import { AppPhase, DifficultyLevel, GeneratedLesson, UserSettings, FlashcardData } from './types';
 import { generateLessonContent } from './services/geminiService';
-import { supabase, getProfile, signOut, saveLearningRecord, getLearningRecordFull, LearningRecord, saveLessonAudio, getLessonAudio } from './services/supabaseClient';
+import { supabase, getProfile, signOut, saveLearningRecord, getLearningRecordFull, LearningRecord, saveLessonAudio, withTimeout, getCachedSession, resumeAuthRefresh, pauseAuthRefresh } from './services/supabaseClient';
 import {
   checkLevelSuggestion,
   acceptLevelChange,
@@ -22,12 +22,28 @@ import ReviewSession from './views/ReviewSession';
 import AnalyticsDashboard from './views/AnalyticsDashboard';
 import { Toast } from './components/Common';
 import { Loader2, Layout, LogOut, User, History, BookOpen, Headphones, HelpCircle, PenTool, Menu, Sun, Moon, BarChart3 } from 'lucide-react';
+import { ConnectionIndicator } from './components/ConnectionIndicator';
+import { saveDraft, loadDraft, clearDraft, hasDraft, DraftData } from './services/draftService';
+import { useAutoSave } from './services/autoSaveService';
+
 
 interface AppUser {
   id: string;
   username: string;
   displayName: string;
 }
+
+function appUserFromAuthUser(user: any): AppUser {
+  const emailName = typeof user?.email === 'string' ? user.email.split('@')[0] : '';
+  const fallbackName = emailName || `user_${String(user?.id ?? '').slice(0, 8)}`;
+  return {
+    id: user.id,
+    username: fallbackName,
+    displayName: user?.user_metadata?.full_name || user?.user_metadata?.name || fallbackName || 'User',
+  };
+}
+
+let isExplicitLogout = false;
 
 function App() {
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
@@ -69,6 +85,106 @@ function App() {
 
   // Saving state for loading feedback in modal
   const [isSaving, setIsSaving] = useState(false);
+  const [pullToRefresh, setPullToRefresh] = useState({ distance: 0, refreshing: false });
+
+  // Ref to track lessonData for beforeunload warning (avoids stale closure)
+  const lessonDataRef = useRef(lessonData);
+
+  useEffect(() => {
+    lessonDataRef.current = lessonData;
+  }, [lessonData]);
+
+  const [showRecoveryModal, setShowRecoveryModal] = useState(false);
+  const [recoveredDraft, setRecoveredDraft] = useState<DraftData | null>(null);
+
+  // Periodic background cloud save (every 2 minutes)
+  useAutoSave({
+    phase,
+    hasLessonData: !!lessonData,
+    onAutoSave: async () => {
+      try {
+        await saveCurrentLesson();
+        showToast('Đã tự động lưu tiến trình học ✓', 'success');
+      } catch (err) {
+        console.warn('[AutoSave] Periodic cloud auto-save failed:', err);
+      }
+    },
+    intervalMs: 120000,
+  });
+
+  // Local draft auto-save (localStorage) with 3s debounce
+  useEffect(() => {
+    if (!lessonData) {
+      // Chỉ xoá nháp khi đã thoát khỏi các phase học tập
+      const isOutOfLesson = ![
+        AppPhase.FLASHCARDS,
+        AppPhase.STORY,
+        AppPhase.QUIZ,
+        AppPhase.FILL_BLANK,
+      ].includes(phase);
+
+      if (isOutOfLesson) {
+        clearDraft();
+      }
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      saveDraft({
+        lessonData,
+        lessonSettings,
+        lessonWords,
+        phase,
+        currentRecordId,
+        flashcardIndex,
+        lessonMasteryMap,
+      });
+      console.log('[Draft] Auto-saved draft to localStorage');
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [
+    lessonData,
+    lessonSettings,
+    lessonWords,
+    phase,
+    currentRecordId,
+    flashcardIndex,
+    lessonMasteryMap,
+  ]);
+
+  // Check for draft on login / user session loaded
+  useEffect(() => {
+    if (currentUser && hasDraft()) {
+      const draft = loadDraft();
+      if (draft && draft.lessonData) {
+        setRecoveredDraft(draft);
+        setShowRecoveryModal(true);
+      }
+    }
+  }, [currentUser]);
+
+  const handleRestoreDraft = () => {
+    if (recoveredDraft) {
+      setLessonData(recoveredDraft.lessonData);
+      setLessonSettings(recoveredDraft.lessonSettings);
+      setLessonWords(recoveredDraft.lessonWords);
+      setPhase(recoveredDraft.phase);
+      setCurrentRecordId(recoveredDraft.currentRecordId);
+      setFlashcardIndex(recoveredDraft.flashcardIndex);
+      setLessonMasteryMap(recoveredDraft.lessonMasteryMap);
+      showToast('Đã khôi phục bài học từ bản nháp thành công!', 'success');
+    }
+    setShowRecoveryModal(false);
+    setRecoveredDraft(null);
+  };
+
+  const handleDiscardDraft = () => {
+    clearDraft();
+    setShowRecoveryModal(false);
+    setRecoveredDraft(null);
+  };
+
 
   // Dark mode state
   const [darkMode, setDarkMode] = useState(() => {
@@ -91,11 +207,72 @@ function App() {
   }, [darkMode]);
 
   useEffect(() => {
+    let startY = 0;
+    let tracking = false;
+    let latestDistance = 0;
+    const threshold = 90;
+
+    const isEditableTarget = (target: EventTarget | null) => {
+      const element = target as HTMLElement | null;
+      return !!element?.closest('input, textarea, select, [contenteditable="true"]');
+    };
+
+    const handleTouchStart = (event: TouchEvent) => {
+      if (window.innerWidth > 768 || window.scrollY > 0 || isEditableTarget(event.target)) {
+        tracking = false;
+        return;
+      }
+      tracking = true;
+      latestDistance = 0;
+      startY = event.touches[0]?.clientY ?? 0;
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      if (!tracking || pullToRefresh.refreshing) return;
+      const currentY = event.touches[0]?.clientY ?? 0;
+      const delta = currentY - startY;
+      if (delta <= 0 || window.scrollY > 0) {
+        latestDistance = 0;
+        setPullToRefresh((state: { distance: number; refreshing: boolean }) => ({ ...state, distance: 0 }));
+        return;
+      }
+
+      latestDistance = Math.min(130, delta * 0.55);
+      setPullToRefresh((state: { distance: number; refreshing: boolean }) => ({ ...state, distance: latestDistance }));
+      if (delta > 12) event.preventDefault();
+    };
+
+    const handleTouchEnd = () => {
+      if (!tracking) return;
+      tracking = false;
+      if (latestDistance >= threshold) {
+        setPullToRefresh({ distance: threshold, refreshing: true });
+        window.location.reload();
+      } else {
+        latestDistance = 0;
+        setPullToRefresh((state: { distance: number; refreshing: boolean }) => ({ ...state, distance: 0 }));
+      }
+    };
+
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleTouchEnd, { passive: true });
+    window.addEventListener('touchcancel', handleTouchEnd, { passive: true });
+
+    return () => {
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+      window.removeEventListener('touchcancel', handleTouchEnd);
+    };
+  }, [pullToRefresh.refreshing]);
+
+  useEffect(() => {
     let initialCheckDone = false;
 
     const checkSession = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await withTimeout(supabase.auth.getSession());
         if (session?.user) {
           const profile = await getProfile(session.user.id);
           setCurrentUser({
@@ -107,6 +284,11 @@ function App() {
         }
       } catch (err) {
         console.error('Session check failed:', err);
+        const cachedSession = getCachedSession();
+        if (cachedSession?.user?.id && cachedSession?.access_token) {
+          setCurrentUser(appUserFromAuthUser(cachedSession.user));
+          setPhase(AppPhase.DASHBOARD);
+        }
       } finally {
         initialCheckDone = true;
         setIsCheckingSession(false);
@@ -117,6 +299,17 @@ function App() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_OUT') {
+        // Only allow sign-out when it was explicitly triggered by the user.
+        // All other SIGNED_OUT events (transient network errors, tab-switch
+        // token refresh failures, etc.) are ignored to prevent session loss.
+        if (!isExplicitLogout) {
+          console.warn('[Auth] Ignoring transient SIGNED_OUT event (not explicit logout).');
+          return;
+        }
+
+        // Reset the flag and proceed with actual logout
+        isExplicitLogout = false;
+
         setCurrentUser(null);
         setLessonData(null);
         setPhase(AppPhase.LANDING);
@@ -133,6 +326,8 @@ function App() {
           setPhase(AppPhase.DASHBOARD);
         } catch (err) {
           console.error('Failed to get profile after OAuth:', err);
+          setCurrentUser(appUserFromAuthUser(session.user));
+          setPhase(AppPhase.DASHBOARD);
         }
       }
     });
@@ -140,51 +335,40 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Keep a ref to currentUser to prevent stale closures and avoid unnecessary re-subscriptions
-  const currentUserRef = React.useRef(currentUser);
+  // Visibility change: stop auto-refresh when tab hidden, resume when visible.
+  // This prevents the SDK from attempting token refreshes in a throttled
+  // background tab (which would fail and burn tokens), and ensures a
+  // reliable, immediate refresh when the user returns.
   useEffect(() => {
-    currentUserRef.current = currentUser;
-  }, [currentUser]);
-
-  // Proactively re-sync Supabase session & user profile on tab return / device wake
-  useEffect(() => {
-    const handleVisibilityChange = async () => {
+    const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        console.log('App returned to foreground, checking session...');
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user) {
-            const currUser = currentUserRef.current;
-            // ONLY fetch profile from DB if we don't have a user yet, or the user id changed
-            if (!currUser || currUser.id !== session.user.id) {
-              console.log('User changed or not set, syncing profile...');
-              const profile = await getProfile(session.user.id);
-              setCurrentUser({
-                id: session.user.id,
-                username: profile.username,
-                displayName: profile.display_name,
-              });
-            } else {
-              console.log('Session already in sync for active user. Skipping network profile fetch.');
-            }
-          }
-        } catch (err) {
-          console.warn('Foreground session sync failed:', err);
-        }
+        resumeAuthRefresh();
+      } else {
+        pauseAuthRefresh();
       }
     };
 
-    // Only listen to visibilitychange to avoid redundant double-triggers from focus events when clicking around
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
 
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+  // Warn user before closing/refreshing the page if they have unsaved lesson data
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (lessonDataRef.current) {
+        e.preventDefault();
+        // Modern browsers ignore custom messages but still show a generic prompt
+        e.returnValue = 'Bạn có bài học chưa lưu. Bạn có chắc muốn rời trang?';
+      }
     };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
   const handleLogin = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await withTimeout(supabase.auth.getSession());
       if (session?.user) {
         const profile = await getProfile(session.user.id);
         setCurrentUser({
@@ -196,16 +380,23 @@ function App() {
       }
     } catch (err) {
       console.error('Failed to get profile after login:', err);
+      const cachedSession = getCachedSession();
+      if (cachedSession?.user?.id) {
+        setCurrentUser(appUserFromAuthUser(cachedSession.user));
+        setPhase(AppPhase.DASHBOARD);
+      }
     }
   };
 
   const handleLogout = async () => {
     const confirmed = window.confirm('Bạn có chắc muốn đăng xuất?');
     if (!confirmed) return;
+    isExplicitLogout = true;
     try {
       await signOut();
     } catch (err) {
       console.error('Logout failed:', err);
+      isExplicitLogout = false;
     }
   };
 
@@ -419,7 +610,9 @@ function App() {
       // passing updatedLesson to the next function...
 
       // Auto-save immediately to persist the expensive audio
-      saveCurrentLesson(updatedLesson);
+      void saveCurrentLesson(updatedLesson).catch((err) => {
+        console.warn('Could not auto-save generated audio:', err);
+      });
     }
   };
 
@@ -516,7 +709,7 @@ function App() {
             userId={currentUser.id}
             onBack={() => setPhase(AppPhase.DASHBOARD)}
             onStartLesson={() => setPhase(AppPhase.DASHBOARD)}
-            onStartTargetedLesson={async (lesson) => {
+            onStartTargetedLesson={async (lesson: GeneratedLesson) => {
               // Resolve the user's current preferred level so the targeted
               // practice lesson runs at the right difficulty. Fall back to
               // the active lesson's level (if any), then B1.
@@ -531,7 +724,7 @@ function App() {
               }
               setLessonData(lesson);
               setLessonSettings({ level, topic: 'Targeted Practice' });
-              setLessonWords(lesson.flashcards.map((c) => c.word).join(', '));
+              setLessonWords(lesson.flashcards.map((c: FlashcardData) => c.word).join(', '));
               setCurrentRecordId(null);
               setPhase(AppPhase.FLASHCARDS);
             }}
@@ -685,16 +878,32 @@ function App() {
   const showHeader = phase !== AppPhase.LANDING && phase !== AppPhase.AUTH;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans selection:bg-blue-200 selection:text-blue-900 transition-colors duration-300">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans selection:bg-blue-200 selection:text-blue-900">
+      {(pullToRefresh.distance > 0 || pullToRefresh.refreshing) && (
+        <div
+          className="fixed left-1/2 top-3 z-[120] flex -translate-x-1/2 items-center gap-2 rounded-full border border-slate-200 bg-white/95 px-4 py-2 text-xs font-semibold text-slate-600 shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-800/95 dark:text-slate-200 md:hidden"
+          style={{
+            transform: `translate(-50%, ${Math.max(0, pullToRefresh.distance - 44)}px)`,
+            opacity: Math.min(1, pullToRefresh.distance / 70),
+          }}
+        >
+          <Loader2 className={`h-4 w-4 text-blue-600 ${pullToRefresh.refreshing ? 'animate-spin' : ''}`} />
+          {pullToRefresh.refreshing
+            ? 'Đang tải lại...'
+            : pullToRefresh.distance >= 90
+              ? 'Thả để tải lại'
+              : 'Kéo xuống để tải lại'}
+        </div>
+      )}
       {showHeader && (
-        <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-50 transition-colors duration-300">
+        <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-50">
           <div className="max-w-6xl mx-auto px-4 h-14 sm:h-16 flex items-center justify-between">
             {/* Logo */}
             <div className="flex items-center gap-2 cursor-pointer flex-shrink-0" onClick={() => navigateWithConfirm(AppPhase.DASHBOARD)}>
-              <div className="bg-blue-600 text-white p-1.5 rounded-lg">
-                <Layout className="w-4 h-4 sm:w-5 sm:h-5" />
+              <div className="bg-blue-600 text-white p-1 rounded-md">
+                <Layout className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </div>
-              <span className="font-bold text-base sm:text-lg tracking-tight hidden sm:inline">VocabMaster</span>
+              <span className="font-bold text-sm sm:text-base tracking-tight hidden sm:inline">VocabMaster</span>
             </div>
 
             {/* Desktop Stepper */}
@@ -711,7 +920,7 @@ function App() {
                         onClick={() => !isDisabled && (step.id === AppPhase.DASHBOARD ? navigateWithConfirm(step.id) : setPhase(step.id))}
                         disabled={isDisabled}
                         className={`
-                          px-3 py-1 rounded-full text-xs font-bold transition-all
+                          px-2 py-0.5 rounded-full text-[10px] font-bold
                           ${isActive ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-500 ring-offset-1' : ''}
                           ${isPassed ? 'bg-green-100 text-green-700 hover:bg-green-200' : ''}
                           ${!isActive && !isPassed ? 'text-slate-400 hover:bg-slate-100' : ''}
@@ -721,7 +930,7 @@ function App() {
                         {step.label}
                       </button>
                       {idx < lessonSteps.length - 1 && (
-                        <div className={`w-4 h-0.5 mx-0.5 rounded transition-colors ${isPassed ? 'bg-green-300' : 'bg-slate-200'}`}></div>
+                        <div className={`w-4 h-0.5 mx-0.5 rounded ${isPassed ? 'bg-green-300' : 'bg-slate-200'}`}></div>
                       )}
                     </div>
                   );
@@ -733,7 +942,7 @@ function App() {
 
             {/* Right side */}
             {currentUser && (
-              <div className="flex items-center gap-1.5 sm:gap-2">
+              <div className="flex items-center gap-1 sm:gap-1.5">
                 {/* Proactive Save Button during learning session */}
                 {lessonData && (phase === AppPhase.FLASHCARDS || phase === AppPhase.STORY || phase === AppPhase.QUIZ || phase === AppPhase.FILL_BLANK) && (
                   <button
@@ -750,24 +959,26 @@ function App() {
                         setIsSaving(false);
                       }
                     }}
-                    className="flex items-center gap-1.5 p-2.5 sm:px-3 sm:py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 text-white rounded-xl sm:rounded-lg transition-all text-xs font-bold shadow-sm"
+                    className="flex items-center gap-1 p-1 sm:px-2 sm:py-0.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 text-white rounded-md text-[9px] font-bold shadow-sm"
                     title="Lưu tiến trình học chủ động"
                   >
                     {isSaving ? (
-                      <Loader2 className="w-4 h-4 sm:w-3.5 sm:h-3.5 animate-spin" />
+                      <Loader2 className="w-3 h-3" />
                     ) : (
-                      <BookOpen className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                      <BookOpen className="w-3 h-3" />
                     )}
                     <span className="hidden md:inline">{isSaving ? 'Đang lưu...' : 'Lưu bài học'}</span>
                   </button>
                 )}
 
+                <ConnectionIndicator />
+
                 <button
                   onClick={() => setDarkMode(!darkMode)}
-                  className="p-2 rounded-xl sm:rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
+                  className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400"
                   title={darkMode ? "Chuyển sang chế độ sáng" : "Chuyển sang chế độ tối"}
                 >
-                  {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                  {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
                 </button>
                 <button
                   onClick={() => {
@@ -780,16 +991,16 @@ function App() {
                     }
                   }}
                   className={`
-                    group relative flex items-center gap-2 p-2.5 sm:px-3 sm:py-1.5 rounded-xl sm:rounded-lg transition-all border shadow-sm
+                    group relative flex items-center gap-1 p-1 sm:px-2 sm:py-0.5 rounded-md border shadow-sm
                     ${phase === AppPhase.HISTORY
-                      ? 'bg-indigo-100 text-indigo-700 border-indigo-200 ring-2 ring-indigo-500 ring-offset-1 font-bold dark:ring-offset-slate-800'
-                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-200 dark:hover:border-indigo-900 hover:shadow-md'
+                      ? 'bg-indigo-100 text-indigo-700 border-indigo-200 ring-1 ring-indigo-500 font-bold dark:ring-offset-slate-800'
+                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-200 dark:hover:border-indigo-900'
                     }
                   `}
                   title="Xem lịch sử học tập"
                 >
-                  <History className={`w-4.5 h-4.5 sm:w-4 sm:h-4 transition-transform ${phase !== AppPhase.HISTORY ? 'group-hover:scale-110' : ''}`} />
-                  <span className="font-semibold text-sm hidden md:inline">Lịch sử</span>
+                  <History className="w-3 h-3" />
+                  <span className="font-semibold text-[10px] hidden md:inline">Lịch sử</span>
                 </button>
 
                 <button
@@ -803,29 +1014,29 @@ function App() {
                     }
                   }}
                   className={`
-                    group relative flex items-center gap-2 p-2.5 sm:px-3 sm:py-1.5 rounded-xl sm:rounded-lg transition-all border shadow-sm
+                    group relative flex items-center gap-1 p-1 sm:px-2 sm:py-0.5 rounded-md border shadow-sm
                     ${phase === AppPhase.ANALYTICS
-                      ? 'bg-emerald-100 text-emerald-700 border-emerald-200 ring-2 ring-emerald-500 ring-offset-1 font-bold dark:ring-offset-slate-800'
-                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-200 dark:hover:border-emerald-900 hover:shadow-md'
+                      ? 'bg-emerald-100 text-emerald-700 border-emerald-200 ring-1 ring-emerald-500 font-bold dark:ring-offset-slate-800'
+                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-200 dark:hover:border-emerald-900'
                     }
                   `}
                   title="Xem thống kê học tập"
                 >
-                  <BarChart3 className={`w-4.5 h-4.5 sm:w-4 sm:h-4 transition-transform ${phase !== AppPhase.ANALYTICS ? 'group-hover:scale-110' : ''}`} />
-                  <span className="font-semibold text-sm hidden md:inline">Thống kê</span>
+                  <BarChart3 className="w-3 h-3" />
+                  <span className="font-semibold text-[10px] hidden md:inline">Thống kê</span>
                 </button>
 
-                <div className="hidden sm:flex items-center gap-2 bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700">
-                  <User className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300 max-w-[120px] truncate">{currentUser.displayName}</span>
+                <div className="hidden sm:flex items-center gap-1 bg-slate-50 dark:bg-slate-900/50 px-1.5 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">
+                  <User className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                  <span className="text-[10px] font-medium text-slate-700 dark:text-slate-300 max-w-[100px] truncate">{currentUser.displayName}</span>
                 </div>
 
                 <button
                   onClick={handleLogout}
-                  className="p-2 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
+                  className="p-1 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-500"
                   title="Đăng xuất"
                 >
-                  <LogOut className="w-4 h-4" />
+                  <LogOut className="w-3 h-3" />
                 </button>
               </div>
             )}
@@ -896,13 +1107,56 @@ function App() {
         </nav>
       )}
 
+      {/* Draft Recovery Modal */}
+      {showRecoveryModal && recoveredDraft && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-5 border border-slate-100 dark:border-slate-700">
+            <div className="text-center">
+              <div className="w-14 h-14 bg-amber-100 dark:bg-amber-900/40 rounded-full flex items-center justify-center mx-auto mb-3">
+                <BookOpen className="w-7 h-7 text-amber-600 dark:text-amber-400" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Khôi phục bài học?</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
+                Hệ thống phát hiện bạn có một bài học chưa hoàn thành trước đó:
+              </p>
+              <div className="mt-3 p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl text-left border border-slate-100 dark:border-slate-800">
+                <div className="text-xs text-slate-400 dark:text-slate-500">Chủ đề:</div>
+                <div className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate">{recoveredDraft.lessonSettings?.topic || 'General'}</div>
+                <div className="flex justify-between items-center mt-1.5 pt-1.5 border-t border-slate-200/60 dark:border-slate-800">
+                  <span className="text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded font-bold">
+                    Cấp độ: {recoveredDraft.lessonSettings?.level || 'B1'}
+                  </span>
+                  <span className="text-xs text-slate-400 dark:text-slate-500">
+                    {recoveredDraft.timestamp ? new Date(recoveredDraft.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2.5">
+              <button
+                onClick={handleRestoreDraft}
+                className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-amber-200/50 transition-all flex items-center justify-center gap-2"
+              >
+                Tiếp tục học
+              </button>
+              <button
+                onClick={handleDiscardDraft}
+                className="w-full py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-all"
+              >
+                Học bài mới (Xoá nháp)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Save Lesson Modal */}
       {showSaveModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-5 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-5">
             <div className="text-center">
               <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <BookOpen className="w-7 h-7 text-blue-600 animate-pulse" />
+                <BookOpen className="w-7 h-7 text-blue-600" />
               </div>
               <h3 className="text-lg font-bold text-slate-900">Lưu bài học này?</h3>
               <p className="text-sm text-slate-500 mt-1">
@@ -956,7 +1210,7 @@ function App() {
           and the user hasn't dismissed this same suggestion before. */}
       {levelSuggestion && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-5 animate-fade-in">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-5">
             <div className="text-center">
               <div
                 className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3 text-2xl ${

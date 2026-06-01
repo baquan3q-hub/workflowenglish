@@ -222,22 +222,19 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
         // successful recalls (rating >= Good) and we don't block on it —
         // any failure is logged but does not interrupt the session.
         if (successful) {
-          try {
-            const result = await recordWordReview(userId);
-            if (result.goalReached && !goalCelebrated) {
-              setGoalCelebrated(true);
-              const streak = result.goalsUpdated.current_streak;
-              onShowToast?.(
-                `🎉 Hoàn thành mục tiêu hôm nay! Streak: ${streak} ngày`,
-                'success',
-              );
-            }
-          } catch (goalErr) {
-            // Non-fatal — goal tracking shouldn't break the review flow.
-            console.warn('recordWordReview failed:', goalErr);
-          }
+          void recordWordReview(userId)
+            .then((result) => {
+              if (result.goalReached && !goalCelebrated) {
+                setGoalCelebrated(true);
+                const streak = result.goalsUpdated.current_streak;
+                onShowToast?.(`🎉 Hoàn thành mục tiêu hôm nay! Streak: ${streak} ngày`, 'success');
+              }
+            })
+            .catch((goalErr) => {
+              // Non-fatal: goal tracking should not block the review flow.
+              console.warn('recordWordReview failed:', goalErr);
+            });
         }
-
         // Advance to the next word, or end the session.
         if (currentIndex + 1 >= dueWords.length) {
           setFinished(true);

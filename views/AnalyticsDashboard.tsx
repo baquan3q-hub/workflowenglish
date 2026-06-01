@@ -37,10 +37,8 @@ import {
 import {
   HeatmapGrid,
   BarChart,
-  LineChart,
   CircularProgress,
   type BarChartDataPoint,
-  type LineChartDataPoint,
 } from '../components/SVGCharts';
 import { Button } from '../components/Common';
 
@@ -189,7 +187,6 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   const [isGeneratingHardest, setIsGeneratingHardest] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'new' | 'learning' | 'reviewing' | 'due' | 'lapsed' | 'mastered'>('all');
   const [visibleWordCount, setVisibleWordCount] = useState<number>(8);
-  const [visibleQuizCount, setVisibleQuizCount] = useState<number>(3);
 
   useEffect(() => {
     setVisibleWordCount(8);
@@ -392,11 +389,6 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     label: cfg.label,
     value: distribution[cfg.level] ?? 0,
     color: cfg.color,
-  }));
-
-  const quizPoints: LineChartDataPoint[] = quizTrend.map((q) => ({
-    label: formatShortDate(q.date),
-    value: q.total > 0 ? Math.round((q.score / q.total) * 100) : 0,
   }));
 
   const showStreakFlame = goals.current_streak >= 3;
@@ -842,117 +834,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         </div>
       </SectionCard>
 
-      {/* Section 4 — Quiz score trend */}
-      <SectionCard title="Điểm số Quiz gần đây">
-        {quizTrend.length === 0 ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Chưa có dữ liệu bài trắc nghiệm. Hãy hoàn thành một bài quiz sau bài học để theo dõi kết quả tại đây!
-          </p>
-        ) : (
-          <div className="space-y-6">
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-              Biểu đồ và bảng dưới đây theo dõi kết quả 10 bài kiểm tra trắc nghiệm (Quiz) gần nhất của bạn. Điểm số cao thể hiện khả năng ghi nhớ từ vựng tốt.
-            </p>
-            
-            {/* SVG Line Chart */}
-            <div className="bg-slate-50/50 dark:bg-slate-900/10 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
-              <LineChart data={quizPoints} />
-            </div>
 
-            {/* List of quiz scores (Newest first) */}
-            <div className="space-y-3">
-              <h4 className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300">
-                Chi tiết các bài Quiz đã làm
-              </h4>
-              <div className="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/20 dark:bg-slate-900/10">
-                <table className="w-full text-left border-collapse text-xs sm:text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold bg-slate-50/50 dark:bg-slate-900/40">
-                      <th className="py-2.5 px-4">Ngày làm</th>
-                      <th className="py-2.5 px-4 text-center">Điểm số</th>
-                      <th className="py-2.5 px-4">Thành tích</th>
-                      <th className="py-2.5 px-4">Tỷ lệ chính xác</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {quizTrend.slice().reverse().slice(0, visibleQuizCount).map((q, index) => {
-                      const percent = q.total > 0 ? Math.round((q.score / q.total) * 100) : 0;
-                      
-                      // Determine badge and color based on percentage
-                      let gradeLabel = 'Cần cố gắng 💪';
-                      let gradeClass = 'bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300';
-                      let progressColor = 'bg-amber-500';
-
-                      if (percent >= 90) {
-                        gradeLabel = 'Xuất sắc 👑';
-                        gradeClass = 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 font-extrabold';
-                        progressColor = 'bg-emerald-500';
-                      } else if (percent >= 70) {
-                        gradeLabel = 'Đạt 👍';
-                        gradeClass = 'bg-blue-50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300 font-bold';
-                        progressColor = 'bg-blue-500';
-                      }
-
-                      return (
-                        <tr key={`${q.date}-${index}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                          <td className="py-3 px-4 font-medium text-slate-700 dark:text-slate-300 font-mono">
-                            {formatShortDate(q.date)}
-                          </td>
-                          <td className="py-3 px-4 text-center font-bold text-slate-900 dark:text-white tabular-nums">
-                            {q.score} / {q.total}
-                          </td>
-                          <td className="py-3 px-4">
-                            <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] sm:text-xs ${gradeClass}`}>
-                              {gradeLabel}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 min-w-[120px]">
-                            <div className="flex items-center gap-2">
-                              <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-850">
-                                <div 
-                                  className={`h-full rounded-full transition-all duration-500 ${progressColor}`}
-                                  style={{ width: `${percent}%` }}
-                                />
-                              </div>
-                              <span className="text-[10px] sm:text-xs font-bold tabular-nums text-slate-700 dark:text-slate-300 w-8 text-right font-mono">
-                                {percent}%
-                              </span>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {quizTrend.length > 3 && (
-                <div className="flex justify-center pt-2">
-                  {visibleQuizCount < quizTrend.length ? (
-                    <button
-                      type="button"
-                      onClick={() => setVisibleQuizCount(quizTrend.length)}
-                      className="inline-flex items-center gap-1.5 px-6 py-2.5 rounded-full border border-slate-200 dark:border-slate-700 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 text-xs font-extrabold shadow-sm hover:shadow active:scale-95 transition-all duration-200"
-                    >
-                      <span>Xem thêm ({quizTrend.length - visibleQuizCount} bài kiểm tra khác)</span>
-                      <span className="text-xs">▼</span>
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setVisibleQuizCount(3)}
-                      className="inline-flex items-center gap-1.5 px-6 py-2.5 rounded-full border border-slate-200 dark:border-slate-700 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 text-xs font-extrabold shadow-sm hover:shadow active:scale-95 transition-all duration-200"
-                    >
-                      <span>Thu gọn lịch sử</span>
-                      <span className="text-xs">▲</span>
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </SectionCard>
 
       {/* Section 5 — Streak & daily goal */}
       <SectionCard title="Chuỗi học tập & mục tiêu">

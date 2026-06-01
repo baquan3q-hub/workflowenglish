@@ -21,7 +21,7 @@
  * suggestion.
  */
 
-import { supabase } from './supabaseClient';
+import { supabase, withTimeout } from './supabaseClient';
 import { getOrCreateUserGoals } from './goalService';
 import { DifficultyLevel } from '../types';
 
@@ -145,13 +145,13 @@ export async function checkLevelSuggestion(
   const goals = await getOrCreateUserGoals(userId);
   const currentLevel = goals.preferred_level as DifficultyLevel;
 
-  const { data, error } = await supabase
+  const { data, error } = await withTimeout(Promise.resolve(supabase
     .from(LEARNING_HISTORY_TABLE)
     .select('quiz_score, quiz_total, level, completed_at')
     .eq('user_id', userId)
     .not('quiz_score', 'is', null)
     .order('completed_at', { ascending: false })
-    .limit(RECENT_HISTORY_LIMIT);
+    .limit(RECENT_HISTORY_LIMIT)));
 
   if (error) throw error;
 
@@ -214,10 +214,10 @@ export async function acceptLevelChange(
   // Make sure the row exists before updating it.
   await getOrCreateUserGoals(userId);
 
-  const { error } = await supabase
+  const { error } = await withTimeout(Promise.resolve(supabase
     .from(USER_GOALS_TABLE)
     .update({ preferred_level: newLevel })
-    .eq('user_id', userId);
+    .eq('user_id', userId)));
 
   if (error) throw error;
 }

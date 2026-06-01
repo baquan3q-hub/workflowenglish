@@ -23,7 +23,7 @@ export const RECOMMENDATION_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const CACHE_KEY_PREFIX = 'vocabmaster_recommendations_';
 
 /** Number of recommendations the model is asked to produce. */
-const RECOMMENDATION_COUNT = 5;
+const RECOMMENDATION_COUNT = 10;
 
 /**
  * Cap the number of mastered words sent to the model. Sending the full

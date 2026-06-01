@@ -20,7 +20,7 @@
  *     are made at UTC midnight to match what Postgres stores.
  */
 
-import { supabase } from './supabaseClient';
+import { supabase, withTimeout } from './supabaseClient';
 import type { UserGoals } from '../types';
 
 // --- Constants -------------------------------------------------------------
@@ -184,11 +184,11 @@ export function updateStreak(goals: UserGoals, today: Date): UserGoals {
 export async function getOrCreateUserGoals(
   userId: string,
 ): Promise<UserGoals> {
-  const { data, error } = await supabase
+  const { data, error } = await withTimeout(Promise.resolve(supabase
     .from(TABLE)
     .select('*')
     .eq('user_id', userId)
-    .single();
+    .single()));
 
   if (error && error.code !== 'PGRST116') {
     throw error;
@@ -198,7 +198,7 @@ export async function getOrCreateUserGoals(
   }
 
   // No row yet — create one with defaults.
-  const { data: created, error: insertError } = await supabase
+  const { data: created, error: insertError } = await withTimeout(Promise.resolve(supabase
     .from(TABLE)
     .insert({
       user_id: userId,
@@ -209,7 +209,7 @@ export async function getOrCreateUserGoals(
       preferred_level: DEFAULT_PREFERRED_LEVEL,
     })
     .select()
-    .single();
+    .single()));
 
   if (insertError) throw insertError;
   return created as UserGoals;
@@ -226,12 +226,12 @@ export async function updateDailyGoal(
   // Ensure the row exists (idempotent for existing users).
   await getOrCreateUserGoals(userId);
 
-  const { data, error } = await supabase
+  const { data, error } = await withTimeout(Promise.resolve(supabase
     .from(TABLE)
     .update({ daily_word_goal: goal })
     .eq('user_id', userId)
     .select()
-    .single();
+    .single()));
 
   if (error) throw error;
   return data as UserGoals;
@@ -273,7 +273,7 @@ export async function recordWordReview(
     next = updateStreak(next, today);
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await withTimeout(Promise.resolve(supabase
     .from(TABLE)
     .update({
       current_streak: next.current_streak,
@@ -284,7 +284,7 @@ export async function recordWordReview(
     })
     .eq('user_id', userId)
     .select()
-    .single();
+    .single()));
 
   if (error) throw error;
 
