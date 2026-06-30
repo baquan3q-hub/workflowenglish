@@ -9,6 +9,95 @@ export enum AppPhase {
   HISTORY = 'HISTORY',
   REVIEW_SESSION = 'REVIEW_SESSION',
   ANALYTICS = 'ANALYTICS',
+  IELTS_WRITING_HUB = 'IELTS_WRITING_HUB',
+  IELTS_WRITING_PRACTICE = 'IELTS_WRITING_PRACTICE',
+  IELTS_WRITING_FEEDBACK = 'IELTS_WRITING_FEEDBACK',
+  IELTS_SPEAKING_HUB = 'IELTS_SPEAKING_HUB',
+  IELTS_SPEAKING_PRACTICE = 'IELTS_SPEAKING_PRACTICE',
+  IELTS_SPEAKING_FEEDBACK = 'IELTS_SPEAKING_FEEDBACK',
+}
+
+// ─── IELTS Module Types ────────────────────────────────────────────
+
+export type IeltsSkill = 'writing' | 'speaking';
+export type IeltsWritingTask = 'task_1' | 'task_2';
+export type IeltsSpeakingPart = 'part_1' | 'part_2' | 'part_3';
+export type IeltsEssayType = 'opinion' | 'discussion' | 'advantages_disadvantages' | 'problem_solution' | 'cause_effect' | 'two_part';
+export type IeltsDifficulty = 'easy' | 'medium' | 'hard';
+export type IeltsPopularity = 'common' | 'recent' | 'rare' | 'high_frequency';
+
+export interface IeltsQuestion {
+  id: string;
+  skill: IeltsSkill;
+  taskOrPart: IeltsWritingTask | IeltsSpeakingPart;
+  questionType: string;
+  topic: string;
+  difficulty: IeltsDifficulty;
+  popularity?: IeltsPopularity;
+  prompt: string;
+  frameworkId: string;
+  sampleAnswer?: string;
+  targetBand: string;
+  planningPrompts?: string[];
+  vocabulary?: string[];
+  grammarFocus?: string[];
+  chartData?: any;
+  subQuestions?: string[];
+}
+
+export interface IeltsCriterionScore {
+  name: string;
+  nameVi: string;
+  score: number;
+  comment: string;
+}
+
+export interface IeltsSentenceCorrection {
+  original: string;
+  corrected: string;
+  explanation: string;
+}
+
+export interface IeltsAiFeedback {
+  estimatedBand: number;
+  criterionScores: IeltsCriterionScore[];
+  strengths: string[];
+  weaknesses: string[];
+  sentenceCorrections: IeltsSentenceCorrection[];
+  improvedVersion: string;
+  nextActions: string[];
+  pronunciationNotes?: string[];
+  followUpDrill?: string;
+}
+
+export interface IeltsAttempt {
+  id?: string;
+  userId: string;
+  skill: IeltsSkill;
+  taskOrPart: string;
+  questionType: string;
+  topic: string;
+  questionPrompt: string;
+  answerText: string;
+  audioUrl?: string;
+  durationSeconds?: number;
+  wordCount?: number;
+  estimatedBand?: number;
+  criterionScores?: Record<string, number>;
+  aiFeedback?: IeltsAiFeedback;
+  attemptNumber?: number;
+  createdAt?: string;
+}
+
+export interface IeltsFramework {
+  id: string;
+  skill: IeltsSkill;
+  name: string;
+  nameVi: string;
+  description: string;
+  descriptionVi: string;
+  steps: { label: string; detail: string }[];
+  sample: string;
 }
 
 export enum DifficultyLevel {

@@ -1,0 +1,366 @@
+import { IeltsQuestion } from '../types';
+
+export const speakingPart1Questions: IeltsQuestion[] = [
+  // ─── SPEAKING PART 1 (5 questions) ──────────────────────────────
+  {
+    id: 'sp_p1_study_001',
+    skill: 'speaking',
+    taskOrPart: 'part_1',
+    questionType: 'personal',
+    topic: 'Study',
+    difficulty: 'easy',
+    popularity: 'high_frequency',
+    prompt: 'Do you prefer studying alone or with other people? Why?',
+    frameworkId: 'fw_area',
+    targetBand: '5.5-6.0',
+    sampleAnswer: 'I prefer studying alone because I can focus better without distractions. When I study by myself, I can set my own pace and spend more time on difficult topics. For example, when preparing for exams, I usually go to a quiet library. However, I sometimes study with friends when we need to discuss a group project.',
+    vocabulary: ['distraction', 'set my own pace', 'concentrate', 'productive'],
+    grammarFocus: ['present simple for habits', 'because/when clauses', 'adverbs of frequency'],
+  },
+  {
+    id: 'sp_p1_technology_001',
+    skill: 'speaking',
+    taskOrPart: 'part_1',
+    questionType: 'personal',
+    topic: 'Technology',
+    difficulty: 'easy',
+    popularity: 'common',
+    prompt: 'How often do you use your phone? What do you usually use it for?',
+    frameworkId: 'fw_area',
+    targetBand: '5.5-6.0',
+    sampleAnswer: 'I use my phone every day, probably for several hours. I mainly use it for communication, like messaging friends on Zalo or checking emails. I also spend some time watching videos on YouTube and reading news. To be honest, I think I sometimes use it too much, especially before going to bed.',
+    vocabulary: ['communication', 'social media', 'screen time', 'addicted'],
+    grammarFocus: ['present simple for routines', 'frequency expressions', 'gerund as object'],
+  },
+  {
+    id: 'sp_p1_hometown_001',
+    skill: 'speaking',
+    taskOrPart: 'part_1',
+    questionType: 'personal',
+    topic: 'Hometown',
+    difficulty: 'easy',
+    popularity: 'high_frequency',
+    prompt: 'Can you describe the area where you live? What do you like about it?',
+    frameworkId: 'fw_area',
+    targetBand: '5.5-6.0',
+    sampleAnswer: 'I live in a small neighbourhood in the suburbs of Ho Chi Minh City. It is quite peaceful compared to the city centre, and I really enjoy the fresh air and green spaces nearby. One thing I particularly like is that there are several local markets where I can buy fresh food at reasonable prices. However, the public transport is not very convenient, so I usually need to drive my motorbike.',
+    vocabulary: ['neighbourhood', 'suburbs', 'peaceful', 'convenient', 'reasonable'],
+    grammarFocus: ['there is/are', 'comparative adjectives', 'relative clauses with where'],
+  },
+  {
+    id: 'sp_p1_food_001',
+    skill: 'speaking',
+    taskOrPart: 'part_1',
+    questionType: 'personal',
+    topic: 'Food',
+    difficulty: 'easy',
+    popularity: 'common',
+    prompt: 'What is your favourite food? Do you prefer eating at home or in restaurants?',
+    frameworkId: 'fw_area',
+    targetBand: '5.5-6.0',
+    sampleAnswer: 'My favourite food is pho, which is a traditional Vietnamese noodle soup. I love it because it has a rich and flavourful broth, and I can add fresh herbs and chilli to suit my taste. I generally prefer eating at home because it is healthier and more affordable. But on weekends, I enjoy going to restaurants with my friends to try different cuisines.',
+    vocabulary: ['flavourful', 'broth', 'cuisine', 'affordable', 'traditional'],
+    grammarFocus: ['relative clauses with which', 'because for reasons', 'comparative forms'],
+  },
+  {
+    id: 'sp_p1_hobby_001',
+    skill: 'speaking',
+    taskOrPart: 'part_1',
+    questionType: 'personal',
+    topic: 'Hobbies',
+    difficulty: 'easy',
+    popularity: 'high_frequency',
+    prompt: 'Do you have any hobbies? How did you become interested in them?',
+    frameworkId: 'fw_area',
+    targetBand: '5.5-6.0',
+    sampleAnswer: 'Yes, I have several hobbies, but the one I enjoy the most is reading books. I became interested in reading when I was about twelve years old. My mother gave me a novel as a birthday present, and after finishing it, I wanted to read more. Now I try to read at least one book per month. I mainly enjoy self-development and fiction books because they help me learn new things and also relax after a long day.',
+    vocabulary: ['novel', 'self-development', 'fiction', 'fascinated', 'habit'],
+    grammarFocus: ['past simple for stories', 'present simple for current habits', 'because + clause'],
+  },
+
+  // ─── SPEAKING PART 2 - CUE CARDS (5 questions) ──────────────────
+  {
+    id: 'sp_p2_book_001',
+    skill: 'speaking',
+    taskOrPart: 'part_2',
+    questionType: 'cue_card',
+    topic: 'Hobbies',
+    difficulty: 'medium',
+    prompt: 'Describe a book you have read recently that you found useful.\nYou should say:\n- what the book is\n- what it is about\n- how you learned about it\n- and explain why you found it useful.',
+    frameworkId: 'fw_prep_story',
+    targetBand: '6.0-6.5',
+    sampleAnswer: 'I would like to talk about "Atomic Habits" by James Clear, a book I finished reading last month. The book is about self-development and focuses on how making tiny changes in our daily routine can lead to massive results over time. I first learned about it from a recommendation on a YouTube channel about productivity. I found it useful because it offers practical advice and real-life examples on how to build good habits and break bad ones. For instance, I started placing my books on my desk instead of in my bag, which helped me read more regularly.',
+    vocabulary: ['self-development', 'productivity', 'tiny changes', 'habit formation', 'practical advice'],
+    grammarFocus: ['present continuous for changes', 'gerunds as subjects', 'past simple for background stories'],
+  },
+  {
+    id: 'sp_p2_device_002',
+    skill: 'speaking',
+    taskOrPart: 'part_2',
+    questionType: 'cue_card',
+    topic: 'Technology',
+    difficulty: 'medium',
+    prompt: 'Describe a technological device you use frequently.\nYou should say:\n- what the device is\n- how often you use it\n- what you use it for\n- and explain why it is important to you.',
+    frameworkId: 'fw_prep_story',
+    targetBand: '6.0-6.5',
+    sampleAnswer: 'I would like to describe my tablet, which I purchased about a year ago for my studies. I use it almost every single day, usually for several hours. It serves multiple purposes: I use it to read PDF textbooks, take digital handwritten notes during lectures, and attend online classes. It has become incredibly important to me because it keeps all my study materials organised in one lightweight device. Without it, I would have to carry heavy paper notebooks and textbooks to school every day.',
+    vocabulary: ['multipurpose', 'Lecture', 'handwritten notes', 'study materials', 'lightweight'],
+    grammarFocus: ['relative clauses', 'conditional without "if" (without it...)', 'present simple for facts'],
+  },
+  {
+    id: 'sp_p2_journey_003',
+    skill: 'speaking',
+    taskOrPart: 'part_2',
+    questionType: 'cue_card',
+    topic: 'Travel',
+    difficulty: 'medium',
+    prompt: 'Describe a memorable journey you took.\nYou should say:\n- where you went\n- how you traveled\n- who you went with\n- and explain why this journey was memorable to you.',
+    frameworkId: 'fw_prep_story',
+    targetBand: '6.0-6.5',
+    sampleAnswer: 'I would like to share a trip I took to Da Lat two years ago. I traveled there by overnight bus with three of my close friends from high school. The journey was extremely memorable because it was the first time we traveled far from home without our families. During the trip, we rented motorbikes, explored the beautiful pine forests, and tasted delicious local street food. The cold weather and the quality time spent laughing and talking with my friends made it an unforgettable experience that bonded us closer.',
+    vocabulary: ['memorable', 'destination', 'explore', 'local street food', 'unforgettable'],
+    grammarFocus: ['past simple for events', 'past continuous for setting scene', 'adjectives of feeling'],
+  },
+  {
+    id: 'sp_p2_festival_004',
+    skill: 'speaking',
+    taskOrPart: 'part_2',
+    questionType: 'cue_card',
+    topic: 'Hometown',
+    difficulty: 'easy',
+    prompt: 'Describe a traditional festival celebrated in your country.\nYou should say:\n- what the festival is\n- when it takes place\n- what people do during the festival\n- and explain why this festival is important to you.',
+    frameworkId: 'fw_prep_story',
+    targetBand: '6.0-6.5',
+    sampleAnswer: 'I want to describe Tet, which is the Vietnamese Lunar New Year. It takes place in late January or early February and lasts for about a week. Before Tet, people clean and decorate their houses with peach blossoms. During the festival, families gather to eat traditional food like banh chung, visit pagodas, and children receive lucky money in red envelopes. This festival is important to me because it is a rare occasion when my whole extended family reunites, reminding me of our cultural heritage and values.',
+    vocabulary: ['Lunar New Year', ' peach blossoms', 'lucky money', 'reunite', 'cultural heritage'],
+    grammarFocus: ['adverbial clauses of time', 'passive voice (peach blossoms are decorated)', 'defining relative clauses'],
+  },
+  {
+    id: 'sp_p2_person_005',
+    skill: 'speaking',
+    taskOrPart: 'part_2',
+    questionType: 'cue_card',
+    topic: 'Study',
+    difficulty: 'hard',
+    prompt: 'Describe a teacher who has had a significant influence on you.\nYou should say:\n- who the teacher was\n- what subject they taught\n- how they helped you\n- and explain why they had a big influence on you.',
+    frameworkId: 'fw_prep_story',
+    targetBand: '6.5+',
+    sampleAnswer: 'I would like to describe my high school English teacher, Ms. Lan. She taught us English literature and grammar during our final year. She was influential because of her unique teaching methods; instead of just memorising grammar rules, she encouraged us to watch English movies and participate in debates. She helped me build self-confidence when speaking English, which led me to participate in a municipal English competition. Her encouragement made me realise that learning a language is about communication, not just passing tests.',
+    vocabulary: ['influential', 'teaching methods', 'self-confidence', 'municipal', 'encouragement'],
+    grammarFocus: ['used to/would for past habits', 'relative clauses with who/whom', 'verb patterns (helped me build)'],
+  },
+
+  // ─── SPEAKING PART 3 (5 questions) ──────────────────────────────
+  {
+    id: 'sp_p3_reading_001',
+    skill: 'speaking',
+    taskOrPart: 'part_3',
+    questionType: 'discussion',
+    topic: 'Hobbies',
+    difficulty: 'hard',
+    prompt: 'Discussion on reading habits and digital media.',
+    frameworkId: 'fw_oreo',
+    targetBand: '6.5+',
+    subQuestions: [
+      'Why do some people prefer reading physical books over e-books?',
+      'Do you think technology will completely replace physical books in the future?',
+      'What are the advantages of reading books compared to watching videos for gaining knowledge?'
+    ],
+    vocabulary: ['tactile experience', 'digital devices', 'information retention', 'critical thinking'],
+    grammarFocus: ['modal verbs of probability', 'comparing and contrasting structures', 'conditional sentences'],
+  },
+  {
+    id: 'sp_p3_technology_002',
+    skill: 'speaking',
+    taskOrPart: 'part_3',
+    questionType: 'discussion',
+    topic: 'Technology',
+    difficulty: 'hard',
+    prompt: 'Discussion on the impact of technology on communication and education.',
+    frameworkId: 'fw_oreo',
+    targetBand: '6.5+',
+    subQuestions: [
+      'How has technology changed the way families communicate with each other?',
+      'What challenges do teachers face when integrating technology into classrooms?',
+      'Do you agree that children spend too much time on electronic devices nowadays?'
+    ],
+    vocabulary: ['face-to-face interaction', 'digital literacy', 'distraction', 'over-dependence'],
+    grammarFocus: ['present perfect for trends', 'concession clauses', 'speculating about the future'],
+  },
+  {
+    id: 'sp_p3_tourism_003',
+    skill: 'speaking',
+    taskOrPart: 'part_3',
+    questionType: 'discussion',
+    topic: 'Travel',
+    difficulty: 'hard',
+    prompt: 'Discussion on international tourism and sustainable travel.',
+    frameworkId: 'fw_oreo',
+    targetBand: '6.5+',
+    subQuestions: [
+      'What are the environmental impacts of mass tourism on popular destinations?',
+      'How can local governments balance economic benefits of tourism with cultural preservation?',
+      'Do you think travel changes a person’s perspective on life? How?'
+    ],
+    vocabulary: ['mass tourism', 'sustainable travel', 'eco-friendly', 'broaden horizons', 'cultural degradation'],
+    grammarFocus: ['cause and effect structures', 'complex conditionals', 'expressing strong opinions'],
+  },
+  {
+    id: 'sp_p3_culture_004',
+    skill: 'speaking',
+    taskOrPart: 'part_3',
+    questionType: 'discussion',
+    topic: 'Hometown',
+    difficulty: 'hard',
+    prompt: 'Discussion on cultural preservation and globalization.',
+    frameworkId: 'fw_oreo',
+    targetBand: '6.5+',
+    subQuestions: [
+      'Why is it important for a country to preserve its traditional festivals in a globalised world?',
+      'How can schools help young people learn more about their cultural heritage?',
+      'Do you think traditional festivals should adapt to modern lifestyles? Why or why not?'
+    ],
+    vocabulary: ['globalization', 'cultural preservation', 'generation gap', 'national identity'],
+    grammarFocus: ['gerunds as subjects', 'should/ought to for recommendation', 'passive voice'],
+  },
+  {
+    id: 'sp_p3_education_005',
+    skill: 'speaking',
+    taskOrPart: 'part_3',
+    questionType: 'discussion',
+    topic: 'Study',
+    difficulty: 'hard',
+    prompt: 'Discussion on educational methods and teacher roles.',
+    frameworkId: 'fw_oreo',
+    targetBand: '6.5+',
+    subQuestions: [
+      'What qualities make an effective teacher in the 21st century?',
+      'How has the role of teachers changed compared to the past?',
+      'Do you think universities should focus more on academic theory or practical skills?'
+    ],
+    vocabulary: ['effective educator', 'interactive learning', 'curriculum', 'vocational training'],
+    grammarFocus: ['past habits (used to)', 'comparing past and present', 'evaluating alternative arguments'],
+  },
+  // ─── EXTRA SPEAKING QUESTIONS ───────────────────────────────────
+  {
+    id: 'sp_p1_weather_002',
+    skill: 'speaking',
+    taskOrPart: 'part_1',
+    questionType: 'personal',
+    topic: 'Weather',
+    difficulty: 'easy',
+    popularity: 'common',
+    prompt: 'What is your favourite weather? What do you usually do on rainy days?',
+    frameworkId: 'fw_area',
+    targetBand: '5.5-6.0',
+    sampleAnswer: 'My favourite weather is cool and breezy, which is typical of autumn. I love it because it is perfect for outdoor activities like jogging. On rainy days, I usually stay indoors, read books, or watch films. Sometimes, I enjoy drinking a cup of hot coffee while watching the rain fall outside my window.',
+    vocabulary: ['breezy', 'outdoor activities', 'indoors', 'typical of'],
+    grammarFocus: ['present simple for routines', 'relative clauses with which', 'gerunds after enjoy'],
+  },
+  {
+    id: 'sp_p1_home_002',
+    skill: 'speaking',
+    taskOrPart: 'part_1',
+    questionType: 'personal',
+    topic: 'Home',
+    difficulty: 'easy',
+    popularity: 'high_frequency',
+    prompt: 'Do you live in a house or an apartment? Can you describe it?',
+    frameworkId: 'fw_area',
+    targetBand: '5.5-6.0',
+    sampleAnswer: 'I live in a three-storey house in the residential area of Hanoi. It is quite spacious with four bedrooms, a living room, and a small garden in the front. My favourite spot is the living room because it receives plenty of natural light. I enjoy spending time there with my family on weekends.',
+    vocabulary: ['three-storey', 'spacious', 'residential area', 'natural light'],
+    grammarFocus: ['prepositions of place', 'present simple for description', 'because for reason'],
+  },
+  {
+    id: 'sp_p2_place_006',
+    skill: 'speaking',
+    taskOrPart: 'part_2',
+    questionType: 'cue_card',
+    topic: 'Travel',
+    difficulty: 'medium',
+    prompt: 'Describe a beautiful place you would like to visit in the future.\nYou should say:\n- where this place is\n- what it looks like\n- what you would do there\n- and explain why you would like to visit this place.',
+    frameworkId: 'fw_prep_story',
+    targetBand: '6.0-6.5',
+    sampleAnswer: 'I would like to describe Switzerland, a landlocked country in Central Europe that I have dreamed of visiting for years. It is famous for its majestic snow-capped Alps, crystal-clear lakes, and picturesque villages. If I have the opportunity to go there, I would love to go hiking in the mountains, ride the scenic Glacier Express train, and taste authentic Swiss chocolates. I want to visit Switzerland because it offers a perfect blend of breathtaking natural beauty and peacefulness, which would help me escape from my busy city life.',
+    vocabulary: ['landlocked', 'majestic Alps', 'picturesque', 'scenic train', 'breathtaking'],
+    grammarFocus: ['conditional sentences (if I have...)', 'relative clauses with that/which', 'expressing desires (would like to)'],
+  },
+  {
+    id: 'sp_p2_problem_007',
+    skill: 'speaking',
+    taskOrPart: 'part_2',
+    questionType: 'cue_card',
+    topic: 'Hobbies',
+    difficulty: 'hard',
+    prompt: 'Describe a time when you solved a difficult problem.\nYou should say:\n- what the problem was\n- when and where it happened\n- what actions you took\n- and explain how you felt after solving this problem.',
+    frameworkId: 'fw_prep_story',
+    targetBand: '6.5+',
+    sampleAnswer: 'I would like to share an experience from last year when my laptop crashed right before a major project submission. It happened during my final exams when I was study at home. All my research and code were lost. To solve this, I immediately contacted a professional technician to recover the data, and in the meantime, I went to the library to rewrite the critical parts using my online notes. Fortunately, the technician recovered 90% of my data on time. After solving this, I felt immensely relieved and realized the absolute importance of cloud backups.',
+    vocabulary: ['crashed', 'technician', 'recover data', 'immensely relieved', 'backups'],
+    grammarFocus: ['past simple for chronological events', 'past continuous for setting context', 'time connectors (in the meantime, immediately)'],
+  },
+  {
+    id: 'sp_p3_urban_006',
+    skill: 'speaking',
+    taskOrPart: 'part_3',
+    questionType: 'discussion',
+    topic: 'Travel',
+    difficulty: 'hard',
+    prompt: 'Discussion on urban development and public places.',
+    frameworkId: 'fw_oreo',
+    targetBand: '6.5+',
+    subQuestions: [
+      'Why do many people prefer living in cities compared to rural areas?',
+      'What problems does rapid urbanisation cause in developing nations?',
+      'Should city planners prioritize green spaces over residential areas?'
+    ],
+    vocabulary: ['urbanization', 'rural-to-urban migration', 'infrastructure', 'green spaces', 'overcrowding'],
+    grammarFocus: ['comparing two sides', 'modal structures for advice', 'complex vocabulary linkages'],
+  },
+  {
+    id: 'sp_p3_problems_007',
+    skill: 'speaking',
+    taskOrPart: 'part_3',
+    questionType: 'discussion',
+    topic: 'Hobbies',
+    difficulty: 'hard',
+    prompt: 'Discussion on decision-making and problem-solving skills.',
+    frameworkId: 'fw_oreo',
+    targetBand: '6.5+',
+    subQuestions: [
+      'What qualities make a person good at making decisions under pressure?',
+      'Do you think children should be taught problem-solving skills in primary school?',
+      'How has technology helped people solve daily life challenges?'
+    ],
+    vocabulary: ['decision-making', 'critical thinking', 'problem-solving', 'adaptability', 'pressure'],
+    grammarFocus: ['conditional clauses', 'gerunds as subjects', 'comparative structures'],
+  },
+];
+export const speakingPart2Questions = speakingPart1Questions.filter(q => q.taskOrPart === 'part_2');
+export const speakingPart3Questions = speakingPart1Questions.filter(q => q.taskOrPart === 'part_3');
+export const getSpeakingQuestionById = (id: string): IeltsQuestion | undefined => {
+  return speakingPart1Questions.find(q => q.id === id);
+};
+export const getSpeakingQuestions = (filters?: { topic?: string; difficulty?: string; part?: string }): IeltsQuestion[] => {
+  let questions = speakingPart1Questions;
+  if (filters?.topic) {
+    questions = questions.filter(q => q.topic.toLowerCase() === filters.topic!.toLowerCase());
+  }
+  if (filters?.difficulty) {
+    questions = questions.filter(q => q.difficulty === filters.difficulty);
+  }
+  if (filters?.part) {
+    questions = questions.filter(q => q.taskOrPart === filters.part);
+  }
+  return questions;
+};
+export const getRandomSpeakingQuestion = (): IeltsQuestion => {
+  const idx = Math.floor(Math.random() * speakingPart1Questions.length);
+  return speakingPart1Questions[idx];
+};
+export const transcribeAudioWithGemini = async (audioBase64: string, mimeType: string = 'audio/webm'): Promise<string> => {
+  // Imported by component dynamically or statically
+  const { transcribeAudioWithGemini: serviceTranscribe } = await import('../services/ieltsSpeakingService');
+  return serviceTranscribe(audioBase64, mimeType);
+};

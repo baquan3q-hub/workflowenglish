@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AppPhase, DifficultyLevel, GeneratedLesson, UserSettings, FlashcardData } from './types';
+import { AppPhase, DifficultyLevel, GeneratedLesson, UserSettings, FlashcardData, IeltsQuestion, IeltsAiFeedback } from './types';
 import { generateLessonContent } from './services/geminiService';
 import { supabase, getProfile, signOut, saveLearningRecord, getLearningRecordFull, LearningRecord, saveLessonAudio, withTimeout, getCachedSession, resumeAuthRefresh, pauseAuthRefresh } from './services/supabaseClient';
 import {
@@ -20,11 +20,21 @@ import FillBlankMode from './views/FillBlankMode';
 import LearningHistory from './views/LearningHistory';
 import ReviewSession from './views/ReviewSession';
 import AnalyticsDashboard from './views/AnalyticsDashboard';
+import IeltsWritingHub from './views/IeltsWritingHub';
+import IeltsWritingPractice from './views/IeltsWritingPractice';
+import IeltsWritingFeedback from './views/IeltsWritingFeedback';
+import IeltsSpeakingHub from './views/IeltsSpeakingHub';
+import IeltsSpeakingPractice from './views/IeltsSpeakingPractice';
+import IeltsSpeakingFeedback from './views/IeltsSpeakingFeedback';
+import { gradeWritingTask } from './services/ieltsWritingService';
+import { gradeSpeakingAnswer } from './services/ieltsSpeakingService';
+import { speakingPart1Questions } from './data/ieltsSpeakingQuestions';
 import { Toast } from './components/Common';
-import { Loader2, Layout, LogOut, User, History, BookOpen, Headphones, HelpCircle, PenTool, Menu, Sun, Moon, BarChart3 } from 'lucide-react';
+import { Loader2, Layout, LogOut, User, History, BookOpen, Headphones, HelpCircle, PenTool, Menu, Sun, Moon, BarChart3, Mic } from 'lucide-react';
 import { ConnectionIndicator } from './components/ConnectionIndicator';
 import { saveDraft, loadDraft, clearDraft, hasDraft, DraftData } from './services/draftService';
 import { useAutoSave } from './services/autoSaveService';
+import IeltsChatBox from './components/IeltsChatBox';
 
 
 interface AppUser {
@@ -86,6 +96,16 @@ function App() {
   // Saving state for loading feedback in modal
   const [isSaving, setIsSaving] = useState(false);
   const [pullToRefresh, setPullToRefresh] = useState({ distance: 0, refreshing: false });
+
+  // ─── IELTS Module State ──────────────────────────────
+  const [selectedIeltsQuestion, setSelectedIeltsQuestion] = useState<IeltsQuestion | null>(null);
+  const [ieltsWritingDraft, setIeltsWritingDraft] = useState<string>('');
+  const [ieltsFeedbackData, setIeltsFeedbackData] = useState<IeltsAiFeedback | null>(null);
+  const [ieltsUserAnswer, setIeltsUserAnswer] = useState<string>('');
+  const [isIeltsGrading, setIsIeltsGrading] = useState(false);
+  const [ieltsSpeakingAudioBase64, setIeltsSpeakingAudioBase64] = useState<string>('');
+  const [ieltsSpeakingAudioMime, setIeltsSpeakingAudioMime] = useState<string>('audio/webm');
+  const [isSpeakingMockTest, setIsSpeakingMockTest] = useState(false);
 
   // Ref to track lessonData for beforeunload warning (avoids stale closure)
   const lessonDataRef = useRef(lessonData);
@@ -861,6 +881,151 @@ function App() {
           />
         ) : null;
 
+      // ─── IELTS Writing ──────────────────────────────
+      case AppPhase.IELTS_WRITING_HUB:
+        return (
+          <IeltsWritingHub
+            onSelectQuestion={(q) => {
+              setSelectedIeltsQuestion(q);
+              setIeltsWritingDraft('');
+              setIeltsFeedbackData(null);
+              setIeltsUserAnswer('');
+              setPhase(AppPhase.IELTS_WRITING_PRACTICE);
+            }}
+          />
+        );
+
+      case AppPhase.IELTS_WRITING_PRACTICE:
+        return selectedIeltsQuestion ? (
+          <IeltsWritingPractice
+            question={selectedIeltsQuestion}
+            onSubmit={async (answer, durationSeconds) => {
+              setIsIeltsGrading(true);
+              setIeltsUserAnswer(answer);
+              try {
+                const feedback = await gradeWritingTask(
+                  selectedIeltsQuestion.prompt,
+                  answer,
+                  selectedIeltsQuestion.questionType,
+                  selectedIeltsQuestion.targetBand,
+                  selectedIeltsQuestion.taskOrPart as 'task_1' | 'task_2'
+                );
+                setIeltsFeedbackData(feedback);
+                setPhase(AppPhase.IELTS_WRITING_FEEDBACK);
+              } catch (err) {
+                console.error('Writing grading failed:', err);
+                showToast('Không thể chấm bài. Vui lòng thử lại.', 'info');
+              } finally {
+                setIsIeltsGrading(false);
+              }
+            }}
+            onBack={() => setPhase(AppPhase.IELTS_WRITING_HUB)}
+            isGrading={isIeltsGrading}
+            initialDraft={ieltsWritingDraft}
+          />
+        ) : null;
+
+      case AppPhase.IELTS_WRITING_FEEDBACK:
+        return selectedIeltsQuestion && ieltsFeedbackData ? (
+          <IeltsWritingFeedback
+            question={selectedIeltsQuestion}
+            userAnswer={ieltsUserAnswer}
+            feedback={ieltsFeedbackData}
+            onRewrite={() => {
+              setIeltsWritingDraft(ieltsUserAnswer);
+              setIeltsFeedbackData(null);
+              setPhase(AppPhase.IELTS_WRITING_PRACTICE);
+            }}
+            onBackToHub={() => {
+              setSelectedIeltsQuestion(null);
+              setIeltsFeedbackData(null);
+              setIeltsWritingDraft('');
+              setIeltsUserAnswer('');
+              setPhase(AppPhase.IELTS_WRITING_HUB);
+            }}
+          />
+        ) : null;
+
+      // ─── IELTS Speaking ──────────────────────────────
+      case AppPhase.IELTS_SPEAKING_HUB:
+        return (
+          <IeltsSpeakingHub
+            onSelectQuestion={(q) => {
+              setSelectedIeltsQuestion(q);
+              setIeltsFeedbackData(null);
+              setIeltsUserAnswer('');
+              setIsSpeakingMockTest(false);
+              setPhase(AppPhase.IELTS_SPEAKING_PRACTICE);
+            }}
+            onStartMockTest={() => {
+              setIsSpeakingMockTest(true);
+              const p1Questions = speakingPart1Questions.filter(q => q.taskOrPart === 'part_1');
+              const randomQ = p1Questions[Math.floor(Math.random() * p1Questions.length)] || speakingPart1Questions[0];
+              setSelectedIeltsQuestion(randomQ);
+              setIeltsFeedbackData(null);
+              setIeltsUserAnswer('');
+              setPhase(AppPhase.IELTS_SPEAKING_PRACTICE);
+            }}
+          />
+        );
+
+      case AppPhase.IELTS_SPEAKING_PRACTICE:
+        return selectedIeltsQuestion ? (
+          <IeltsSpeakingPractice
+            question={selectedIeltsQuestion}
+            isMockTest={isSpeakingMockTest}
+            onSubmit={async (transcript, audioBase64, audioMimeType, durationSeconds) => {
+              setIsIeltsGrading(true);
+              setIeltsUserAnswer(transcript);
+              setIeltsSpeakingAudioBase64(audioBase64);
+              setIeltsSpeakingAudioMime(audioMimeType);
+              try {
+                const feedback = await gradeSpeakingAnswer(
+                  selectedIeltsQuestion.prompt,
+                  transcript,
+                  isSpeakingMockTest ? 'part_3' : selectedIeltsQuestion.taskOrPart,
+                  selectedIeltsQuestion.targetBand,
+                  audioBase64,
+                  audioMimeType
+                );
+                setIeltsFeedbackData(feedback);
+                setPhase(AppPhase.IELTS_SPEAKING_FEEDBACK);
+              } catch (err) {
+                console.error('Speaking grading failed:', err);
+                showToast('Không thể chấm bài. Vui lòng thử lại.', 'info');
+              } finally {
+                setIsIeltsGrading(false);
+              }
+            }}
+            onBack={() => {
+              setIsSpeakingMockTest(false);
+              setPhase(AppPhase.IELTS_SPEAKING_HUB);
+            }}
+            isGrading={isIeltsGrading}
+          />
+        ) : null;
+
+      case AppPhase.IELTS_SPEAKING_FEEDBACK:
+        return selectedIeltsQuestion && ieltsFeedbackData ? (
+          <IeltsSpeakingFeedback
+            question={selectedIeltsQuestion}
+            userTranscript={ieltsUserAnswer}
+            feedback={ieltsFeedbackData}
+            onRetry={() => {
+              setIeltsFeedbackData(null);
+              setIeltsUserAnswer('');
+              setPhase(AppPhase.IELTS_SPEAKING_PRACTICE);
+            }}
+            onBackToHub={() => {
+              setSelectedIeltsQuestion(null);
+              setIeltsFeedbackData(null);
+              setIeltsUserAnswer('');
+              setIsSpeakingMockTest(false);
+              setPhase(AppPhase.IELTS_SPEAKING_HUB);
+            }}
+          />
+        ) : null;
+
       default:
         return <div>Unknown Phase</div>;
     }
@@ -1022,6 +1187,54 @@ function App() {
                 >
                   <BarChart3 className="w-3.5 h-3.5" />
                   <span className="font-bold text-xs hidden md:inline">Thống kê</span>
+                </button>
+
+                {/* IELTS Writing Nav Button */}
+                <button
+                  onClick={() => {
+                    if (lessonData && phase !== AppPhase.DASHBOARD && phase !== AppPhase.IELTS_WRITING_HUB) {
+                      setPendingNavTarget(AppPhase.IELTS_WRITING_HUB);
+                      setShowSaveModal(true);
+                    } else {
+                      setPhase(AppPhase.IELTS_WRITING_HUB);
+                      setMobileMenuOpen(false);
+                    }
+                  }}
+                  className={`
+                    group relative flex items-center gap-1.5 p-1.5 sm:px-3 sm:py-1 rounded-md border shadow-sm
+                    ${[AppPhase.IELTS_WRITING_HUB, AppPhase.IELTS_WRITING_PRACTICE, AppPhase.IELTS_WRITING_FEEDBACK].includes(phase)
+                      ? 'bg-blue-100 text-blue-700 border-blue-200 ring-1 ring-blue-500 font-bold dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700 dark:ring-offset-slate-800'
+                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-200 dark:hover:border-blue-900'
+                    }
+                  `}
+                  title="IELTS Writing"
+                >
+                  <PenTool className="w-3.5 h-3.5" />
+                  <span className="font-bold text-xs hidden md:inline">Writing</span>
+                </button>
+
+                {/* IELTS Speaking Nav Button */}
+                <button
+                  onClick={() => {
+                    if (lessonData && phase !== AppPhase.DASHBOARD && phase !== AppPhase.IELTS_SPEAKING_HUB) {
+                      setPendingNavTarget(AppPhase.IELTS_SPEAKING_HUB);
+                      setShowSaveModal(true);
+                    } else {
+                      setPhase(AppPhase.IELTS_SPEAKING_HUB);
+                      setMobileMenuOpen(false);
+                    }
+                  }}
+                  className={`
+                    group relative flex items-center gap-1.5 p-1.5 sm:px-3 sm:py-1 rounded-md border shadow-sm
+                    ${[AppPhase.IELTS_SPEAKING_HUB, AppPhase.IELTS_SPEAKING_PRACTICE, AppPhase.IELTS_SPEAKING_FEEDBACK].includes(phase)
+                      ? 'bg-rose-100 text-rose-700 border-rose-200 ring-1 ring-rose-500 font-bold dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-700 dark:ring-offset-slate-800'
+                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-rose-600 dark:hover:text-rose-400 hover:border-rose-200 dark:hover:border-rose-900'
+                    }
+                  `}
+                  title="IELTS Speaking"
+                >
+                  <Mic className="w-3.5 h-3.5" />
+                  <span className="font-bold text-xs hidden md:inline">Speaking</span>
                 </button>
 
                 <div className="hidden sm:flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/50 px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-700">
@@ -1251,6 +1464,11 @@ function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* IELTS AI ChatBox — floating widget, always visible when logged in */}
+      {currentUser && showHeader && (
+        <IeltsChatBox darkMode={darkMode} />
       )}
     </div>
   );
