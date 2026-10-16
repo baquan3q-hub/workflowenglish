@@ -1,13 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Check, X, AlertCircle, Award, RotateCcw, ListChecks, ArrowLeft, PenTool } from 'lucide-react';
-import { MasteryLevel, QuizQuestion, type IncorrectContext } from '../types';
+import { FlashcardData, QuizQuestion, type IncorrectContext } from '../types';
 import { Button, ProgressBar } from '../components/Common';
-import {
-  recordQuizIncorrect,
-  getWordMastery,
-  upsertWordMastery,
-  determineMasteryTransition,
-} from '../services/masteryService';
+import { recordQuizIncorrect } from '../services/masteryService';
+import { recordReview } from '../services/vocabReviewService';
+import { findWordForm, shuffle } from '../services/reviewLogic';
 
 interface QuizModeProps {
   questions: QuizQuestion[];
@@ -15,6 +12,8 @@ interface QuizModeProps {
   onComplete?: (score: number, total: number) => void;
   onNextPhase?: () => void;
   userId?: string;
+  /** Lesson flashcards — used to map each question back to its vocabulary word. */
+  cards?: FlashcardData[];
 }
 
 /**
@@ -23,11 +22,32 @@ interface QuizModeProps {
  * Falls back to the raw question if no quoted token is found.
  */
 function extractWordFromQuestion(question: string): string {
-  const match = question.match(/['"]([^'"]+)['"]/);
+  const match = question.match(/['"‘“]([^'"’”]+(?:'[a-z]+)?)['"’”]/);
   return match ? match[1] : question;
 }
 
-const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, onNextPhase, userId }) => {
+/**
+ * Find which lesson word a question is about. Prefers matching against the
+ * lesson's flashcards (robust to apostrophes like "don't" and to inflected
+ * forms); falls back to the quoted token in the question.
+ */
+function wordForQuestion(question: string, cards: FlashcardData[] | undefined): string {
+  if (cards && cards.length > 0) {
+    const byLength = [...cards].sort((a, b) => b.word.length - a.word.length);
+    const hit = byLength.find((c) => findWordForm(question, c.word));
+    if (hit) return hit.word;
+  }
+  return extractWordFromQuestion(question);
+}
+
+const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, onNextPhase, userId, cards }) => {
+  // The AI decides where the correct answer sits; shuffle once per lesson so
+  // its position carries no signal.
+  const shuffledOptions = useMemo(
+    () => questions.map((q) => shuffle(q.options)),
+    [questions],
+  );
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'correct' | 'wrong'>('idle');
@@ -52,11 +72,20 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
       [currentQuestion.id]: (prev[currentQuestion.id] || 0) + 1
     }));
 
+    const isFirstAttempt = !attempts[currentQuestion.id];
+    const word = wordForQuestion(currentQuestion.question, cards);
+
     if (option === currentQuestion.correctAnswer) {
       setStatus('correct');
       // Only count first-attempt correct
-      if (!attempts[currentQuestion.id]) {
+      if (isFirstAttempt) {
         setScore(prev => prev + 1);
+        // Recognising the meaning first time is a successful (if easy) recall.
+        if (userId) {
+          void recordReview(userId, word, 2).catch((err) =>
+            console.error('[QuizMode] Failed to record review:', err),
+          );
+        }
       }
       const audio = new Audio('https://codeskulptor-demos.commondatastorage.googleapis.com/pang/pop.mp3');
       audio.volume = 0.2;
@@ -66,7 +95,6 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
       // Fire-and-forget: record incorrect answer for weakness detection
       // and trigger LAPSED transition if the word was already internalized.
       if (userId) {
-        const word = extractWordFromQuestion(currentQuestion.question);
         const context: IncorrectContext = {
           question: currentQuestion.question,
           userAnswer: option,
@@ -76,29 +104,13 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
 
         void (async () => {
           try {
-            await recordQuizIncorrect(userId, word, context);
-
-            const existing = await getWordMastery(userId, word);
-            if (
-              existing &&
-              (existing.mastery_level === MasteryLevel.REVIEWING ||
-                existing.mastery_level === MasteryLevel.MASTERED)
-            ) {
-              // Rating 0 simulates a complete recall failure.
-              const nextLevel = determineMasteryTransition(
-                existing.mastery_level,
-                0,
-                0,
-                1,
-              );
-              await upsertWordMastery({
-                user_id: userId,
-                word,
-                mastery_level: nextLevel,
-                interval_days: 1,
-                repetition_count: 0,
-              });
+            // First miss on this question counts as a failed recall ("Again"),
+            // which also lapses words that were Reviewing/Mastered. Every miss
+            // is logged as context for weakness analysis.
+            if (isFirstAttempt) {
+              await recordReview(userId, word, 0);
             }
+            await recordQuizIncorrect(userId, word, context, { countIncorrect: false });
           } catch (err) {
             console.error('[QuizMode] Failed to record incorrect answer:', err);
           }
@@ -119,6 +131,24 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
       onComplete?.(finalScore, questions.length);
     }
   };
+
+  // Keyboard: 1–4 pick an option, Enter goes to the next question.
+  useEffect(() => {
+    if (completed) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const n = Number(e.key);
+      const options = shuffledOptions[currentIndex] ?? [];
+      if (n >= 1 && n <= options.length && status !== 'correct') {
+        handleOptionClick(options[n - 1]);
+      } else if (e.key === 'Enter' && status === 'correct') {
+        e.preventDefault();
+        handleNext();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   const handleReview = () => {
     setShowSummary(true);
@@ -212,7 +242,7 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
         </h3>
 
         <div className="space-y-3">
-          {currentQuestion.options.map((option, idx) => {
+          {(shuffledOptions[currentIndex] ?? currentQuestion.options).map((option, idx) => {
             let stateClass = "border-slate-200 hover:border-blue-400 hover:bg-slate-50";
             let icon = null;
 
@@ -237,7 +267,12 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
                 className={`w-full text-left p-4 rounded-xl border-2 transition-all flex justify-between items-center font-medium ${stateClass}`}
                 disabled={status === 'correct'}
               >
-                <span>{option}</span>
+                <span className="flex items-center gap-3">
+                  <span className="hidden sm:inline-flex w-6 h-6 items-center justify-center rounded-md bg-slate-100 text-slate-500 text-xs font-bold">
+                    {idx + 1}
+                  </span>
+                  {option}
+                </span>
                 {icon}
               </button>
             );

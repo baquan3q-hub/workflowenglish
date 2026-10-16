@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Pause, Languages, Highlighter, ArrowRight, Loader2, Settings2, Volume2, SkipBack, SkipForward, Download } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Play, Pause, Languages, Highlighter, ArrowRight, Loader2, Settings2, Volume2, SkipBack, SkipForward, Download, X } from 'lucide-react';
 import { StoryData, FlashcardData } from '../types';
 import { Button } from '../components/Common';
 import { generateTTS, createAudioBufferFromBase64, AudioPlayerController } from '../services/geminiService';
+import { buildWordFormIndex, formatIpa } from '../services/reviewLogic';
+import { speakText } from '../services/browserSpeech';
 
 interface StoryModeProps {
   story: StoryData;
@@ -32,6 +34,23 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
   // UI state
   const [showTranslation, setShowTranslation] = useState(false);
   const [highlightMode, setHighlightMode] = useState(true);
+  // Vocabulary card opened by tapping a highlighted word in the story
+  const [selectedVocab, setSelectedVocab] = useState<FlashcardData | null>(null);
+
+  // Every inflected form of each (single-word) vocab item → its flashcard,
+  // so "decided" in the story is recognised as "decide".
+  const vocabByForm = useMemo(() => {
+    const singleWord = vocabList.filter((v) => !/\s/.test(v.word.trim()));
+    const formIndex = buildWordFormIndex(singleWord.map((v) => v.word));
+    const byWord = new Map(singleWord.map((v) => [v.word, v]));
+    const out = new Map<string, FlashcardData>();
+    formIndex.forEach((word, form) => {
+      const card = byWord.get(word);
+      if (card) out.set(form, card);
+    });
+    return out;
+  }, [vocabList]);
+
 
   // Highlight state
   const [activeSentenceIndex, setActiveSentenceIndex] = useState<number | null>(null);
@@ -43,19 +62,21 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
   const wordTimingsRef = useRef<WordTiming[]>([]);
 
   // Split story into sentences and strip any markdown formatting (AI sometimes
-  // returns **word** bold markers in the story content)
-  useEffect(() => {
+  // returns **word** bold markers in the story content). Computed during
+  // render (not in an effect) so the text shows on first paint — writing a
+  // ref inside an effect doesn't trigger a re-render.
+  const sentences = useMemo(() => {
     // Strip markdown bold/italic markers from the raw content
     const cleanContent = story.content.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1');
-    
-    if ('Intl' in window && 'Segmenter' in Intl) {
+
+    if (typeof window !== 'undefined' && 'Intl' in window && 'Segmenter' in Intl) {
       const segmenter = new (Intl as any).Segmenter('en', { granularity: 'sentence' });
       const segments = Array.from(segmenter.segment(cleanContent)) as { segment: string }[];
-      sentencesRef.current = segments.map(s => s.segment);
-    } else {
-      sentencesRef.current = cleanContent.match(/[^.!?]+[.!?]+["']?|[^.!?]+$/g) || [cleanContent];
+      return segments.map(s => s.segment);
     }
+    return cleanContent.match(/[^.!?]+[.!?]+["']?|[^.!?]+$/g) || [cleanContent];
   }, [story.content]);
+  sentencesRef.current = sentences;
 
   // Cleanup on unmount
   useEffect(() => {
@@ -221,8 +242,9 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
                 const currentTimingIdx = isWhitespace ? -1 : timingWordCounter++;
                 const isWordActive = isSentActive && `${sentIdx}-${currentTimingIdx}` === activeWordKey;
 
-                const cleanPart = part.replace(/[.,!?;:"'()*_~`\[\]#]/g, "").toLowerCase();
-                const isVocab = vocabList.some(v => v.word.toLowerCase() === cleanPart);
+                const cleanPart = part.replace(/[.,!?;:"'()*_~`\[\]#“”‘’]/g, "").toLowerCase();
+                const vocabCard = isWhitespace ? undefined : vocabByForm.get(cleanPart);
+                const isVocab = !!vocabCard;
 
                 let textColorClass = "text-slate-800 dark:text-slate-200";
                 if (isVocab && highlightMode) textColorClass = "text-blue-600 dark:text-blue-400 font-bold";
@@ -231,9 +253,12 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
                 return (
                   <span
                     key={pIdx}
+                    onClick={vocabCard ? (e) => { e.stopPropagation(); setSelectedVocab(vocabCard); } : undefined}
+                    title={vocabCard ? 'Chạm để xem nghĩa' : undefined}
                     className={`
                       transition-all duration-150 rounded px-0.5
                       ${textColorClass}
+                      ${isVocab ? 'underline decoration-dotted decoration-blue-300 underline-offset-4 cursor-help' : ''}
                       ${isWordActive ? 'bg-blue-500 shadow-sm transform scale-105 inline-block' : ''}
                     `}
                   >
@@ -255,7 +280,7 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
       <div className="flex justify-between items-end">
         <div>
           <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">{story.title}</h2>
-          <p className="text-slate-500 dark:text-slate-400">Read and listen. Click on any sentence to jump there.</p>
+          <p className="text-slate-500 dark:text-slate-400">Đọc và nghe. Chạm vào câu để phát từ câu đó · chạm vào <span className="text-blue-600 dark:text-blue-400 font-semibold">từ in xanh</span> để xem nghĩa.</p>
         </div>
         <Button onClick={() => { playerRef.current?.destroy(); onNextPhase(); }} variant="secondary" className="shadow-lg hover:shadow-emerald-200">
           Take the Quiz <ArrowRight className="w-4 h-4 ml-2" />
@@ -423,7 +448,11 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
           <h3 className="font-bold text-slate-700 dark:text-slate-200 mb-4">Key Vocabulary</h3>
           <ul className="space-y-3">
             {vocabList.map((v) => (
-              <li key={v.id} className="bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col">
+              <li
+                key={v.id}
+                onClick={() => setSelectedVocab(v)}
+                className={`bg-white dark:bg-slate-800 p-3 rounded-lg border shadow-sm flex flex-col cursor-pointer transition-colors ${selectedVocab?.id === v.id ? 'border-blue-400 ring-2 ring-blue-100 dark:ring-blue-900' : 'border-slate-100 dark:border-slate-700 hover:border-blue-200'}`}
+              >
                 <div className="flex justify-between">
                   <span className="font-bold text-slate-800 dark:text-slate-200">{v.word}</span>
                   <span className="text-xs text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 px-1.5 rounded">{v.partOfSpeech}</span>
@@ -434,6 +463,39 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
           </ul>
         </div>
       </div>
+
+      {/* Tap-to-define card */}
+      {selectedVocab && (
+        <div className="fixed inset-x-0 bottom-20 sm:bottom-6 z-40 flex justify-center px-4 pointer-events-none">
+          <div className="pointer-events-auto w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-blue-100 dark:border-slate-700 p-4 animate-fade-in">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xl font-bold text-slate-900 dark:text-white">{selectedVocab.word}</span>
+                  {selectedVocab.partOfSpeech && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">{selectedVocab.partOfSpeech}</span>
+                  )}
+                  <button
+                    onClick={() => speakText(selectedVocab.word)}
+                    className="p-1.5 rounded-full text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-700"
+                    title="Nghe phát âm"
+                  >
+                    <Volume2 className="w-4 h-4" />
+                  </button>
+                </div>
+                {selectedVocab.ipa && <p className="text-sm font-mono text-slate-500 dark:text-slate-400">{formatIpa(selectedVocab.ipa)}</p>}
+              </div>
+              <button onClick={() => setSelectedVocab(null)} className="p-1 text-slate-400 hover:text-slate-600" aria-label="Đóng">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="mt-2 text-base font-medium text-emerald-700 dark:text-emerald-400">{selectedVocab.meaningVietnamese}</p>
+            {selectedVocab.definitionEnglish && (
+              <p className="mt-1 text-sm italic text-slate-600 dark:text-slate-300">{selectedVocab.definitionEnglish}</p>
+            )}
+          </div>
+        </div>
+      )}
     </div >
   );
 };

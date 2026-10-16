@@ -6,11 +6,10 @@ import { MasteryBadge } from '../components/MasteryBadge';
 import {
   bulkEnsureWordsWithMetadata,
   getWordMastery,
-  upsertWordMastery,
-  determineMasteryTransition,
   normalizeWord,
 } from '../services/masteryService';
-import { calculateSRS, type SRSCard } from '../services/srsService';
+import { recordReview } from '../services/vocabReviewService';
+import { formatIpa } from '../services/reviewLogic';
 
 interface FlashcardsProps {
   cards: FlashcardData[];
@@ -293,6 +292,29 @@ const Flashcards: React.FC<FlashcardsProps> = ({
     window.speechSynthesis.speak(utterance);
   };
 
+  // --- Keyboard shortcuts --------------------------------------------------
+  // Space/Enter: flip · after flip → "Đã nhớ", ← "Cần ôn lại" · before flip ←/→ browse
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
+      if (e.key === ' ' || e.key === 'Enter') {
+        if (e.target instanceof HTMLButtonElement) return; // let the focused button handle it
+        e.preventDefault();
+        setIsFlipped((v) => !v);
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        if (isFlipped && shouldShowQuickMark && !savingRating) triggerSwipeOut('right');
+        else if (!isFlipped) handleNext();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        if (isFlipped && shouldShowQuickMark && !savingRating) triggerSwipeOut('left');
+        else if (!isFlipped) handlePrev();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
   // --- Rating handler ------------------------------------------------------
   const handleRating = async (rating: ConfidenceRating, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -300,44 +322,9 @@ const Flashcards: React.FC<FlashcardsProps> = ({
 
     setSavingRating(true);
     try {
-      // If no mastery record exists yet (migration not applied or first time),
-      // create a fresh one with default SRS values
-      const existing = currentMastery || {
-        user_id: userId,
-        word: normalizeWord(currentCard.word),
-        mastery_level: MasteryLevel.NEW,
-        easiness_factor: 2.5,
-        interval_days: 0,
-        repetition_count: 0,
-        correct_count: 0,
-        incorrect_count: 0,
-      };
-
-      const srsCard: SRSCard = {
-        easinessFactor: existing.easiness_factor,
-        intervalDays: existing.interval_days,
-        repetitionCount: existing.repetition_count,
-      };
-      const srs = calculateSRS(srsCard, rating);
-      const newLevel = determineMasteryTransition(
-        existing.mastery_level,
-        rating,
-        srs.repetitionCount,
-        srs.intervalDays,
-      );
-
-      const updated = await upsertWordMastery({
-        user_id: userId,
-        word: normalizeWord(currentCard.word),
-        mastery_level: newLevel,
-        easiness_factor: srs.easinessFactor,
-        interval_days: srs.intervalDays,
-        repetition_count: srs.repetitionCount,
-        next_review_date: srs.nextReviewDate.toISOString(),
-        last_reviewed_at: new Date().toISOString(),
-        correct_count: (existing.correct_count ?? 0) + (rating >= 2 ? 1 : 0),
-        incorrect_count: (existing.incorrect_count ?? 0) + (rating < 2 ? 1 : 0),
-      });
+      // Shared write path: applies SM-2 plus the same-session guard, so
+      // rating a card here and then answering the quiz doesn't double-advance it.
+      const updated = await recordReview(userId, currentCard.word, rating, currentMastery);
 
       const nextMap = {
         ...masteryMap,
@@ -400,7 +387,7 @@ const Flashcards: React.FC<FlashcardsProps> = ({
       <div className="flex w-full justify-between items-end">
         <div className="space-y-1">
           <h2 className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-white">Smart Flashcards</h2>
-          <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm">Tap to flip to show mean vocab</p>
+          <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm">Chạm để lật thẻ<span className="hidden sm:inline"> · Space lật · ←/→ đánh giá</span></p>
         </div>
 
         {/* Speed Control */}
@@ -463,7 +450,7 @@ const Flashcards: React.FC<FlashcardsProps> = ({
         <div className={`relative w-full duration-500 transform-style-3d transition-transform ${isFlipped ? 'rotate-y-180' : ''}`} style={{ minHeight: '300px' }}>
 
           {/* FRONT */}
-          <div className={`${isFlipped ? 'invisible' : ''} relative w-full backface-hidden bg-white dark:bg-slate-800 rounded-2xl sm:rounded-3xl shadow-lg border-2 border-blue-100 dark:border-blue-900 flex flex-col items-center justify-center p-6 sm:p-8`}
+          <div className={`${isFlipped ? 'invisible absolute inset-0' : 'relative'} w-full backface-hidden bg-white dark:bg-slate-800 rounded-2xl sm:rounded-3xl shadow-lg border-2 border-blue-100 dark:border-blue-900 flex flex-col items-center justify-center p-6 sm:p-8`}
             style={{ minHeight: '300px' }}
           >
             {/* Mastery badge — top-right corner */}
@@ -498,7 +485,7 @@ const Flashcards: React.FC<FlashcardsProps> = ({
 
           {/* BACK */}
           <div
-            className={`${!isFlipped ? 'invisible' : ''} absolute inset-0 backface-hidden rotate-y-180 bg-white dark:bg-slate-800 rounded-2xl sm:rounded-3xl shadow-lg border-2 border-emerald-100 dark:border-emerald-900 flex flex-col p-4 sm:p-6 overflow-y-auto`}
+            className={`${!isFlipped ? 'invisible absolute inset-0 overflow-hidden' : 'relative'} w-full backface-hidden rotate-y-180 bg-white dark:bg-slate-800 rounded-2xl sm:rounded-3xl shadow-lg border-2 border-emerald-100 dark:border-emerald-900 flex flex-col p-4 sm:p-6`}
             style={{ minHeight: '300px' }}
           >
             <div className="flex justify-between items-start mb-3">
@@ -509,7 +496,7 @@ const Flashcards: React.FC<FlashcardsProps> = ({
                   {masteryLoaded && <MasteryBadge level={currentLevel} size="md" />}
                 </div>
                 <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-mono text-sm">
-                  <span>/{currentCard.ipa}/</span>
+                  <span>{formatIpa(currentCard.ipa)}</span>
                   <button
                     onClick={(e) => handlePlayAudio(currentCard.word, e)}
                     className={`p-1.5 rounded-full transition-colors ${isTextPlaying(currentCard.word) ? 'bg-red-100 dark:bg-red-900/30 text-red-600' : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-blue-500'}`}
@@ -547,6 +534,26 @@ const Flashcards: React.FC<FlashcardsProps> = ({
                 </p>
                 <p className="text-slate-500 dark:text-slate-400 text-sm">{currentCard.exampleSentenceVietnamese}</p>
               </div>
+
+              {currentCard.collocations && currentCard.collocations.length > 0 && (
+                <div className="p-3 bg-violet-50 dark:bg-violet-900/20 rounded-lg border border-violet-100 dark:border-violet-800">
+                  <p className="text-sm text-violet-500 dark:text-violet-400 font-semibold mb-1.5">Collocations</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {currentCard.collocations.map((c) => (
+                      <span key={c} className="text-xs sm:text-sm px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-violet-100 dark:border-violet-800 text-slate-700 dark:text-slate-200">
+                        {c}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {currentCard.memoryTip && (
+                <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-100 dark:border-amber-800">
+                  <p className="text-sm text-amber-600 dark:text-amber-400 font-semibold mb-1">💡 Mẹo nhớ &amp; lỗi hay gặp</p>
+                  <p className="text-slate-700 dark:text-slate-300 text-sm">{currentCard.memoryTip}</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -597,6 +604,7 @@ const Flashcards: React.FC<FlashcardsProps> = ({
               className="flex items-center justify-center gap-2 py-3 px-4 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed text-sm sm:text-base active:scale-95"
             >
               <span>✓</span> Đã nhớ
+              <kbd className="hidden sm:inline text-[10px] font-semibold bg-white/25 rounded px-1.5 py-0.5">→</kbd>
             </button>
             <button
               onClick={(e) => handleRating(0 as ConfidenceRating, e)}
@@ -604,6 +612,7 @@ const Flashcards: React.FC<FlashcardsProps> = ({
               className="flex items-center justify-center gap-2 py-3 px-4 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl shadow-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed text-sm sm:text-base active:scale-95"
             >
               <span>↻</span> Cần ôn lại
+              <kbd className="hidden sm:inline text-[10px] font-semibold bg-white/25 rounded px-1.5 py-0.5">←</kbd>
             </button>
           </div>
         </div>

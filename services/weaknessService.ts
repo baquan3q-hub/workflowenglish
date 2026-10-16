@@ -21,6 +21,7 @@
 
 import { GoogleGenAI, Type, type Schema } from '@google/genai';
 import { supabase } from './supabaseClient';
+import { levenshtein } from './reviewLogic';
 import {
   type GeneratedLesson,
   type IncorrectContext,
@@ -56,48 +57,9 @@ const LOCALSTORAGE_KEY_PREFIX = 'vocabmaster_weakness_status_';
 
 // --- Pure helpers ----------------------------------------------------------
 
-/**
- * Standard iterative Levenshtein distance with O(min(a,b)) memory.
- * Returns the minimum number of single-character edits (insert / delete
- * / substitute) needed to turn `a` into `b`.
- */
-export function levenshtein(a: string, b: string): number {
-  if (a === b) return 0;
-  if (a.length === 0) return b.length;
-  if (b.length === 0) return a.length;
-
-  // Ensure `a` is the shorter string to keep the row buffer small.
-  if (a.length > b.length) {
-    const tmp = a;
-    a = b;
-    b = tmp;
-  }
-
-  const m = a.length;
-  const n = b.length;
-  let prev = new Array<number>(m + 1);
-  let curr = new Array<number>(m + 1);
-
-  for (let i = 0; i <= m; i++) prev[i] = i;
-
-  for (let j = 1; j <= n; j++) {
-    curr[0] = j;
-    const bj = b.charCodeAt(j - 1);
-    for (let i = 1; i <= m; i++) {
-      const cost = a.charCodeAt(i - 1) === bj ? 0 : 1;
-      curr[i] = Math.min(
-        curr[i - 1] + 1,    // insertion
-        prev[i] + 1,        // deletion
-        prev[i - 1] + cost, // substitution
-      );
-    }
-    const swap = prev;
-    prev = curr;
-    curr = swap;
-  }
-
-  return prev[m];
-}
+// Levenshtein lives in reviewLogic (shared with answer grading); re-exported
+// here so existing imports keep working.
+export { levenshtein };
 
 /**
  * Cheap part-of-speech estimator based on common English suffixes. This

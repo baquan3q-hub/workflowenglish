@@ -804,6 +804,7 @@ function App() {
         return lessonData ? (
           <QuizMode
             questions={lessonData.quiz}
+            cards={lessonData.flashcards}
             onRestart={() => navigateWithConfirm(AppPhase.DASHBOARD)}
             onComplete={handleQuizComplete}
             onNextPhase={() => setPhase(AppPhase.FILL_BLANK)}
@@ -815,6 +816,7 @@ function App() {
         return lessonData ? (
           <FillBlankMode
             cards={lessonData.flashcards}
+            userId={currentUser?.id}
             onFinish={() => navigateWithConfirm(AppPhase.DASHBOARD)}
             onSave={async () => {
               console.log('[Save] Starting save lesson...', {

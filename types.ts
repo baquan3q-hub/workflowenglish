@@ -132,6 +132,10 @@ export interface FlashcardData {
   definitionEnglish: string;
   exampleSentence: string;
   exampleSentenceVietnamese: string;
+  /** 2–4 common collocations (e.g. "make a decision"). Absent on older lessons. */
+  collocations?: string[];
+  /** Short Vietnamese memory tip / common mistake for Vietnamese learners. */
+  memoryTip?: string;
 }
 
 export interface StoryData {
