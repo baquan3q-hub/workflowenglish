@@ -130,6 +130,30 @@ export function determineMasteryTransition(
 
 const TABLE = 'word_mastery';
 
+// Set once `is_suspended` turns out to be missing (migration 005 not
+// applied); due queries then stop filtering on it.
+let suspendedColumnMissing = false;
+
+function isMissingColumn(error: { code?: string; message?: string } | null): boolean {
+  return !!error && (error.code === '42703' || /is_suspended/.test(error.message ?? ''));
+}
+
+/**
+ * Run a due query without suspended words ("Tạm ẩn"). `build(true)` must add
+ * the filter; on a missing column it is retried once with `build(false)`.
+ */
+async function withoutSuspended<B extends PromiseLike<unknown>>(
+  build: (filterSuspended: boolean) => B,
+): Promise<Awaited<B>> {
+  const run = (filter: boolean) => withTimeout(Promise.resolve(build(filter)) as Promise<Awaited<B>>);
+  if (suspendedColumnMissing) return run(false);
+  const result = await run(true);
+  if (!isMissingColumn((result as { error: { code?: string; message?: string } | null }).error)) return result;
+  suspendedColumnMissing = true;
+  console.warn('[Mastery] is_suspended missing — apply docs/migrations/005_review_logs.sql');
+  return run(false);
+}
+
 /**
  * Fetch the mastery record for a single (user, word). Returns `null` when
  * no row exists (Supabase code `PGRST116`).
@@ -189,15 +213,18 @@ export async function getDueWords(
   limit?: number,
 ): Promise<WordMasteryRecord[]> {
   const nowIso = new Date().toISOString();
-  let query = supabase
-    .from(TABLE)
-    .select('*')
-    .eq('user_id', userId)
-    .neq('mastery_level', MasteryLevel.NEW)
-    .lte('next_review_date', nowIso)
-    .order('next_review_date', { ascending: true });
-  if (limit && limit > 0) query = query.limit(limit);
-  const { data, error } = await withTimeout(Promise.resolve(query));
+  const { data, error } = await withoutSuspended((filter) => {
+    let query = supabase
+      .from(TABLE)
+      .select('*')
+      .eq('user_id', userId)
+      .neq('mastery_level', MasteryLevel.NEW)
+      .lte('next_review_date', nowIso);
+    if (filter) query = query.eq('is_suspended', false);
+    query = query.order('next_review_date', { ascending: true });
+    if (limit && limit > 0) query = query.limit(limit);
+    return query;
+  });
 
   if (error) throw error;
   return (data ?? []) as WordMasteryRecord[];
@@ -209,13 +236,16 @@ export async function getDueWords(
  */
 export async function getNextDueAt(userId: string): Promise<string | null> {
   const nowIso = new Date().toISOString();
-  const { data, error } = await withTimeout(Promise.resolve(supabase
-    .from(TABLE)
-    .select('next_review_date')
-    .eq('user_id', userId)
-    .gt('next_review_date', nowIso)
-    .order('next_review_date', { ascending: true })
-    .limit(1)));
+  const { data, error } = await withoutSuspended((filter) => {
+    let query = supabase
+      .from(TABLE)
+      .select('next_review_date')
+      .eq('user_id', userId)
+      .neq('mastery_level', MasteryLevel.NEW)
+      .gt('next_review_date', nowIso);
+    if (filter) query = query.eq('is_suspended', false);
+    return query.order('next_review_date', { ascending: true }).limit(1);
+  });
 
   if (error) throw error;
   const row = (data ?? [])[0] as { next_review_date?: string } | undefined;
@@ -228,12 +258,15 @@ export async function getNextDueAt(userId: string): Promise<string | null> {
  */
 export async function getDueWordCount(userId: string): Promise<number> {
   const nowIso = new Date().toISOString();
-  const { count, error } = await withTimeout(Promise.resolve(supabase
-    .from(TABLE)
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .neq('mastery_level', MasteryLevel.NEW)
-    .lte('next_review_date', nowIso)));
+  const { count, error } = await withoutSuspended((filter) => {
+    const query = supabase
+      .from(TABLE)
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .neq('mastery_level', MasteryLevel.NEW)
+      .lte('next_review_date', nowIso);
+    return filter ? query.eq('is_suspended', false) : query;
+  });
 
   if (error) throw error;
   return count ?? 0;

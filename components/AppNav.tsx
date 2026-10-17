@@ -33,7 +33,7 @@ interface TabDef {
 const TABS: readonly TabDef[] = [
   { id: 'learn', label: 'Học', icon: Home, request: { phase: AppPhase.DASHBOARD } },
   { id: 'review', label: 'Ôn tập', icon: RotateCcw, request: { phase: AppPhase.REVIEW_SESSION } },
-  { id: 'vocab', label: 'Sổ từ', icon: BookMarked, request: { phase: AppPhase.ANALYTICS, analyticsSection: 'vocab' } },
+  { id: 'vocab', label: 'Sổ từ', icon: BookMarked, request: { phase: AppPhase.VOCAB_LIBRARY } },
   { id: 'stats', label: 'Thống kê', icon: BarChart3, request: { phase: AppPhase.ANALYTICS, analyticsSection: 'overview' } },
   { id: 'ielts', label: 'IELTS', icon: GraduationCap },
 ];
@@ -130,7 +130,7 @@ export const AppNavDesktop: React.FC<AppNavProps & { compact?: boolean }> = ({
   compact = false,
 }) => {
   const [ieltsOpen, setIeltsOpen] = useState(false);
-  const active = activeNavTab(phase, analyticsSection);
+  const active = activeNavTab(phase);
 
   return (
     <nav aria-label="Điều hướng chính" className="hidden items-center gap-0.5 md:flex">
@@ -202,7 +202,7 @@ export const AppNavDesktop: React.FC<AppNavProps & { compact?: boolean }> = ({
 /** Fixed bottom tab bar (< 768px). */
 export const AppNavMobile: React.FC<AppNavProps> = ({ phase, analyticsSection, dueCount, onNavigate }) => {
   const [ieltsOpen, setIeltsOpen] = useState(false);
-  const active = activeNavTab(phase, analyticsSection);
+  const active = activeNavTab(phase);
 
   return (
     <nav

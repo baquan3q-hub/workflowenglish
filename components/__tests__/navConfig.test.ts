@@ -8,7 +8,7 @@ describe('navConfig', () => {
     expect(activeNavTab(AppPhase.QUIZ)).toBe('learn');
     expect(activeNavTab(AppPhase.REVIEW_SESSION)).toBe('review');
     expect(activeNavTab(AppPhase.ANALYTICS)).toBe('stats');
-    expect(activeNavTab(AppPhase.ANALYTICS, 'vocab')).toBe('vocab');
+    expect(activeNavTab(AppPhase.VOCAB_LIBRARY)).toBe('vocab');
     expect(activeNavTab(AppPhase.IELTS_SPEAKING_FEEDBACK)).toBe('ielts');
     expect(activeNavTab(AppPhase.HISTORY)).toBeNull();
   });

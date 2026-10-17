@@ -20,6 +20,7 @@ import FillBlankMode from './views/FillBlankMode';
 import LearningHistory from './views/LearningHistory';
 import ReviewSession from './views/ReviewSession';
 import AnalyticsDashboard from './views/AnalyticsDashboard';
+import VocabLibrary from './views/VocabLibrary';
 import IeltsWritingHub from './views/IeltsWritingHub';
 import IeltsWritingPractice from './views/IeltsWritingPractice';
 import IeltsWritingFeedback from './views/IeltsWritingFeedback';
@@ -35,6 +36,7 @@ import { Loader2, LogOut, History, BookOpen, HelpCircle, PenTool, Sun, Moon, Hom
 import { AppNavDesktop, AppNavMobile, type NavRequest } from './components/AppNav';
 import { isLessonPhase, showsTabBar, type AnalyticsSection } from './components/navConfig';
 import { getDueWordCount } from './services/masteryService';
+import { getWordsByIds } from './services/vocabLibraryService';
 import { ConnectionIndicator } from './components/ConnectionIndicator';
 import { saveDraft, loadDraft, clearDraft, DraftData } from './services/draftService';
 import { useAutoSave } from './services/autoSaveService';
@@ -703,6 +705,22 @@ function App() {
     setPhase(target);
   };
 
+  /** "Ôn ngay" in Sổ từ: a review session made of the picked words, due or not. */
+  const reviewSelectedWords = async (ids: string[]) => {
+    if (!currentUser || ids.length === 0) return;
+    try {
+      const records = await getWordsByIds(currentUser.id, ids);
+      if (records.length === 0) return;
+      setReviewDueWords(records);
+      setReviewCurrentIndex(0);
+      setReviewRatings([]);
+      setReviewGoalCelebrated(false);
+      setPhase(AppPhase.REVIEW_SESSION);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Không tải được các từ đã chọn', 'error');
+    }
+  };
+
   const handleModalNo = () => {
     setShowSaveModal(false);
     setLessonData(null);
@@ -796,6 +814,16 @@ function App() {
           />
         );
 
+      case AppPhase.VOCAB_LIBRARY:
+        return currentUser ? (
+          <VocabLibrary
+            userId={currentUser.id}
+            onShowToast={showToast}
+            onStartLesson={() => setPhase(AppPhase.DASHBOARD)}
+            onReviewWords={reviewSelectedWords}
+          />
+        ) : null;
+
       case AppPhase.HISTORY:
         return currentUser ? (
           <LearningHistory
@@ -811,6 +839,7 @@ function App() {
           <AnalyticsDashboard
             userId={currentUser.id}
             focusSection={analyticsSection}
+            onOpenLibrary={() => setPhase(AppPhase.VOCAB_LIBRARY)}
             onBack={() => setPhase(AppPhase.DASHBOARD)}
             onStartLesson={() => setPhase(AppPhase.DASHBOARD)}
             onStartReview={() => setPhase(AppPhase.REVIEW_SESSION)}

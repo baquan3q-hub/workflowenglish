@@ -24,6 +24,12 @@ import {
 import { computeReviewUpdate, type ReviewableState } from './reviewLogic';
 import { recordWordReview } from './goalService';
 import {
+  manualStatusPatch,
+  manualStatusSnapshot,
+  type ManualStatus,
+  type ManualStatusState,
+} from './srsStatusLogic';
+import {
   MasteryLevel,
   type ConfidenceRating,
   type ReviewLogEntry,
@@ -306,4 +312,96 @@ export async function undoRating(input: UndoRatingInput): Promise<WordMasteryRec
     }
   }
   return record;
+}
+
+// --- Manual status (word library) -------------------------------------------
+
+export interface ManualChangeResult {
+  /** Updated rows, in the order given. */
+  records: WordMasteryRecord[];
+  /** Pass to `undoManualStatus`. */
+  undo: ManualChangeUndo;
+}
+
+export interface ManualChangeUndo {
+  userId: string;
+  snapshots: Array<{ word: string } & ManualStatusState>;
+  at: Date;
+}
+
+/**
+ * Change the status of one or more words by hand (Sổ từ). Writes every row in
+ * one upsert and logs each change with `source='manual'` and no rating, so
+ * analytics never counts it as remembered. Returns what undo needs.
+ */
+export async function applyManualStatus(
+  userId: string,
+  words: ReadonlyArray<{ id?: string; word: string } & ManualStatusState>,
+  target: ManualStatus,
+  now: Date = new Date(),
+): Promise<ManualChangeResult> {
+  if (words.length === 0) return { records: [], undo: { userId, snapshots: [], at: now } };
+  const rows = words.map((w) => ({
+    user_id: userId,
+    word: normalizeWord(w.word),
+    ...manualStatusPatch(w, target, now),
+  }));
+  const { data, error } = await withTimeout(Promise.resolve(supabase
+    .from('word_mastery')
+    .upsert(rows, { onConflict: 'user_id,word' })
+    .select()));
+  if (error) throw error;
+  const byWord = new Map(((data ?? []) as WordMasteryRecord[]).map((r) => [r.word, r]));
+  const records = rows.map((r) => byWord.get(r.word)).filter((r): r is WordMasteryRecord => !!r);
+
+  if (!reviewLogsUnavailable) {
+    const logs = words.map((w, i) => ({
+      user_id: userId,
+      word_mastery_id: records[i]?.id ?? w.id ?? null,
+      word: normalizeWord(w.word),
+      source: 'manual' as const,
+      rating: null,
+      level_before: w.mastery_level,
+      level_after: records[i]?.mastery_level ?? w.mastery_level,
+      interval_before: w.interval_days,
+      interval_after: records[i]?.interval_days ?? w.interval_days,
+      duration_ms: null,
+      reviewed_at: now.toISOString(),
+    }));
+    const { error: logError } = await withTimeout(Promise.resolve(supabase.from(LOG_TABLE).insert(logs)));
+    if (logError) {
+      if (isMissingTableError(logError)) reviewLogsUnavailable = true;
+      console.warn('[ReviewLogs] manual log failed:', logError);
+    }
+  }
+
+  return {
+    records,
+    undo: {
+      userId,
+      snapshots: words.map((w) => ({ word: normalizeWord(w.word), ...manualStatusSnapshot(w) })),
+      at: now,
+    },
+  };
+}
+
+/** Put words back as they were before `applyManualStatus` and drop its log rows. */
+export async function undoManualStatus(undo: ManualChangeUndo): Promise<WordMasteryRecord[]> {
+  if (undo.snapshots.length === 0) return [];
+  const { data, error } = await withTimeout(Promise.resolve(supabase
+    .from('word_mastery')
+    .upsert(undo.snapshots.map((s) => ({ user_id: undo.userId, ...s })), { onConflict: 'user_id,word' })
+    .select()));
+  if (error) throw error;
+  if (!reviewLogsUnavailable) {
+    const { error: logError } = await withTimeout(Promise.resolve(supabase
+      .from(LOG_TABLE)
+      .delete()
+      .eq('user_id', undo.userId)
+      .eq('source', 'manual')
+      .eq('reviewed_at', undo.at.toISOString())
+      .in('word', undo.snapshots.map((s) => s.word))));
+    if (logError) console.warn('[ReviewLogs] undo delete failed:', logError);
+  }
+  return (data ?? []) as WordMasteryRecord[];
 }

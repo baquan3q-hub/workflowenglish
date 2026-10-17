@@ -7,7 +7,7 @@ import { AppPhase } from '../types';
 
 export type NavTabId = 'learn' | 'review' | 'vocab' | 'stats' | 'ielts';
 
-/** Which part of the analytics screen to open. "Sổ từ" lives there until it gets its own screen. */
+/** Which tab of the analytics screen to open. */
 export type AnalyticsSection = 'overview' | 'vocab';
 
 /** The steps of a lesson, in order. */
@@ -50,10 +50,11 @@ export function isIeltsPhase(phase: AppPhase): boolean {
 }
 
 /** The tab to highlight for a screen; `null` for screens outside the tabs (history). */
-export function activeNavTab(phase: AppPhase, analyticsSection: AnalyticsSection = 'overview'): NavTabId | null {
+export function activeNavTab(phase: AppPhase): NavTabId | null {
   if (phase === AppPhase.DASHBOARD || isLessonPhase(phase)) return 'learn';
   if (phase === AppPhase.REVIEW_SESSION) return 'review';
-  if (phase === AppPhase.ANALYTICS) return analyticsSection === 'vocab' ? 'vocab' : 'stats';
+  if (phase === AppPhase.VOCAB_LIBRARY) return 'vocab';
+  if (phase === AppPhase.ANALYTICS) return 'stats';
   if (isIeltsPhase(phase)) return 'ielts';
   return null;
 }

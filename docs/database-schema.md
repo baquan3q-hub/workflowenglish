@@ -68,7 +68,7 @@ Trạng thái SRS (SM-2) theo từng cặp (user, từ). Từ được chuẩn h
 | `created_at` / `updated_at` | timestamptz | `now()` | trigger `set_updated_at` |
 | `ipa`, `meaning_vi`, `definition_en`, `example_sentence`, `example_sentence_vi`, `part_of_speech` | text | NULL | metadata flashcard (migration 002) |
 | `personal_note` | text | NULL | ghi chú cá nhân (migration 005) |
-| `is_suspended` | boolean | `false` | tạm ẩn khỏi hàng ôn (migration 005, chưa dùng trong code) |
+| `is_suspended` | boolean | `false` | tạm ẩn khỏi hàng ôn (migration 005); các truy vấn đến hạn bỏ qua từ đã ẩn |
 
 Migration: `001_personalized_learning.sql` khai báo `UNIQUE (user_id, word)` và các index
 `(user_id, next_review_date)`, `(user_id, mastery_level)`. Code dùng
@@ -145,6 +145,23 @@ Nhật ký append-only: mỗi lần chấm/trả lời một từ là một dòn
 Index `(user_id, reviewed_at desc)`, `(word_mastery_id, reviewed_at desc)`. RLS: select / insert /
 delete dòng của chính mình, không có update.
 
+### `word_lists` / `word_list_items` (migration 006)
+Bộ từ người dùng tự tạo trong Sổ từ. Một bộ chỉ tham chiếu `word_mastery`, nên xoá bộ không
+đụng tới từ hay tiến độ học. Trước khi chạy migration, app ẩn phần "Bộ của tôi" và báo cần chạy 006.
+
+| Cột | Kiểu | Ghi chú |
+|---|---|---|
+| `word_lists.id` | uuid | PK |
+| `word_lists.user_id` | uuid | NOT NULL, FK → `profiles(id)` ON DELETE CASCADE |
+| `word_lists.name` | text | CHECK 1–60 ký tự |
+| `word_lists.color` | text | một trong 8 màu của `LIST_COLORS` |
+| `word_lists.created_at` / `updated_at` | timestamptz | trigger cập nhật `updated_at` |
+| `word_list_items.list_id` | uuid | FK → `word_lists(id)` ON DELETE CASCADE |
+| `word_list_items.word_mastery_id` | uuid | FK → `word_mastery(id)` ON DELETE CASCADE |
+
+PK `word_list_items (list_id, word_mastery_id)`. RLS: chỉ chủ bộ đọc/ghi; thêm từ yêu cầu từ đó
+thuộc cùng người dùng.
+
 ## Ánh xạ bảng → code
 
 | Bảng | Service | Kiểu TS |
@@ -154,6 +171,7 @@ delete dòng của chính mình, không có update.
 | `lesson_audio` | `supabaseClient.ts` (`saveLessonAudio`, `getLessonAudio`) | — |
 | `word_mastery` | `masteryService.ts`, `reviewService.ts` (chấm điểm), `analyticsService.ts`, `weaknessService.ts` | `WordMasteryRecord` |
 | `review_logs` | `reviewService.ts` (`logReviewEvent`, `applyRating`) | `ReviewLogEntry` |
+| `word_lists`, `word_list_items` | `wordListService.ts` | `WordList` |
 | `user_goals` | `goalService.ts` | `UserGoals` |
 | `ielts_attempts` | `ieltsAttemptService.ts` | `IeltsAttempt` |
 
@@ -181,7 +199,7 @@ Bản export không cho thấy các mục sau. Nên kiểm tra trong SQL Editor 
 - ~~Không có bảng nhật ký ôn tập~~: đã có `review_logs` (migration 005), nhưng chỉ có dữ liệu từ
   lúc chạy migration; heatmap/analytics vẫn đọc `last_reviewed_at` cho tới Giai đoạn 4.
 - ~~Từ mới đến hạn ngay lập tức~~: đã lọc ở code (Giai đoạn 0); default `now()` trong DB giữ nguyên.
-- Ghi chú cá nhân và suspend đã có cột (migration 005) nhưng chưa có UI. **Chưa có danh sách từ**.
+- ~~Ghi chú, suspend, danh sách từ chưa có UI~~: đã có trong Sổ từ (Giai đoạn 2, migration 006).
 - **Không gắn từ với bài học nguồn.** `word_mastery` không biết từ đến từ bài nào, chỉ có
   chuỗi `learning_history.words`.
 

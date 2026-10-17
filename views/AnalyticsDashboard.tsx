@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDownRight, ArrowUpRight, BarChart3, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, BarChart3, BookMarked, ChevronRight, Loader2 } from 'lucide-react';
 import { withTimeout } from '../services/supabaseClient';
 import { getAnalyticsSnapshot, type AnalyticsSnapshot } from '../services/analyticsService';
 import {
@@ -19,21 +19,21 @@ import {
   type RetentionResult,
 } from '../services/analyticsLogic';
 import { estimateMinutes } from '../services/reviewSessionLogic';
-import { isWordDue } from '../services/masteryService';
 import { getIeltsAttempts } from '../services/ieltsAttemptService';
 import { analyzeWeaknesses, generateHardestWordsLesson, generateTargetedLesson } from '../services/weaknessService';
-import { GeneratedLesson, IeltsAttempt, MasteryLevel, WeaknessPattern, WordMasteryRecord } from '../types';
+import { GeneratedLesson, IeltsAttempt, WeaknessPattern } from '../types';
 import { ActivityHeatmap, ColumnChart, HeatmapLegend, ScoreLine, StackedBar, shortDate, weekdayLabel } from '../components/analytics/AnalyticsCharts';
 import { Tabs } from '../components/ui/Tabs';
 import { Segmented } from '../components/ui/Segmented';
-import { StatusBadge } from '../components/ui/StatusBadge';
 import { SRS_LEVEL_META, SRS_LEVEL_ORDER } from '../components/ui/srsTheme';
 import { EmptyState, ErrorState, LoadingRegion, Skeleton } from '../components/ui/States';
 
 interface AnalyticsDashboardProps {
   userId: string;
-  /** "vocab" opens the Từ vựng tab at the word notebook (the "Sổ từ" nav item). */
+  /** Which tab opens first. */
   focusSection?: 'overview' | 'vocab';
+  /** Opens the word library (Sổ từ). */
+  onOpenLibrary?: () => void;
   onBack: () => void;
   onStartLesson: () => void;
   /** Opens the SRS review session. Without it the overview suggests a lesson instead. */
@@ -153,114 +153,6 @@ const RetentionGauge: React.FC<{ result: RetentionResult; hasLogs: boolean }> = 
 
 // --- Word notebook ---------------------------------------------------------
 
-type WordFilter = 'all' | 'due' | 'new' | 'learning' | 'reviewing' | 'mastered' | 'lapsed';
-
-const LEVEL_FILTER: Partial<Record<WordFilter, MasteryLevel>> = {
-  new: MasteryLevel.NEW,
-  learning: MasteryLevel.LEARNING,
-  reviewing: MasteryLevel.REVIEWING,
-  mastered: MasteryLevel.MASTERED,
-  lapsed: MasteryLevel.LAPSED,
-};
-
-const FILTERS: ReadonlyArray<{ id: WordFilter; label: string }> = [
-  { id: 'all', label: 'Tất cả' },
-  { id: 'due', label: 'Cần ôn' },
-  ...(['new', 'learning', 'reviewing', 'mastered', 'lapsed'] as const).map((id) => ({
-    id,
-    label: SRS_LEVEL_META[LEVEL_FILTER[id] as MasteryLevel].label,
-  })),
-];
-
-const EMPTY_COPY: Record<WordFilter, string> = {
-  all: 'Chưa có từ nào. Học một bài để bắt đầu sổ từ.',
-  due: 'Không có từ nào đến hạn ôn.',
-  new: 'Không có từ mới chưa học.',
-  learning: 'Không có từ nào đang học.',
-  reviewing: 'Không có từ nào đang ôn định kỳ.',
-  mastered: 'Chưa có từ nào thành thạo. Một từ thành thạo khi khoảng ôn vượt 21 ngày.',
-  lapsed: 'Không có từ nào bị quên.',
-};
-
-const PAGE = 12;
-
-const WordNotebook: React.FC<{ words: WordMasteryRecord[]; now: Date }> = ({ words, now }) => {
-  const [filter, setFilter] = useState<WordFilter>('all');
-  const [limit, setLimit] = useState(PAGE);
-
-  const matches = useCallback(
-    (w: WordMasteryRecord, f: WordFilter) =>
-      f === 'all' ? true : f === 'due' ? isWordDue(w, now) : w.mastery_level === LEVEL_FILTER[f],
-    [now],
-  );
-  const counts = useMemo(() => {
-    const out = {} as Record<WordFilter, number>;
-    for (const f of FILTERS) out[f.id] = words.filter((w) => matches(w, f.id)).length;
-    return out;
-  }, [words, matches]);
-  const list = useMemo(() => words.filter((w) => matches(w, filter)), [words, filter, matches]);
-
-  return (
-    <Panel id="vocab-notebook" title="Sổ từ" className="scroll-mt-20" aside={<span className="text-xs tabular-nums text-slate-500 dark:text-slate-400">{words.length} từ</span>}>
-      <Tabs
-        variant="pill"
-        label="Lọc từ theo trạng thái"
-        value={filter}
-        onChange={(f) => {
-          setFilter(f);
-          setLimit(PAGE);
-        }}
-        items={FILTERS.map((f) => ({ id: f.id, label: f.label, count: counts[f.id] }))}
-      />
-      {list.length === 0 ? (
-        <div className="mt-4">
-          <Placeholder>{EMPTY_COPY[filter]}</Placeholder>
-        </div>
-      ) : (
-        <>
-          <ul className="mt-2 divide-y divide-slate-100 dark:divide-slate-800">
-            {list.slice(0, limit).map((w) => (
-              <li key={w.word} className="flex items-start justify-between gap-4 py-3">
-                <div className="min-w-0">
-                  <p className="flex flex-wrap items-baseline gap-x-2">
-                    <span className="font-semibold text-slate-900 dark:text-white">{w.word}</span>
-                    {w.ipa && <span className="font-mono text-xs text-slate-500 dark:text-slate-400">/{w.ipa}/</span>}
-                    {w.part_of_speech && <span className="text-xs text-slate-400 dark:text-slate-500">{w.part_of_speech}</span>}
-                  </p>
-                  <p className="mt-0.5 truncate text-sm text-slate-600 dark:text-slate-300">
-                    {w.meaning_vi || <span className="text-slate-400 dark:text-slate-500">Chưa có nghĩa</span>}
-                  </p>
-                </div>
-                <div className="flex flex-shrink-0 flex-col items-end gap-1 pt-0.5">
-                  <StatusBadge level={w.mastery_level} suspended={!!w.is_suspended} variant="label" />
-                  {isWordDue(w, now) && <span className="text-[11px] font-medium text-amber-700 dark:text-amber-400">Cần ôn</span>}
-                </div>
-              </li>
-            ))}
-          </ul>
-          {list.length > PAGE && (
-            <div className="mt-3 flex justify-center">
-              <button type="button" className={secondaryBtn} onClick={() => setLimit(limit < list.length ? list.length : PAGE)}>
-                {limit < list.length ? (
-                  <>
-                    Xem thêm {list.length - limit} từ
-                    <ChevronDown className="h-4 w-4" aria-hidden="true" />
-                  </>
-                ) : (
-                  <>
-                    Thu gọn
-                    <ChevronUp className="h-4 w-4" aria-hidden="true" />
-                  </>
-                )}
-              </button>
-            </div>
-          )}
-        </>
-      )}
-    </Panel>
-  );
-};
-
 // --- Screen ----------------------------------------------------------------
 
 interface IeltsSummary {
@@ -285,6 +177,7 @@ const LoadingSkeleton: React.FC = () => (
 const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   userId,
   focusSection = 'overview',
+  onOpenLibrary,
   onBack,
   onStartLesson,
   onStartReview,
@@ -344,6 +237,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     <AnalyticsView
       snapshot={snapshot}
       focusSection={focusSection}
+      onOpenLibrary={onOpenLibrary}
       ielts={ielts}
       onRequestIelts={requestIelts}
       onStartLesson={onStartLesson}
@@ -358,6 +252,7 @@ type IeltsResults = IeltsSummary | 'error' | null;
 interface AnalyticsViewProps {
   snapshot: AnalyticsSnapshot;
   focusSection?: 'overview' | 'vocab';
+  onOpenLibrary?: () => void;
   /** null while not loaded yet. */
   ielts: IeltsResults;
   /** Called when the Kỹ năng tab opens; the container fetches IELTS results once. */
@@ -371,6 +266,7 @@ interface AnalyticsViewProps {
 export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   snapshot,
   focusSection = 'overview',
+  onOpenLibrary,
   ielts,
   onRequestIelts,
   onStartLesson,
@@ -382,14 +278,9 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   const [generating, setGenerating] = useState<string | null>(null);
   const [practiceError, setPracticeError] = useState<string | null>(null);
 
-  // The "Sổ từ" and "Thống kê" nav items both land here.
   useEffect(() => {
     setTab(focusSection === 'vocab' ? 'vocab' : 'overview');
-    if (focusSection === 'vocab') {
-      requestAnimationFrame(() => document.getElementById('vocab-notebook')?.scrollIntoView({ block: 'start' }));
-    } else {
-      window.scrollTo({ top: 0 });
-    }
+    window.scrollTo({ top: 0 });
   }, [focusSection]);
 
   useEffect(() => {
@@ -675,7 +566,22 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             )}
           </Panel>
 
-          <WordNotebook words={words} now={now} />
+          {onOpenLibrary && (
+            <button
+              type="button"
+              onClick={onOpenLibrary}
+              className="flex min-h-touch w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 text-left hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800/60"
+            >
+              <BookMarked className="h-5 w-5 flex-shrink-0 text-slate-500 dark:text-slate-400" aria-hidden="true" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-slate-900 dark:text-white">Sổ từ</span>
+                <span className="block text-sm text-slate-600 dark:text-slate-400">
+                  <span className="tabular-nums">{words.length}</span> từ · tìm, lọc, đổi trạng thái và gom thành bộ
+                </span>
+              </span>
+              <ChevronRight className="h-5 w-5 flex-shrink-0 text-slate-400" aria-hidden="true" />
+            </button>
+          )}
         </div>
       )}
 
