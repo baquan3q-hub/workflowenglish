@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, ArrowRight, Clock, Headphones, Info } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ChevronRight, Clock, Hash, Headphones, Info, Keyboard } from 'lucide-react';
 import type { IeltsAttempt } from '../types';
 import {
   GROUP_TYPE_LABELS,
@@ -16,6 +16,8 @@ import { Segmented } from '../components/ui/Segmented';
 interface Props {
   userId: string;
   onStart: (testId: string, sectionIds: string[], mode: ListeningMode) => void;
+  onOpenDictation: () => void;
+  onOpenDrill: () => void;
   onOpenAttempt: (attempt: IeltsAttempt) => void;
   onBack: () => void;
 }
@@ -45,7 +47,7 @@ function readMode(): ListeningMode {
 
 const questionTypes = (test: ListeningTest) => [...new Set(test.sections.flatMap((s) => s.groups.map((g) => GROUP_TYPE_LABELS[g.type])))];
 
-export default function IeltsListeningHub({ userId, onStart, onOpenAttempt, onBack }: Props) {
+export default function IeltsListeningHub({ userId, onStart, onOpenDictation, onOpenDrill, onOpenAttempt, onBack }: Props) {
   const [mode, setModeState] = useState<ListeningMode>(readMode);
   const setMode = (m: ListeningMode) => {
     setModeState(m);
@@ -156,6 +158,35 @@ export default function IeltsListeningHub({ userId, onStart, onOpenAttempt, onBa
               </li>
             );
           })}
+        </ul>
+      </section>
+
+      <section aria-labelledby="listening-skills">
+        <h2 id="listening-skills" className="text-title font-semibold text-slate-900 dark:text-white">
+          Luyện kỹ năng
+        </h2>
+        <ul className="mt-3 grid gap-3 sm:grid-cols-2">
+          {[
+            { icon: Keyboard, title: 'Chép chính tả', text: 'Nghe từng câu trong đề, gõ lại và xem từ nào nghe sót.', onClick: onOpenDictation },
+            { icon: Hash, title: 'Số, tên và ngày', text: 'Lượt 8 câu ngắn: đánh vần tên, số điện thoại, ngày tháng, giá tiền.', onClick: onOpenDrill },
+          ].map(({ icon: Icon, title, text, onClick }) => (
+            <li key={title}>
+              <button
+                type="button"
+                onClick={onClick}
+                className={`${panel} flex h-full w-full items-center gap-3 p-4 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60`}
+              >
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                  <Icon className="h-5 w-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-slate-900 dark:text-white">{title}</span>
+                  <span className="block text-caption text-slate-500 dark:text-slate-400">{text}</span>
+                </span>
+                <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-400" />
+              </button>
+            </li>
+          ))}
         </ul>
       </section>
 

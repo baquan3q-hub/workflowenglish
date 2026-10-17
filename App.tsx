@@ -38,6 +38,8 @@ import IeltsSpeakingFeedback from './views/IeltsSpeakingFeedback';
 import IeltsListeningHub from './views/IeltsListeningHub';
 import IeltsListeningPractice from './views/IeltsListeningPractice';
 import IeltsListeningResult from './views/IeltsListeningResult';
+import IeltsListeningDictation from './views/IeltsListeningDictation';
+import IeltsListeningDrill from './views/IeltsListeningDrill';
 import { gradeWritingTask } from './services/ieltsWritingService';
 import { gradeSpeakingAnswer } from './services/ieltsSpeakingService';
 import { saveIeltsAttempt, saveListeningAttempt, resolveAttemptQuestion, isListeningDetails } from './services/ieltsAttemptService';
@@ -97,6 +99,8 @@ function App() {
     action?: ToastAction;
     durationMs?: number;
   } | null>(null);
+  /** Part opened in Chép chính tả; null lets the learner pick. */
+  const [ieltsDictation, setIeltsDictation] = useState<{ testId: string; sectionId: string } | null>(null);
   const showToast = (
     message: string,
     type: ToastType = 'success',
@@ -1152,6 +1156,11 @@ function App() {
           <IeltsListeningHub
             userId={currentUser?.id ?? ''}
             onStart={startIeltsListening}
+            onOpenDictation={() => {
+              setIeltsDictation(null);
+              setPhase(AppPhase.IELTS_LISTENING_DICTATION);
+            }}
+            onOpenDrill={() => setPhase(AppPhase.IELTS_LISTENING_DRILL)}
             onOpenAttempt={openIeltsAttempt}
             onBack={() => setPhase(AppPhase.IELTS_HOME)}
           />
@@ -1184,9 +1193,29 @@ function App() {
             answers={ieltsListening.answers}
             onRetry={() => startIeltsListening(test.id, ieltsListening.sectionIds, ieltsListening.mode)}
             onBack={() => setPhase(AppPhase.IELTS_LISTENING_HUB)}
+            onDictation={(sectionId) => {
+              setIeltsDictation({ testId: test.id, sectionId });
+              setPhase(AppPhase.IELTS_LISTENING_DICTATION);
+            }}
           />
         );
       }
+
+      case AppPhase.IELTS_LISTENING_DICTATION: {
+        const section = ieltsDictation
+          ? getListeningTest(ieltsDictation.testId)?.sections.find((s) => s.id === ieltsDictation.sectionId)
+          : undefined;
+        return (
+          <IeltsListeningDictation
+            key={section?.id ?? 'pick'}
+            section={section}
+            onBack={() => setPhase(ieltsDictation && ieltsListening ? AppPhase.IELTS_LISTENING_RESULT : AppPhase.IELTS_LISTENING_HUB)}
+          />
+        );
+      }
+
+      case AppPhase.IELTS_LISTENING_DRILL:
+        return <IeltsListeningDrill onBack={() => setPhase(AppPhase.IELTS_LISTENING_HUB)} />;
 
       // ─── IELTS Writing ──────────────────────────────
       case AppPhase.IELTS_WRITING_HUB:

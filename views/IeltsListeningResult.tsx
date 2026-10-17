@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowLeft, Check, Quote, RotateCcw, TriangleAlert, X } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, Keyboard, Loader2, Quote, RotateCcw, Square, TriangleAlert, Volume2, X } from 'lucide-react';
 import type { ListeningAnswers, ListeningGroup, ListeningTest } from '../data/ielts/listening';
 import {
   ANSWER_STATUS_LABELS,
@@ -7,12 +7,16 @@ import {
   errorBreakdown,
   questionContext,
   scoreSections,
+  sectionAudioSegments,
   sessionSections,
   type AnswerStatus,
   type ListeningMode,
   type QuestionResult,
 } from '../services/listeningLogic';
 import { Segmented } from '../components/ui/Segmented';
+import TranscriptView from '../components/ielts/listening/TranscriptView';
+import { useClipPlayer, type ResolveClip } from '../components/ielts/listening/useClipPlayer';
+import type { AudioSegment } from '../services/listeningAudioService';
 
 interface Props {
   test: ListeningTest;
@@ -21,6 +25,10 @@ interface Props {
   answers: ListeningAnswers;
   onRetry: () => void;
   onBack: () => void;
+  /** Opens dictation on one part. */
+  onDictation?: (sectionId: string) => void;
+  /** Audio source; swapped out in previews. */
+  resolveClip?: ResolveClip;
 }
 
 const primaryBtn =
@@ -57,7 +65,16 @@ function bandNote(estimated: boolean, total: number) {
     : 'Quy đổi theo bảng điểm Listening 40 câu.';
 }
 
-function ResultCard({ r, group }: { r: QuestionResult; group: ListeningGroup }) {
+const replayBtn =
+  'inline-flex min-h-touch items-center gap-1.5 rounded-xl px-3 text-caption font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800';
+
+interface ReplayProps {
+  playing: boolean;
+  loading: boolean;
+  onReplay: () => void;
+}
+
+function ResultCard({ r, group, replay }: { r: QuestionResult; group: ListeningGroup; replay: ReplayProps }) {
   const ok = r.status === 'correct';
   const context = questionContext(group, r.question);
   const tip = STATUS_TIPS[r.status];
@@ -77,6 +94,16 @@ function ResultCard({ r, group }: { r: QuestionResult; group: ListeningGroup }) 
               {ANSWER_STATUS_LABELS[r.status]}
             </span>
             <span className="text-caption text-slate-500 dark:text-slate-400">Part {r.part}</span>
+            <button type="button" onClick={replay.onReplay} className={`${replayBtn} ml-auto -my-2 -mr-2`}>
+              {replay.loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : replay.playing ? (
+                <Square className="h-4 w-4" />
+              ) : (
+                <Volume2 className="h-4 w-4" />
+              )}
+              {replay.playing || replay.loading ? 'Dừng' : 'Nghe lại đoạn này'}
+            </button>
           </div>
           {context && <p className="mt-2 text-sm text-slate-700 dark:text-slate-300">{context}</p>}
 
@@ -123,7 +150,7 @@ function ResultCard({ r, group }: { r: QuestionResult; group: ListeningGroup }) 
   );
 }
 
-export default function IeltsListeningResult({ test, sectionIds, mode, answers, onRetry, onBack }: Props) {
+export default function IeltsListeningResult({ test, sectionIds, mode, answers, onRetry, onBack, onDictation, resolveClip }: Props) {
   const sections = useMemo(() => sessionSections(test, sectionIds), [test, sectionIds]);
   const score = useMemo(() => scoreSections(sections, answers), [sections, answers]);
   const groups = useMemo(() => new Map(sections.flatMap((s) => s.groups.map((g) => [g.id, g] as const))), [sections]);
@@ -131,6 +158,15 @@ export default function IeltsListeningResult({ test, sectionIds, mode, answers, 
   const wrongCount = score.total - score.score;
   const [filter, setFilter] = useState<Filter>(wrongCount > 0 ? 'wrong' : 'all');
   const shown = filter === 'wrong' ? score.results.filter((r) => r.status !== 'correct') : score.results;
+  const clips = useMemo(() => new Map<string, AudioSegment>(sections.flatMap((s) => sectionAudioSegments(s).map((a) => [a.id, a] as const))), [sections]);
+  const clip = useClipPlayer(resolveClip);
+  const toggleClip = (segmentId: string) => {
+    const a = clips.get(segmentId);
+    if (a) clip.toggle(a);
+  };
+  const [showScript, setShowScript] = useState(false);
+  const [scriptId, setScriptId] = useState(sections[0].id);
+  const scriptSection = sections.find((s) => s.id === scriptId) ?? sections[0];
   const title = sections.length === 1 && test.sections.length > 1 ? `${test.title} · Part ${sections[0].part}` : test.title;
 
   return (
@@ -207,15 +243,67 @@ export default function IeltsListeningResult({ test, sectionIds, mode, answers, 
             ]}
           />
         </div>
+        {clip.error && (
+          <p role="alert" className="mt-2 text-caption text-rose-600 dark:text-rose-400">
+            {clip.error}
+          </p>
+        )}
         {shown.length === 0 ? (
           <p className={`${panel} mt-3 p-4 text-sm text-slate-600 dark:text-slate-400`}>Bạn đúng hết. Thử chế độ Thi thử hoặc một đề khác.</p>
         ) : (
           <ul className="mt-3 space-y-3">
             {shown.map((r) => {
               const g = groups.get(r.groupId);
-              return g ? <ResultCard key={r.number} r={r} group={g} /> : null;
+              const id = r.question.segmentId;
+              return g ? (
+                <ResultCard
+                  key={r.number}
+                  r={r}
+                  group={g}
+                  replay={{ playing: clip.activeId === id, loading: clip.loadingId === id, onReplay: () => toggleClip(id) }}
+                />
+              ) : null;
             })}
           </ul>
+        )}
+      </section>
+
+      <section aria-labelledby="listening-script" className={`${panel} p-4 sm:p-5`}>
+        <button
+          type="button"
+          onClick={() => setShowScript((v) => !v)}
+          aria-expanded={showScript}
+          className="-m-2 flex min-h-touch w-[calc(100%+1rem)] items-center justify-between gap-2 rounded-xl p-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60"
+        >
+          <span>
+            <span id="listening-script" className="block text-sm font-semibold text-slate-900 dark:text-white">
+              Transcript
+            </span>
+            <span className="block text-caption text-slate-500 dark:text-slate-400">Đọc lại bài nghe, xem câu chứa đáp án và câu bẫy.</span>
+          </span>
+          <ChevronDown className={`h-5 w-5 flex-shrink-0 text-slate-500 transition-transform ${showScript ? 'rotate-180' : ''}`} />
+        </button>
+        {showScript && (
+          <div className="mt-4 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              {sections.length > 1 ? (
+                <Segmented
+                  label="Part"
+                  value={scriptId}
+                  onChange={(v) => setScriptId(String(v))}
+                  options={sections.map((s) => ({ value: s.id, label: `Part ${s.part}` }))}
+                />
+              ) : (
+                <span />
+              )}
+              {onDictation && (
+                <button type="button" onClick={() => onDictation(scriptSection.id)} className={secondaryBtn}>
+                  <Keyboard className="h-4 w-4" /> Chép chính tả part này
+                </button>
+              )}
+            </div>
+            <TranscriptView section={scriptSection} activeId={clip.activeId} loadingId={clip.loadingId} onToggleSegment={toggleClip} />
+          </div>
         )}
       </section>
 

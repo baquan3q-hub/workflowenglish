@@ -214,6 +214,203 @@ const WRITTEN_LESSONS: LibraryLesson[] = [
     ],
   },
   {
+    id: 'lis_completion',
+    skill: 'listening',
+    title: 'Dạng điền form, ghi chú và bảng',
+    summary: 'Đoán loại từ trước khi nghe, bám theo tiêu đề, kiểm tra giới hạn từ và số nhiều.',
+    minutes: 5,
+    tags: ['form', 'note', 'table', 'completion', 'điền từ', 'part 1', 'part 4'],
+    sections: [
+      {
+        heading: 'Trước khi nghe',
+        bullets: [
+          'Đọc giới hạn từ trước tiên và khoanh lại: ONE WORD ONLY, NO MORE THAN TWO WORDS, AND/OR A NUMBER.',
+          'Với mỗi ô trống, đoán loại từ cần điền: số, ngày, tên riêng, danh từ số ít hay số nhiều, tính từ.',
+          'Nhìn từ đứng trước và sau ô trống. "a ___" thường là danh từ số ít bắt đầu bằng phụ âm; "several ___" là danh từ số nhiều.',
+          'Đọc tiêu đề và các dòng in đậm: chúng là "bản đồ" giúp bạn biết người nói đang ở đâu trong bài.',
+        ],
+      },
+      {
+        heading: 'Trong khi nghe',
+        bullets: [
+          'Đáp án xuất hiện theo đúng thứ tự câu hỏi. Lỡ một câu thì bỏ qua ngay, đừng để mất câu sau.',
+          'Viết nhanh nháp ra (viết tắt cũng được), sau đó mới chép cho đúng chính tả.',
+          'Từ cần điền gần như luôn là từ nguyên văn trong bài nghe. Phần paraphrase nằm ở câu hỏi, không phải ở đáp án.',
+        ],
+        example: 'Đề: Preferred day for lessons: ______\nAudio: "Weekdays are difficult for me, so Saturday would be best."\nĐáp án: Saturday',
+      },
+      {
+        heading: 'Sau khi nghe',
+        bullets: [
+          'Đếm lại số từ. Số và chữ số được tính riêng: "AND/OR A NUMBER" cho phép thêm một số.',
+          'Kiểm tra số nhiều: nếu người nói nói "boots", viết "boot" là sai.',
+          'Không cần viết hoa, nhưng chính tả phải đúng hoàn toàn.',
+        ],
+      },
+    ],
+  },
+  {
+    id: 'lis_mcq',
+    skill: 'listening',
+    title: 'Dạng trắc nghiệm và chọn 2 đáp án',
+    summary: 'Gạch từ khoá ở câu hỏi, không chọn vội đáp án được nhắc đầu tiên.',
+    minutes: 4,
+    tags: ['multiple choice', 'mcq', 'trắc nghiệm', 'choose two', 'part 2', 'part 3'],
+    sections: [
+      {
+        heading: 'Cách làm',
+        bullets: [
+          'Gạch từ khoá ở phần câu hỏi (ai, cái gì, vì sao) hơn là ở các phương án.',
+          'Đọc từng phương án và tự hỏi: cách nói khác của phương án này là gì?',
+          'Thường cả ba phương án đều được nhắc tới. Hai phương án sai bị người nói phủ định, giới hạn lại hoặc nói là của người khác.',
+          'Chờ người nói nói hết ý rồi mới chọn. Câu kết thường chứa quyết định cuối cùng.',
+        ],
+      },
+      {
+        heading: 'Chọn 2 trong 5',
+        bullets: [
+          'Hai đáp án có thể xuất hiện theo bất kỳ thứ tự nào, nhưng thường nằm trong cùng một đoạn.',
+          'Gạch bỏ từng phương án khi nghe thấy nó bị loại, phần còn lại sẽ rõ hơn.',
+          'Thứ tự viết hai chữ cái không quan trọng: A, C hay C, A đều đúng.',
+        ],
+        example: 'Câu hỏi: What does the speaker say about the café?\nAudio: "People expect it to be expensive, but actually the prices are very reasonable."\nPhương án đúng: It is cheaper than people think.',
+      },
+    ],
+  },
+  {
+    id: 'lis_map',
+    skill: 'listening',
+    title: 'Dạng bản đồ và sơ đồ',
+    summary: 'Tìm điểm xuất phát, nắm từ chỉ hướng và vị trí, theo dõi người nói đi tới đâu.',
+    minutes: 4,
+    tags: ['map', 'plan', 'bản đồ', 'sơ đồ', 'labelling', 'part 2'],
+    sections: [
+      {
+        heading: 'Trước khi nghe',
+        bullets: [
+          'Tìm điểm bắt đầu (thường là lối vào, "You are here") và hướng Bắc nếu có.',
+          'Xem các địa điểm đã có tên: người nói sẽ dùng chúng làm mốc.',
+          'Câu hỏi đi theo thứ tự người nói di chuyển, nên vị trí đáp án thường nối tiếp nhau.',
+        ],
+      },
+      {
+        heading: 'Từ chỉ vị trí cần thuộc',
+        bullets: [
+          'opposite (đối diện), next to / beside (bên cạnh), between (ở giữa), behind (phía sau), in front of (phía trước)',
+          'on your left / right, straight ahead, at the end of the path, in the corner (ở góc)',
+          'go past (đi qua), turn left, follow the path round, cross the bridge, just before you reach…',
+          'north / south / east / west of, in the centre of, alongside the river',
+        ],
+        example: '"When you come through the main gate, the gift shop is immediately on your right, opposite the car park."',
+      },
+    ],
+  },
+  {
+    id: 'lis_matching',
+    skill: 'listening',
+    title: 'Dạng nối thông tin',
+    summary: 'Danh sách phương án dài hơn câu hỏi, các ý được paraphrase, có phương án không dùng tới.',
+    minutes: 3,
+    tags: ['matching', 'nối thông tin', 'part 3'],
+    sections: [
+      {
+        bullets: [
+          'Đọc danh sách phương án trước, nghĩ sẵn cách nói khác của từng phương án.',
+          'Câu hỏi đi theo thứ tự trong bài, còn phương án thì không.',
+          'Thường có 2–3 phương án thừa. Một phương án có thể được nhắc tới để gây nhiễu nhưng không phải đáp án.',
+          'Ở Part 3 có nhiều người nói: chú ý ai đồng ý, ai phản đối. "I\'m not sure about that" nghĩa là ý vừa nêu bị bác bỏ.',
+        ],
+        example: 'Phương án: "It took longer than expected"\nAudio: "We thought it\'d be done in a week, but it dragged on for nearly a month."',
+      },
+    ],
+  },
+  {
+    id: 'lis_signposts',
+    skill: 'listening',
+    title: 'Từ báo hiệu trong bài giảng (Part 4)',
+    summary: 'Nhận ra lúc người nói chuyển ý, đưa ví dụ hay kết luận để không mất dấu.',
+    minutes: 4,
+    tags: ['signpost', 'từ nối', 'lecture', 'bài giảng', 'part 4'],
+    sections: [
+      {
+        text: ['Part 4 không có quãng nghỉ. Các tiêu đề trong phần ghi chú tương ứng với những chỗ người nói chuyển ý, nên nghe được từ báo hiệu là biết mình đang ở câu nào.'],
+      },
+      {
+        heading: 'Nhóm từ báo hiệu',
+        bullets: [
+          'Bắt đầu ý mới: Let\'s turn to…, Moving on to…, Another factor is…, Now, what about…',
+          'Đưa ví dụ: For instance…, Take… as an example, A good illustration of this is…',
+          'Nhấn mạnh (thường là đáp án): The key point is…, What\'s particularly important…, In fact…',
+          'Đổi hướng: However…, Having said that…, On the other hand…, Surprisingly…',
+          'Kết luận: To sum up…, So, overall…, The main lesson here is…',
+        ],
+      },
+    ],
+  },
+  {
+    id: 'lis_vietnamese_errors',
+    skill: 'listening',
+    title: 'Lỗi nghe và chính tả người Việt hay gặp',
+    summary: 'Âm cuối, -s và -ed, chữ đôi, các cặp âm dễ nhầm và số có -teen / -ty.',
+    minutes: 4,
+    tags: ['chính tả', 'âm cuối', 'người việt', 'spelling', 'phát âm'],
+    sections: [
+      {
+        heading: 'Vì sao hay sai',
+        text: ['Tiếng Việt hầu như không bật âm cuối và không có cụm phụ âm, nên tai người Việt dễ bỏ qua -s, -ed, -t, -k ở cuối từ. Khi nghe tiếng Anh nói nhanh, các âm này còn bị nối hoặc nuốt mất.'],
+      },
+      {
+        heading: 'Lỗi thường gặp',
+        bullets: [
+          'Thiếu -s số nhiều: "two bedroom", "free ticket" thay vì bedrooms, tickets.',
+          'Nghe nhầm âm cuối: price / prize, rice / rise, card / cart, bag / back.',
+          'Chữ đôi: accommodation (2 c, 2 m), committee, necessary, address, apartment (1 p).',
+          'Âm câm: Wednesday, February, island, knowledge, government.',
+          'Số: fifteen (15) / fifty (50). Nghe trọng âm: -TEEN nhấn ở cuối, -ty nhấn ở đầu.',
+          'Chữ cái khi đánh vần: A / E / I, G / J, B / V, M / N.',
+        ],
+      },
+      {
+        heading: 'Cách luyện',
+        bullets: [
+          'Chép chính tả mỗi ngày 10 câu, ghi lại từ hay sai vào sổ.',
+          'Luyện bài Số, tên và ngày cho tới khi đạt 8/8 liên tục.',
+          'Tự viết lại 30 từ hay gặp trong Part 1 (dates, months, accommodation, library…) cho đến khi không sai.',
+        ],
+      },
+    ],
+  },
+  {
+    id: 'lis_practice_plan',
+    skill: 'listening',
+    title: 'Luyện nghe thế nào để lên band',
+    summary: 'Làm đề để đo, chép chính tả để sửa, nghe rộng để quen tốc độ.',
+    minutes: 4,
+    tags: ['lộ trình', 'kế hoạch', 'chép chính tả', 'dictation', 'shadowing'],
+    sections: [
+      {
+        heading: 'Ba kiểu luyện',
+        bullets: [
+          'Làm đề (đo): chế độ Thi thử, nghe một lần. Làm 1 đề mỗi tuần để biết band hiện tại.',
+          'Nghe kỹ (sửa): sau mỗi đề, đọc transcript, nghe lại đoạn có câu sai và chép chính tả những câu đó. Phần lớn tiến bộ đến từ bước này.',
+          'Nghe rộng (quen): podcast, video tiếng Anh 15–20 phút mỗi ngày, không cần hiểu hết.',
+        ],
+      },
+      {
+        heading: 'Theo band hiện tại',
+        bullets: [
+          'Dưới 5.5: tập trung Part 1 và 2, luyện số, tên, ngày và chính tả. Dùng chế độ Luyện tập, tốc độ 0.75×.',
+          '5.5–6.5: luyện Part 3 và 4, học từ báo hiệu và paraphrase. Chuyển dần sang chế độ Thi thử.',
+          'Trên 6.5: làm đề đầy đủ trong điều kiện thật, xem kỹ từng lỗi bẫy và lỗi chính tả còn sót.',
+        ],
+      },
+      {
+        heading: 'Sau mỗi bài',
+        text: ['Ghi lại loại lỗi từ trang Kết quả: sai chính tả, thiếu số nhiều, vượt giới hạn từ hay bị bẫy. Mỗi loại cần một cách sửa khác nhau.'],
+      },
+    ],
+  },
+  {
     id: 'wr_task1_overview',
     skill: 'writing',
     title: 'Viết overview cho Task 1',
