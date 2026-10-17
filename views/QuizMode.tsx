@@ -9,7 +9,8 @@ import { findWordForm, shuffle } from '../services/reviewLogic';
 interface QuizModeProps {
   questions: QuizQuestion[];
   onRestart: () => void;
-  onComplete?: (score: number, total: number) => void;
+  /** First-attempt score, and the words missed on the first attempt. */
+  onComplete?: (score: number, total: number, wrongWords: string[]) => void;
   onNextPhase?: () => void;
   userId?: string;
   /** Lesson flashcards — used to map each question back to its vocabulary word. */
@@ -57,6 +58,7 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
   // Track attempts for summary
   const [attempts, setAttempts] = useState<Record<string, number>>({});
   const [score, setScore] = useState(0);
+  const [wrongWords, setWrongWords] = useState<string[]>([]);
 
   const currentQuestion = questions[currentIndex];
   const progress = ((currentIndex) / questions.length) * 100;
@@ -93,6 +95,7 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
       audio.play().catch(() => { });
     } else {
       setStatus('wrong');
+      if (isFirstAttempt) setWrongWords(prev => [...prev, word]);
       // Fire-and-forget: record incorrect answer for weakness detection
       // and trigger LAPSED transition if the word was already internalized.
       if (userId) {
@@ -130,7 +133,7 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
       setCompleted(true);
       // Calculate final score (current score + this last correct answer was already counted)
       const finalScore = score;
-      onComplete?.(finalScore, questions.length);
+      onComplete?.(finalScore, questions.length, wrongWords);
     }
   };
 

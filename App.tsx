@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AppPhase, DifficultyLevel, GeneratedLesson, UserSettings, FlashcardData, IeltsQuestion, IeltsAiFeedback, IeltsAttempt, IeltsSkill } from './types';
+import { AppPhase, DifficultyLevel, GeneratedLesson, LessonProgress, UserSettings, FlashcardData, IeltsQuestion, IeltsAiFeedback, IeltsAttempt, IeltsSkill } from './types';
 import { generateLessonContent } from './services/geminiService';
 import { supabase, getProfile, signOut, saveLearningRecord, getLearningRecordFull, LearningRecord, saveLessonAudio, withTimeout, getCachedSession, resumeAuthRefresh, pauseAuthRefresh } from './services/supabaseClient';
 import {
@@ -21,6 +21,9 @@ import LearningHistory from './views/LearningHistory';
 import ReviewSession from './views/ReviewSession';
 import AnalyticsDashboard from './views/AnalyticsDashboard';
 import VocabLibrary from './views/VocabLibrary';
+import LessonSummary from './views/LessonSummary';
+import { LessonStepper } from './components/LessonStepper';
+import { lessonStepStates } from './services/lessonSummaryLogic';
 import IeltsWritingHub from './views/IeltsWritingHub';
 import IeltsWritingPractice from './views/IeltsWritingPractice';
 import IeltsWritingFeedback from './views/IeltsWritingFeedback';
@@ -32,7 +35,7 @@ import { gradeSpeakingAnswer } from './services/ieltsSpeakingService';
 import { saveIeltsAttempt, resolveAttemptQuestion } from './services/ieltsAttemptService';
 import { speakingPart1Questions } from './data/ieltsSpeakingQuestions';
 import { Toast, type ToastAction, type ToastType } from './components/Common';
-import { Loader2, LogOut, History, BookOpen, HelpCircle, PenTool, Sun, Moon, Home, Layers, ChevronRight } from 'lucide-react';
+import { Loader2, LogOut, History, BookOpen, Save, Sun, Moon, ChevronRight } from 'lucide-react';
 import { AppNavDesktop, AppNavMobile, type NavRequest } from './components/AppNav';
 import { isLessonPhase, showsTabBar, type AnalyticsSection } from './components/navConfig';
 import { getDueWordCount } from './services/masteryService';
@@ -562,10 +565,19 @@ function App() {
     await persistLesson({ data: overrideData });
   };
 
-  const handleQuizComplete = async (score: number, total: number) => {
+  /** Lesson data with `patch` merged into its progress; also set as the current lesson. */
+  const withProgress = (patch: LessonProgress): GeneratedLesson | null => {
+    if (!lessonData) return null;
+    const next = { ...lessonData, progress: { ...lessonData.progress, ...patch } };
+    setLessonData(next);
+    return next;
+  };
+
+  const handleQuizComplete = async (score: number, total: number, wrong: string[]) => {
     if (!currentUser || !lessonSettings || !lessonData) return;
+    const data = withProgress({ quiz: { score, total, wrong } }) ?? undefined;
     try {
-      await persistLesson({ quizScore: score, quizTotal: total });
+      await persistLesson({ data, quizScore: score, quizTotal: total });
     } catch (err) {
       console.error('Failed to save quiz complete record:', err);
     }
@@ -596,6 +608,24 @@ function App() {
     } catch (err) {
       console.error('Failed to check level suggestion:', err);
     }
+  };
+
+  /** First pass of Điền từ done: record it, save, and show the lesson summary. */
+  const handleFillBlankComplete = (score: number, total: number, wrong: string[]) => {
+    const data = withProgress({ fillBlank: { score, total, wrong }, completedAt: new Date().toISOString() });
+    if (!data) return;
+    setPhase(AppPhase.LESSON_SUMMARY);
+    void persistLesson({ data }).catch((err) => {
+      console.error('Failed to save finished lesson:', err);
+      showToast(err?.message || 'Chưa lưu được bài học. Vui lòng kiểm tra kết nối.', 'error');
+    });
+  };
+
+  /** Leave the finished lesson (it was saved on the way to the summary). */
+  const closeLesson = () => {
+    setLessonData(null);
+    setCurrentRecordId(null);
+    currentRecordIdRef.current = null;
   };
 
   const handleAcceptLevelSuggestion = async () => {
@@ -681,7 +711,9 @@ function App() {
 
 
   const navigateWithConfirm = (targetPhase: AppPhase) => {
-    if (lessonData && phase !== AppPhase.DASHBOARD && targetPhase === AppPhase.DASHBOARD) {
+    // The summary is after the save; leaving it just closes the lesson.
+    if (phase === AppPhase.LESSON_SUMMARY) closeLesson();
+    else if (lessonData && phase !== AppPhase.DASHBOARD && targetPhase === AppPhase.DASHBOARD) {
       setPendingNavTarget(targetPhase);
       setShowSaveModal(true);
       return;
@@ -696,6 +728,7 @@ function App() {
    */
   const navigateTo = ({ phase: target, analyticsSection: section }: NavRequest) => {
     if (section) setAnalyticsSection(section);
+    if (phase === AppPhase.LESSON_SUMMARY) closeLesson();
     if (lessonData && isLessonPhase(phase) && target !== phase) {
       setPendingNavTarget(target);
       setShowSaveModal(true);
@@ -932,17 +965,24 @@ function App() {
           <FillBlankMode
             cards={lessonData.flashcards}
             userId={currentUser?.id}
-            onFinish={() => navigateWithConfirm(AppPhase.DASHBOARD)}
-            onSave={async () => {
-              if (!lessonWords || !lessonWords.trim()) {
-                throw new Error('Danh sách từ vựng trống.');
-              }
-              try {
-                await persistLesson();
-              } catch (err: any) {
-                console.error('[Save] Failed:', err);
-                throw new Error(err?.message || 'Không thể lưu bài học. Vui lòng kiểm tra kết nối.');
-              }
+            onComplete={handleFillBlankComplete}
+            onFinish={() => setPhase(AppPhase.LESSON_SUMMARY)}
+          />
+        ) : null;
+
+      case AppPhase.LESSON_SUMMARY:
+        return lessonData && currentUser ? (
+          <LessonSummary
+            lesson={lessonData}
+            userId={currentUser.id}
+            topic={lessonSettings?.topic}
+            onHome={() => {
+              closeLesson();
+              setPhase(AppPhase.DASHBOARD);
+            }}
+            onReviewWords={(ids) => {
+              closeLesson();
+              void reviewSelectedWords(ids);
             }}
           />
         ) : null;
@@ -1117,21 +1157,15 @@ function App() {
     }
   };
 
-  const lessonSteps = [
-    { id: AppPhase.DASHBOARD, label: "Trang chủ", icon: Home },
-    { id: AppPhase.FLASHCARDS, label: "Thẻ từ", icon: Layers },
-    { id: AppPhase.STORY, label: "Truyện", icon: BookOpen },
-    { id: AppPhase.QUIZ, label: "Trắc nghiệm", icon: HelpCircle },
-    { id: AppPhase.FILL_BLANK, label: "Điền từ", icon: PenTool },
-  ];
-
-  const currentStepIdx = lessonSteps.findIndex(s => s.id === phase);
   const showHeader = phase !== AppPhase.LANDING && phase !== AppPhase.AUTH;
-  // The lesson step bar replaces the app tab bar while a lesson step is open.
-  const showLessonBar = showHeader && !!lessonData && isLessonPhase(phase);
+  const showLessonBar =
+    showHeader && !!lessonData && (isLessonPhase(phase) || phase === AppPhase.LESSON_SUMMARY);
   const showAppTabBar = showHeader && !!currentUser && showsTabBar(phase);
-  const goToStep = (target: AppPhase) =>
-    target === AppPhase.DASHBOARD ? navigateWithConfirm(target) : setPhase(target);
+  const today = new Date().toDateString();
+  const flashcardsRated = Object.values(lessonMasteryMap).some(
+    (r: any) => !!r?.last_reviewed_at && new Date(r.last_reviewed_at).toDateString() === today,
+  );
+  const lessonStepList = lessonStepStates(phase, flashcardsRated, lessonData?.progress);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans selection:bg-blue-200 selection:text-blue-900">
@@ -1165,38 +1199,6 @@ function App() {
               <span className="font-bold text-sm sm:text-base tracking-tight hidden sm:inline">VocabMaster</span>
             </button>
 
-            {/* Desktop lesson stepper */}
-            {showLessonBar && (
-              <nav aria-label="Các bước bài học" className="hidden lg:flex gap-1 items-center">
-                {lessonSteps.map((step, idx) => {
-                  const isActive = step.id === phase;
-                  const isPassed = currentStepIdx > idx;
-
-                  return (
-                    <div key={step.id} className="flex items-center">
-                      <button
-                        type="button"
-                        onClick={() => goToStep(step.id)}
-                        aria-current={isActive ? 'step' : undefined}
-                        className={`min-h-touch px-3 rounded-full text-xs font-bold transition-colors ${
-                          isActive
-                            ? 'bg-blue-100 text-blue-700 ring-2 ring-inset ring-blue-500 dark:bg-blue-500/20 dark:text-blue-200'
-                            : isPassed
-                              ? 'text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-500/15'
-                              : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'
-                        }`}
-                      >
-                        {step.label}
-                      </button>
-                      {idx < lessonSteps.length - 1 && (
-                        <div className={`w-3 h-0.5 mx-0.5 rounded ${isPassed ? 'bg-emerald-300 dark:bg-emerald-600' : 'bg-slate-200 dark:bg-slate-700'}`} aria-hidden="true"></div>
-                      )}
-                    </div>
-                  );
-                })}
-              </nav>
-            )}
-
             {/* Right side */}
             {currentUser && (
               <div className="flex items-center gap-1 sm:gap-1.5">
@@ -1225,16 +1227,16 @@ function App() {
                         setIsSaving(false);
                       }
                     }}
-                    className="inline-flex min-h-touch min-w-touch items-center justify-center gap-1.5 px-2 xl:px-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold shadow-sm"
+                    className="inline-flex min-h-touch min-w-touch items-center justify-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white xl:px-3"
                     title="Lưu tiến trình bài học"
                     aria-label={isSaving ? 'Đang lưu bài học' : 'Lưu bài học'}
                   >
                     {isSaving ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
-                      <BookOpen className="w-3.5 h-3.5" />
+                      <Save className="w-4 h-4" />
                     )}
-                    <span className="hidden xl:inline" aria-hidden="true">{isSaving ? 'Đang lưu…' : 'Lưu bài học'}</span>
+                    <span className="hidden xl:inline" aria-hidden="true">{isSaving ? 'Đang lưu…' : 'Lưu'}</span>
                   </button>
                 )}
 
@@ -1281,10 +1283,18 @@ function App() {
         </header>
       )}
 
+      {showLessonBar && (
+        <LessonStepper
+          steps={lessonStepList}
+          onSelect={setPhase}
+          onExit={() => navigateWithConfirm(AppPhase.DASHBOARD)}
+        />
+      )}
+
       {showHeader ? (
         <main
           className={`max-w-6xl mx-auto px-4 py-6 sm:py-8 md:py-12 ${
-            showLessonBar ? 'pb-24 lg:pb-12' : showAppTabBar ? 'pb-24 md:pb-12' : ''
+            showAppTabBar ? 'pb-24 md:pb-12' : ''
           }`}
         >
           {error && (
@@ -1339,41 +1349,6 @@ function App() {
           dueCount={dueCount}
           onNavigate={navigateTo}
         />
-      )}
-
-      {/* Mobile lesson step bar — replaces the tab bar inside a lesson */}
-      {showLessonBar && (
-        <nav
-          aria-label="Các bước bài học"
-          className="pb-safe fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-white/95 backdrop-blur shadow-[0_-2px_10px_rgba(0,0,0,0.08)] dark:border-slate-700 dark:bg-slate-900/95 lg:hidden"
-        >
-          <div className="mx-auto flex max-w-lg items-stretch justify-around px-1 py-1">
-            {lessonSteps.map((step, idx) => {
-              const isActive = step.id === phase;
-              const isPassed = currentStepIdx > idx;
-              const Icon = step.icon;
-
-              return (
-                <button
-                  key={step.id}
-                  type="button"
-                  onClick={() => goToStep(step.id)}
-                  aria-current={isActive ? 'step' : undefined}
-                  className={`flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1 text-[11px] font-semibold leading-tight transition-colors ${
-                    isActive
-                      ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
-                      : isPassed
-                        ? 'text-emerald-700 dark:text-emerald-300'
-                        : 'text-slate-600 dark:text-slate-400'
-                  }`}
-                >
-                  <Icon className="w-5 h-5" aria-hidden="true" />
-                  <span>{step.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </nav>
       )}
 
       {/* Draft Recovery Modal */}

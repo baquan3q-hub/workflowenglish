@@ -6,6 +6,7 @@ export enum AppPhase {
   STORY = 'STORY',
   QUIZ = 'QUIZ',
   FILL_BLANK = 'FILL_BLANK',
+  LESSON_SUMMARY = 'LESSON_SUMMARY',
   HISTORY = 'HISTORY',
   REVIEW_SESSION = 'REVIEW_SESSION',
   ANALYTICS = 'ANALYTICS',
@@ -155,10 +156,26 @@ export interface QuizQuestion {
   type: 'multiple-choice' | 'fill-blank';
 }
 
+/** Result of one graded lesson step. */
+export interface StepResult {
+  score: number;
+  total: number;
+  /** Words answered wrong on the first attempt, in order. */
+  wrong: string[];
+}
+
+/** Stored on the lesson (`lesson_data.progress`), so it survives reloads and reopening from history. */
+export interface LessonProgress {
+  quiz?: StepResult;
+  fillBlank?: StepResult;
+  completedAt?: string;
+}
+
 export interface GeneratedLesson {
   flashcards: FlashcardData[];
   story: StoryData;
   quiz: QuizQuestion[];
+  progress?: LessonProgress;
 }
 
 export interface UserSettings {

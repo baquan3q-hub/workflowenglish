@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { CheckCircle, XCircle, RotateCcw, Award, ArrowRight, PenTool, Save, Eye, EyeOff, SkipForward } from 'lucide-react';
+import { CheckCircle, XCircle, RotateCcw, Award, ArrowRight, PenTool, Eye, EyeOff, SkipForward } from 'lucide-react';
 import { FlashcardData, type ConfidenceRating } from '../types';
 import { Button, ProgressBar } from '../components/Common';
 import { findWordForm, gradeTypedAnswer } from '../services/reviewLogic';
@@ -8,8 +8,8 @@ import { applyRating } from '../services/reviewService';
 interface FillBlankModeProps {
     cards: FlashcardData[];
     onFinish: () => void;
-    onComplete?: (score: number, total: number) => void;
-    onSave?: () => Promise<void>;
+    /** First pass done: score, and the words missed. The lesson moves on to its summary. */
+    onComplete?: (score: number, total: number, wrongWords: string[]) => void;
     /** When set, each first-pass result is written to the learner's SRS record. */
     userId?: string;
 }
@@ -34,7 +34,7 @@ interface BlankQuestion {
 /** Max wrong attempts before auto-advancing to next question */
 const MAX_ATTEMPTS = 3;
 
-const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComplete, onSave, userId }) => {
+const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComplete, userId }) => {
     const questions = useMemo(() => generateQuestions(cards), [cards]);
 
     const [currentQuestions, setCurrentQuestions] = useState<BlankQuestion[]>(questions);
@@ -45,8 +45,6 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
     const [results, setResults] = useState<Map<string, boolean>>(new Map());
     const [isComplete, setIsComplete] = useState(false);
     const [retryMode, setRetryMode] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
-    const [saved, setSaved] = useState(false);
     const [showHint, setShowHint] = useState(false);
     // Hint was opened at any point for the current question (affects SRS rating)
     const [hintUsed, setHintUsed] = useState(false);
@@ -145,8 +143,9 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
                 setIsComplete(true);
             } else {
                 const correctCount = Array.from(results.values()).filter(v => v).length;
-                onComplete?.(correctCount, questions.length);
+                const wrongWords = questions.filter(q => results.get(q.id) === false).map(q => q.word);
                 setIsComplete(true);
+                onComplete?.(correctCount, questions.length, wrongWords);
             }
         }
     };
@@ -215,67 +214,6 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
                 )}
 
                 <div className="flex flex-col gap-3">
-                    {/* Save lesson button */}
-                    {onSave && !saved && !isSaving && (
-                        <Button
-                            onClick={async () => {
-                                setIsSaving(true);
-                                try {
-                                    await onSave();
-                                    setSaved(true);
-                                } catch (err: any) {
-                                    console.error('[FillBlank] Save failed:', err);
-                                    const msg = err?.message || err?.toString() || 'Lỗi không xác định';
-                                    alert(`❌ Không thể lưu bài học:\n\n${msg}\n\nVui lòng kiểm tra Console (F12) để xem chi tiết.`);
-                                } finally {
-                                    setIsSaving(false);
-                                }
-                            }}
-                            className="w-full py-4 text-base"
-                        >
-                            <Save className="w-5 h-5 mr-2" /> 💾 Lưu bài học
-                        </Button>
-                    )}
-
-                    {/* Saving animation */}
-                    {isSaving && (
-                        <div className="flex flex-col items-center justify-center py-6 space-y-4">
-                            <div className="relative w-20 h-20">
-                                <svg className="w-20 h-20 animate-spin" viewBox="0 0 80 80">
-                                    <circle cx="40" cy="40" r="35" fill="none" stroke="#e2e8f0" strokeWidth="4" />
-                                    <circle cx="40" cy="40" r="35" fill="none" stroke="url(#saveGradient)" strokeWidth="4" strokeLinecap="round" strokeDasharray="160" strokeDashoffset="120" />
-                                    <defs>
-                                        <linearGradient id="saveGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                            <stop offset="0%" stopColor="#3b82f6" />
-                                            <stop offset="100%" stopColor="#8b5cf6" />
-                                        </linearGradient>
-                                    </defs>
-                                </svg>
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                    <Save className="w-8 h-8 text-blue-600 animate-pulse" />
-                                </div>
-                            </div>
-                            <p className="text-base font-semibold text-slate-700 dark:text-slate-200">Đang lưu bài học của bạn...</p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">Vui lòng đợi trong giây lát ✨</p>
-                        </div>
-                    )}
-
-                    {/* Success celebration */}
-                    {saved && (
-                        <div className="flex flex-col items-center justify-center py-6 space-y-3 anim-scale-in">
-                            <div className="relative">
-                                <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center">
-                                    <CheckCircle className="w-9 h-9 text-emerald-500" />
-                                </div>
-                                <span className="absolute -top-1 -right-1 text-lg animate-bounce">✨</span>
-                                <span className="absolute -bottom-1 -left-1 text-sm animate-bounce" style={{ animationDelay: '0.2s' }}>🎉</span>
-                                <span className="absolute top-0 -left-3 text-xs animate-bounce" style={{ animationDelay: '0.4s' }}>⭐</span>
-                            </div>
-                            <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">Đã lưu thành công!</p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">Bạn có thể xem lại trong Lịch sử học tập</p>
-                        </div>
-                    )}
-
                     {!retryMode && wrongCount > 0 && (
                         <Button onClick={handleRetryWrong} variant="primary" className="w-full">
                             <RotateCcw className="w-4 h-4 mr-2" /> Làm lại {wrongCount} câu sai
@@ -285,7 +223,7 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
                         <RotateCcw className="w-4 h-4 mr-2" /> Làm lại tất cả
                     </Button>
                     <Button onClick={onFinish} variant="ghost" className="w-full">
-                        <ArrowRight className="w-4 h-4 mr-2" /> Quay về Dashboard
+                        <ArrowRight className="w-4 h-4 mr-2" /> {onComplete ? 'Xem tổng kết' : 'Quay về trang chủ'}
                     </Button>
                 </div>
             </div>
@@ -367,7 +305,7 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
                     </button>
                     {showHint && (
                         <p className="text-sm text-amber-600 dark:text-amber-400 mt-1.5 italic pl-5">
-                            💡 {current.hint}
+                            {current.hint}
                         </p>
                     )}
                 </div>
@@ -442,7 +380,7 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
                                 <CheckCircle className="w-5 h-5 text-green-700 dark:text-green-300" />
                             </div>
                             <div>
-                                <p className="font-bold text-green-800 dark:text-green-200">Chính xác! 🎉</p>
+                                <p className="font-bold text-green-800 dark:text-green-200">Chính xác!</p>
                                 {feedback && (
                                     <p className="text-xs text-green-700 dark:text-green-300">{feedback}</p>
                                 )}

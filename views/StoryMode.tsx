@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Play, Pause, Languages, Highlighter, ArrowRight, Loader2, Settings2, Volume2, SkipBack, SkipForward, Download, X } from 'lucide-react';
+import { Play, Pause, Languages, Highlighter, ArrowRight, Loader2, Settings2, Volume2, SkipBack, SkipForward, Download, X, AlertCircle } from 'lucide-react';
 import { StoryData, FlashcardData } from '../types';
 import { Button } from '../components/Common';
 import { generateTTS, createAudioBufferFromBase64, AudioPlayerController } from '../services/geminiService';
@@ -428,7 +428,8 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
             {/* Error message */}
             {audioError && (
               <p className="text-sm text-red-500 flex items-center gap-1">
-                ⚠️ {audioError}
+                <AlertCircle className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+                {audioError}
               </p>
             )}
           </div>

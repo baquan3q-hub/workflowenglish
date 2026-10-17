@@ -76,3 +76,16 @@ export async function getWordsByIds(userId: string, ids: ReadonlyArray<string>):
   const byId = new Map(((data ?? []) as WordMasteryRecord[]).map((r) => [r.id, r]));
   return ids.map((id) => byId.get(id)).filter((r): r is WordMasteryRecord => !!r);
 }
+
+/** word_mastery rows for the given words (any spelling), e.g. a lesson's words for its summary. */
+export async function getWordsByWords(userId: string, words: ReadonlyArray<string>): Promise<WordMasteryRecord[]> {
+  const keys = [...new Set(words.map(normalizeWord).filter(Boolean))];
+  if (keys.length === 0) return [];
+  const { data, error } = await withTimeout(Promise.resolve(supabase
+    .from('word_mastery')
+    .select('*')
+    .eq('user_id', userId)
+    .in('word', keys)));
+  if (error) throw error;
+  return (data ?? []) as WordMasteryRecord[];
+}
