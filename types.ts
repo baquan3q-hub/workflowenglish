@@ -199,6 +199,39 @@ export interface WordMasteryRecord {
   example_sentence?: string | null;
   example_sentence_vi?: string | null;
   part_of_speech?: string | null;
+  // Added by docs/migrations/005_review_logs.sql (absent before it is applied)
+  personal_note?: string | null;
+  is_suspended?: boolean;
+}
+
+/** Where a rating / answer event came from. Mirrors `review_logs.source`. */
+export type ReviewSource =
+  | 'lesson_flashcard'
+  | 'review'
+  | 'quiz'
+  | 'fill_blank'
+  | 'spelling'
+  | 'handwriting'
+  | 'sentence'
+  | 'manual';
+
+/**
+ * One row of the append-only `review_logs` table created by
+ * `docs/migrations/005_review_logs.sql`.
+ */
+export interface ReviewLogEntry {
+  id?: string;
+  user_id: string;
+  word_mastery_id: string | null;
+  word: string;
+  source: ReviewSource;
+  rating: ConfidenceRating | null;
+  level_before: MasteryLevel | null;
+  level_after: MasteryLevel | null;
+  interval_before: number | null;
+  interval_after: number | null;
+  duration_ms: number | null;
+  reviewed_at?: string;
 }
 
 /**

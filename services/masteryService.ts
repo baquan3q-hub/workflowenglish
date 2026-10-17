@@ -51,6 +51,20 @@ export function normalizeWord(word: string): string {
 }
 
 /**
+ * Whether a word is due for review at `now`. NEW words are never due: their
+ * `next_review_date` defaults to the insert time, but they enter the review
+ * queue only after their first rating schedules them. Keep in sync with the
+ * `.neq('mastery_level', NEW)` filter in the due queries.
+ */
+export function isWordDue(
+  record: Pick<WordMasteryRecord, 'mastery_level' | 'next_review_date'>,
+  now: Date = new Date(),
+): boolean {
+  if (record.mastery_level === MasteryLevel.NEW || !record.next_review_date) return false;
+  return new Date(record.next_review_date).getTime() <= now.getTime();
+}
+
+/**
  * Compute the next mastery level given the current state and the rating
  * just applied. Pure function — no I/O.
  *
@@ -167,6 +181,7 @@ export async function upsertWordMastery(
 /**
  * Words whose `next_review_date` has arrived or passed, ordered by the
  * oldest due first (so the most-overdue words surface first in a session).
+ * Excludes NEW words (see `isWordDue`).
  */
 export async function getDueWords(
   userId: string,
@@ -176,6 +191,7 @@ export async function getDueWords(
     .from(TABLE)
     .select('*')
     .eq('user_id', userId)
+    .neq('mastery_level', MasteryLevel.NEW)
     .lte('next_review_date', nowIso)
     .order('next_review_date', { ascending: true })));
 
@@ -193,6 +209,7 @@ export async function getDueWordCount(userId: string): Promise<number> {
     .from(TABLE)
     .select('id', { count: 'exact', head: true })
     .eq('user_id', userId)
+    .neq('mastery_level', MasteryLevel.NEW)
     .lte('next_review_date', nowIso)));
 
   if (error) throw error;

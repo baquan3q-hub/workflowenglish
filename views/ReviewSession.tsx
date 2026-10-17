@@ -11,12 +11,8 @@ import {
   formatIntervalDisplay,
   type SRSCard,
 } from '../services/srsService';
-import {
-  determineMasteryTransition,
-  getDueWords,
-  upsertWordMastery,
-} from '../services/masteryService';
-import { recordWordReview } from '../services/goalService';
+import { getDueWords } from '../services/masteryService';
+import { applyRating } from '../services/reviewService';
 
 interface ReviewSessionProps {
   userId: string;
@@ -172,6 +168,12 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
 
   const currentCard = dueWords[currentIndex];
 
+  // When the current card was shown, for the review log's thinking time.
+  const cardShownAtRef = React.useRef(Date.now());
+  useEffect(() => {
+    cardShownAtRef.current = Date.now();
+  }, [currentIndex]);
+
   /**
    * Predicted intervals for each rating, computed from the *current* card's
    * SRS state. Used to label the rating buttons (e.g. "3 ngày" under "Tốt").
@@ -191,50 +193,26 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
       if (!currentCard || submitting) return;
       setSubmitting(true);
       try {
-        const card = toSRSCard(currentCard);
-        const srs = calculateSRS(card, rating);
-        const newLevel = determineMasteryTransition(
-          currentCard.mastery_level,
-          rating,
-          srs.repetitionCount,
-          srs.intervalDays,
-        );
-        const reviewedAt = new Date().toISOString();
-        const successful = rating >= 2;
-        await upsertWordMastery({
-          user_id: userId,
+        const { goal } = await applyRating({
+          userId,
           word: currentCard.word,
-          mastery_level: newLevel,
-          easiness_factor: srs.easinessFactor,
-          interval_days: srs.intervalDays,
-          repetition_count: srs.repetitionCount,
-          next_review_date: srs.nextReviewDate.toISOString(),
-          last_reviewed_at: reviewedAt,
-          correct_count:
-            (currentCard.correct_count ?? 0) + (successful ? 1 : 0),
-          incorrect_count:
-            (currentCard.incorrect_count ?? 0) + (successful ? 0 : 1),
+          current: currentCard,
+          rating,
+          source: 'review',
+          durationMs: Date.now() - cardShownAtRef.current,
         });
 
         setRatings((prev) => [...prev, rating]);
 
-        // Count the review against the user's daily goal. We only credit
-        // successful recalls (rating >= Good) and we don't block on it —
-        // any failure is logged but does not interrupt the session.
-        if (successful) {
-          void recordWordReview(userId)
-            .then((result) => {
-              if (result.goalReached && !goalCelebrated) {
-                setGoalCelebrated(true);
-                const streak = result.goalsUpdated.current_streak;
-                onShowToast?.(`🎉 Hoàn thành mục tiêu hôm nay! Streak: ${streak} ngày`, 'success');
-              }
-            })
-            .catch((goalErr) => {
-              // Non-fatal: goal tracking should not block the review flow.
-              console.warn('recordWordReview failed:', goalErr);
-            });
-        }
+        // applyRating credits successful recalls to the daily goal in the
+        // background; celebrate only on the review that reached it.
+        void goal.then((credit) => {
+          if (credit?.justReached && !goalCelebrated) {
+            setGoalCelebrated(true);
+            const streak = credit.goalsUpdated.current_streak;
+            onShowToast?.(`🎉 Hoàn thành mục tiêu hôm nay! Streak: ${streak} ngày`, 'success');
+          }
+        });
         // Advance to the next word, or end the session.
         if (currentIndex + 1 >= dueWords.length) {
           setFinished(true);
@@ -408,7 +386,7 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
               {currentCard?.word}
             </h3>
             <p className="text-slate-400 dark:text-slate-500 italic text-sm">
-              — {/* IPA placeholder — schema doesn't store IPA */}
+              {currentCard?.ipa || '—'}
             </p>
             <p className="text-slate-400 dark:text-slate-500 text-xs mt-4">
               Tap to flip

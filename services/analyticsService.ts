@@ -203,7 +203,7 @@ export interface TotalStats {
   totalWords: number;
   /** Words at `MasteryLevel.MASTERED`. */
   masteredWords: number;
-  /** Words whose `next_review_date` is now or earlier (due for review). */
+  /** Non-NEW words whose `next_review_date` is now or earlier (due for review). */
   dueToday: number;
   /** User's preferred CEFR level (e.g. `'B1'`). */
   currentLevel: string;
@@ -228,6 +228,7 @@ export async function getTotalStats(userId: string): Promise<TotalStats> {
       .from(WORD_MASTERY_TABLE)
       .select('id', { count: 'exact', head: true })
       .eq('user_id', userId)
+      .neq('mastery_level', MasteryLevel.NEW)
       .lte('next_review_date', nowIso),
     getOrCreateUserGoals(userId),
   ]);

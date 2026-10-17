@@ -789,6 +789,7 @@ function App() {
             onIndexChange={setFlashcardIndex}
             masteryMap={lessonMasteryMap}
             onMasteryMapChange={setLessonMasteryMap}
+            onShowToast={showToast}
           />
         ) : null;
 

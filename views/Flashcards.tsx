@@ -6,11 +6,9 @@ import { MasteryBadge } from '../components/MasteryBadge';
 import {
   bulkEnsureWordsWithMetadata,
   getWordMastery,
-  upsertWordMastery,
-  determineMasteryTransition,
   normalizeWord,
 } from '../services/masteryService';
-import { calculateSRS, type SRSCard } from '../services/srsService';
+import { applyRating } from '../services/reviewService';
 
 interface FlashcardsProps {
   cards: FlashcardData[];
@@ -20,6 +18,7 @@ interface FlashcardsProps {
   onIndexChange?: (index: number) => void;
   masteryMap?: Record<string, WordMasteryRecord | null>;
   onMasteryMapChange?: (map: Record<string, WordMasteryRecord | null>) => void;
+  onShowToast?: (message: string, type?: 'success' | 'info') => void;
 }
 
 // 4-button rating config (matches ReviewSession styling)
@@ -43,9 +42,15 @@ const Flashcards: React.FC<FlashcardsProps> = ({
   onIndexChange,
   masteryMap: parentMasteryMap,
   onMasteryMapChange,
+  onShowToast,
 }) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [isFlipped, setIsFlipped] = useState(false);
+  // When the current card was shown, for the review log's thinking time.
+  const cardShownAtRef = React.useRef(Date.now());
+  useEffect(() => {
+    cardShownAtRef.current = Date.now();
+  }, [currentIndex]);
 
   // Swipe gesture states
   const [dragStartX, setDragStartX] = useState<number | null>(null);
@@ -300,43 +305,21 @@ const Flashcards: React.FC<FlashcardsProps> = ({
 
     setSavingRating(true);
     try {
-      // If no mastery record exists yet (migration not applied or first time),
-      // create a fresh one with default SRS values
-      const existing = currentMastery || {
-        user_id: userId,
-        word: normalizeWord(currentCard.word),
-        mastery_level: MasteryLevel.NEW,
-        easiness_factor: 2.5,
-        interval_days: 0,
-        repetition_count: 0,
-        correct_count: 0,
-        incorrect_count: 0,
-      };
-
-      const srsCard: SRSCard = {
-        easinessFactor: existing.easiness_factor,
-        intervalDays: existing.interval_days,
-        repetitionCount: existing.repetition_count,
-      };
-      const srs = calculateSRS(srsCard, rating);
-      const newLevel = determineMasteryTransition(
-        existing.mastery_level,
+      // currentMastery is null when the row couldn't be loaded; applyRating
+      // then starts from a brand-new word's SRS state.
+      const { record: updated, goal } = await applyRating({
+        userId,
+        word: currentCard.word,
+        current: currentMastery,
         rating,
-        srs.repetitionCount,
-        srs.intervalDays,
-      );
+        source: 'lesson_flashcard',
+        durationMs: Date.now() - cardShownAtRef.current,
+      });
 
-      const updated = await upsertWordMastery({
-        user_id: userId,
-        word: normalizeWord(currentCard.word),
-        mastery_level: newLevel,
-        easiness_factor: srs.easinessFactor,
-        interval_days: srs.intervalDays,
-        repetition_count: srs.repetitionCount,
-        next_review_date: srs.nextReviewDate.toISOString(),
-        last_reviewed_at: new Date().toISOString(),
-        correct_count: (existing.correct_count ?? 0) + (rating >= 2 ? 1 : 0),
-        incorrect_count: (existing.incorrect_count ?? 0) + (rating < 2 ? 1 : 0),
+      void goal.then((credit) => {
+        if (credit?.justReached) {
+          onShowToast?.(`🎉 Hoàn thành mục tiêu hôm nay! Streak: ${credit.goalsUpdated.current_streak} ngày`, 'success');
+        }
       });
 
       const nextMap = {

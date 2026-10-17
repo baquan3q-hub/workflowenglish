@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { Check, X, AlertCircle, Award, RotateCcw, ListChecks, ArrowLeft, PenTool } from 'lucide-react';
-import { MasteryLevel, QuizQuestion, type IncorrectContext } from '../types';
+import { MasteryLevel, QuizQuestion, type IncorrectContext, type WordMasteryRecord } from '../types';
 import { Button, ProgressBar } from '../components/Common';
 import {
   recordQuizIncorrect,
   getWordMastery,
-  upsertWordMastery,
-  determineMasteryTransition,
 } from '../services/masteryService';
+import { applyRating, logReviewEvent } from '../services/reviewService';
 
 interface QuizModeProps {
   questions: QuizQuestion[];
@@ -25,6 +24,31 @@ interface QuizModeProps {
 function extractWordFromQuestion(question: string): string {
   const match = question.match(/['"]([^'"]+)['"]/);
   return match ? match[1] : question;
+}
+
+/**
+ * Log a first-attempt quiz answer that doesn't change SRS state. Pass
+ * `existing` when already fetched to skip the lookup.
+ */
+async function logQuizAnswer(
+  userId: string,
+  word: string,
+  rating: 0 | 2,
+  existing?: WordMasteryRecord | null,
+): Promise<void> {
+  const record = existing !== undefined ? existing : await getWordMastery(userId, word).catch(() => null);
+  await logReviewEvent({
+    user_id: userId,
+    word_mastery_id: record?.id ?? null,
+    word,
+    source: 'quiz',
+    rating,
+    level_before: record?.mastery_level ?? null,
+    level_after: record?.mastery_level ?? null,
+    interval_before: record?.interval_days ?? null,
+    interval_after: record?.interval_days ?? null,
+    duration_ms: null,
+  });
 }
 
 const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, onNextPhase, userId }) => {
@@ -52,11 +76,17 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
       [currentQuestion.id]: (prev[currentQuestion.id] || 0) + 1
     }));
 
+    const isFirstAttempt = !attempts[currentQuestion.id];
+
     if (option === currentQuestion.correctAnswer) {
       setStatus('correct');
       // Only count first-attempt correct
-      if (!attempts[currentQuestion.id]) {
+      if (isFirstAttempt) {
         setScore(prev => prev + 1);
+        // Log only: a recognised meaning doesn't move the SRS schedule.
+        if (userId) {
+          void logQuizAnswer(userId, extractWordFromQuestion(currentQuestion.question), 2);
+        }
       }
       const audio = new Audio('https://codeskulptor-demos.commondatastorage.googleapis.com/pang/pop.mp3');
       audio.volume = 0.2;
@@ -77,6 +107,7 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
         void (async () => {
           try {
             await recordQuizIncorrect(userId, word, context);
+            if (!isFirstAttempt) return;
 
             const existing = await getWordMastery(userId, word);
             if (
@@ -84,20 +115,19 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
               (existing.mastery_level === MasteryLevel.REVIEWING ||
                 existing.mastery_level === MasteryLevel.MASTERED)
             ) {
-              // Rating 0 simulates a complete recall failure.
-              const nextLevel = determineMasteryTransition(
-                existing.mastery_level,
-                0,
-                0,
-                1,
-              );
-              await upsertWordMastery({
-                user_id: userId,
+              // Rating 0 simulates a complete recall failure: LAPSED and due
+              // again tomorrow. recordQuizIncorrect already counted the miss.
+              await applyRating({
+                userId,
                 word,
-                mastery_level: nextLevel,
-                interval_days: 1,
-                repetition_count: 0,
+                current: existing,
+                rating: 0,
+                source: 'quiz',
+                countAnswer: false,
+                creditGoal: false,
               });
+            } else {
+              await logQuizAnswer(userId, word, 0, existing);
             }
           } catch (err) {
             console.error('[QuizMode] Failed to record incorrect answer:', err);

@@ -29,6 +29,7 @@ import {
   TotalStats,
 } from '../services/analyticsService';
 import { getOrCreateUserGoals } from '../services/goalService';
+import { isWordDue } from '../services/masteryService';
 import {
   getWeaknessData,
   generateTargetedLesson,
@@ -201,7 +202,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
       new: allTrackedWords.filter(w => w.mastery_level === MasteryLevel.NEW).length,
       learning: allTrackedWords.filter(w => w.mastery_level === MasteryLevel.LEARNING).length,
       reviewing: allTrackedWords.filter(w => w.mastery_level === MasteryLevel.REVIEWING).length,
-      due: allTrackedWords.filter(w => w.next_review_date && new Date(w.next_review_date) <= now).length,
+      due: allTrackedWords.filter(w => isWordDue(w, now)).length,
       lapsed: allTrackedWords.filter(w => w.mastery_level === MasteryLevel.LAPSED).length,
       mastered: allTrackedWords.filter(w => w.mastery_level === MasteryLevel.MASTERED).length,
     };
@@ -217,7 +218,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
       case 'reviewing':
         return allTrackedWords.filter(w => w.mastery_level === MasteryLevel.REVIEWING);
       case 'due':
-        return allTrackedWords.filter(w => w.next_review_date && new Date(w.next_review_date) <= now);
+        return allTrackedWords.filter(w => isWordDue(w, now));
       case 'lapsed':
         return allTrackedWords.filter(w => w.mastery_level === MasteryLevel.LAPSED);
       case 'mastered':
@@ -659,7 +660,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                   }
 
                   // Check if due for review
-                  const isDue = word.next_review_date && new Date(word.next_review_date) <= new Date();
+                  const isDue = isWordDue(word);
 
                   return (
                     <div
