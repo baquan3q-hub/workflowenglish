@@ -64,6 +64,8 @@ interface VocabLibraryProps {
   /** Start a review of these word_mastery ids. */
   onReviewWords: (ids: string[]) => void;
   onStartLesson: () => void;
+  /** Open with this lesson selected (from the dashboard's recent lessons). */
+  initialLessonId?: string | null;
 }
 
 type Scope = 'all' | 'lessons' | 'lists';
@@ -584,7 +586,7 @@ const LoadingSkeleton: React.FC = () => (
   </LoadingRegion>
 );
 
-const VocabLibrary: React.FC<VocabLibraryProps> = ({ userId, onShowToast, onReviewWords, onStartLesson }) => {
+const VocabLibrary: React.FC<VocabLibraryProps> = ({ userId, onShowToast, onReviewWords, onStartLesson, initialLessonId = null }) => {
   const [words, setWords] = useState<LibraryWord[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -592,8 +594,8 @@ const VocabLibrary: React.FC<VocabLibraryProps> = ({ userId, onShowToast, onRevi
   const [lists, setLists] = useState<WordList[]>([]);
   const [listsAvailable, setListsAvailable] = useState(true);
 
-  const [scope, setScope] = useState<Scope>('all');
-  const [scopeId, setScopeId] = useState<string | null>(null);
+  const [scope, setScope] = useState<Scope>(initialLessonId ? 'lessons' : 'all');
+  const [scopeId, setScopeId] = useState<string | null>(initialLessonId);
   const [status, setStatus] = useState<StatusFilter>('all');
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<SortKey>('due');

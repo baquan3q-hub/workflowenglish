@@ -35,7 +35,7 @@ import { gradeSpeakingAnswer } from './services/ieltsSpeakingService';
 import { saveIeltsAttempt, resolveAttemptQuestion } from './services/ieltsAttemptService';
 import { speakingPart1Questions } from './data/ieltsSpeakingQuestions';
 import { Toast, type ToastAction, type ToastType } from './components/Common';
-import { Loader2, LogOut, History, BookOpen, Save, Sun, Moon, ChevronRight } from 'lucide-react';
+import { Loader2, LogOut, History, BookOpen, Save, Sun, Moon } from 'lucide-react';
 import { AppNavDesktop, AppNavMobile, type NavRequest } from './components/AppNav';
 import { isLessonPhase, showsTabBar, type AnalyticsSection } from './components/navConfig';
 import { getDueWordCount } from './services/masteryService';
@@ -96,6 +96,8 @@ function App() {
   const [analyticsSection, setAnalyticsSection] = useState<AnalyticsSection>('overview');
   const [dueCount, setDueCount] = useState<number | null>(null);
   const [lastLessonPhase, setLastLessonPhase] = useState<AppPhase>(AppPhase.FLASHCARDS);
+  // Lesson to preselect when Sổ từ is opened from the dashboard's recent lessons.
+  const [libraryLessonId, setLibraryLessonId] = useState<string | null>(null);
 
   // Adaptive difficulty: level upgrade/downgrade suggestion modal state.
   // Shown after quiz completion when checkLevelSuggestion returns a direction
@@ -251,6 +253,7 @@ function App() {
   // Remember the last lesson step so the dashboard can offer "Tiếp tục".
   useEffect(() => {
     if (isLessonPhase(phase)) setLastLessonPhase(phase);
+    if (phase !== AppPhase.VOCAB_LIBRARY) setLibraryLessonId(null);
   }, [phase]);
 
   // Due-word badge on the "Ôn tập" tab. Refreshed whenever the learner moves
@@ -844,12 +847,20 @@ function App() {
             isLoading={isLoading}
             userId={currentUser?.id ?? ''}
             onStartReview={() => setPhase(AppPhase.REVIEW_SESSION)}
+            activeLesson={lessonData ? { topic: lessonSettings?.topic || 'đang học' } : null}
+            onContinueLesson={() => setPhase(lastLessonPhase)}
+            onOpenLesson={(id) => {
+              setLibraryLessonId(id);
+              setPhase(AppPhase.VOCAB_LIBRARY);
+            }}
           />
         );
 
       case AppPhase.VOCAB_LIBRARY:
         return currentUser ? (
           <VocabLibrary
+            key={libraryLessonId ?? 'all'}
+            initialLessonId={libraryLessonId}
             userId={currentUser.id}
             onShowToast={showToast}
             onStartLesson={() => setPhase(AppPhase.DASHBOARD)}
@@ -1308,23 +1319,6 @@ function App() {
                 aria-label="Đóng thông báo lỗi"
               >
                 <span aria-hidden="true">×</span>
-              </button>
-            </div>
-          )}
-          {phase === AppPhase.DASHBOARD && lessonData && (
-            <div className="mb-6 flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-500/30 dark:bg-blue-500/10">
-              <BookOpen className="h-5 w-5 flex-shrink-0 text-blue-700 dark:text-blue-300" aria-hidden="true" />
-              <p className="min-w-0 flex-1 text-sm text-slate-700 dark:text-slate-200">
-                <span className="font-semibold">Bài đang học dở:</span>{' '}
-                <span className="truncate">{lessonSettings?.topic || 'Bài học hiện tại'}</span>
-              </p>
-              <button
-                type="button"
-                onClick={() => setPhase(lastLessonPhase)}
-                className="inline-flex min-h-touch flex-shrink-0 items-center gap-1 rounded-lg bg-blue-600 px-3 text-sm font-semibold text-white hover:bg-blue-700"
-              >
-                Tiếp tục
-                <ChevronRight className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
           )}
