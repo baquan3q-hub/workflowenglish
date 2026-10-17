@@ -2,6 +2,8 @@
  * Analytics Service — read-only aggregations powering the analytics dashboard.
  *
  * Responsibilities:
+ *   - `getAnalyticsSnapshot`    → the analytics screen's raw data in four
+ *                                 queries (aggregated by `analyticsLogic`).
  *   - `getMasteryDistribution`  → counts of words at each `MasteryLevel`.
  *   - `getActivityHeatmap`      → per-day review counts for the last N days,
  *                                 backfilling empty days with `count: 0`.
@@ -22,12 +24,14 @@
 
 import { supabase } from './supabaseClient';
 import { getOrCreateUserGoals } from './goalService';
-import { MasteryLevel } from '../types';
+import { MasteryLevel, type UserGoals, type WordMasteryRecord } from '../types';
+import type { ReviewLogLite } from './analyticsLogic';
 
 // --- Constants -------------------------------------------------------------
 
 const WORD_MASTERY_TABLE = 'word_mastery';
 const LEARNING_HISTORY_TABLE = 'learning_history';
+const REVIEW_LOGS_TABLE = 'review_logs';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -288,6 +292,51 @@ export async function getMasteredWords(
 
   if (error) throw error;
   return data ?? [];
+}
+
+// --- Snapshot (analytics screen) -------------------------------------------
+
+/** Days of review_logs the analytics screen reads: the 12-week heatmap. */
+export const ANALYTICS_LOG_DAYS = 84;
+
+export interface AnalyticsSnapshot {
+  /** Every tracked word, newest first. */
+  words: WordMasteryRecord[];
+  /** Reviews in the last `ANALYTICS_LOG_DAYS` days; null when review_logs is unavailable. */
+  logs: ReviewLogLite[] | null;
+  quizTrend: QuizScorePoint[];
+  goals: UserGoals;
+}
+
+/**
+ * Everything the analytics screen needs, in four queries: word_mastery,
+ * review_logs, learning_history and user_goals. Aggregation happens in
+ * `analyticsLogic`. A missing review_logs table (migration 005 not applied)
+ * is not an error: `logs` is null and the screen degrades.
+ */
+export async function getAnalyticsSnapshot(userId: string, now: Date = new Date()): Promise<AnalyticsSnapshot> {
+  const since = new Date(startOfLocalDay(now).getTime() - (ANALYTICS_LOG_DAYS - 1) * MS_PER_DAY);
+
+  const [words, logsRes, quizTrend, goals] = await Promise.all([
+    getAllTrackedWords(userId),
+    supabase
+      .from(REVIEW_LOGS_TABLE)
+      .select('word, reviewed_at, rating, level_before')
+      .eq('user_id', userId)
+      .gte('reviewed_at', since.toISOString())
+      .order('reviewed_at', { ascending: false }),
+    getQuizScoreTrend(userId, 12),
+    getOrCreateUserGoals(userId),
+  ]);
+
+  let logs: ReviewLogLite[] | null = null;
+  if (logsRes.error) {
+    console.warn('[Analytics] review_logs unavailable:', logsRes.error);
+  } else {
+    logs = (logsRes.data ?? []) as ReviewLogLite[];
+  }
+
+  return { words: words as WordMasteryRecord[], logs, quizTrend, goals };
 }
 
 /**

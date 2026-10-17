@@ -1,292 +1,306 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowDownRight, ArrowUpRight, BarChart3, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { withTimeout } from '../services/supabaseClient';
+import { getAnalyticsSnapshot, type AnalyticsSnapshot } from '../services/analyticsService';
 import {
-  ArrowLeft,
-  BookOpen,
-  Award,
-  Clock,
-  BarChart3,
-  Flame,
-  Target,
-  Loader2,
-  AlertTriangle,
-  BookX,
-  Type as TypeIcon,
-  Shuffle as ShuffleIcon,
-  Sparkles,
-  TrendingUp,
-} from 'lucide-react';
-import { GeneratedLesson, MasteryLevel, UserGoals, WeaknessPattern } from '../types';
-import {
-  getMasteryDistribution,
-  getActivityHeatmap,
-  getQuizScoreTrend,
-  getTotalStats,
-  getHardestWords,
-  getAllTrackedWords,
-  HeatmapEntry,
-  QuizScorePoint,
-  TotalStats,
-} from '../services/analyticsService';
-import { getOrCreateUserGoals } from '../services/goalService';
+  activityTimestamps,
+  dailyCounts,
+  dueForecast,
+  dueNow,
+  lapseRate,
+  levelFunnel,
+  localDateKey,
+  mostForgotten,
+  periodOverPeriod,
+  retention,
+  retentionStatus,
+  RETENTION_TARGET,
+  weeklyNewWords,
+  type RetentionResult,
+} from '../services/analyticsLogic';
+import { estimateMinutes } from '../services/reviewSessionLogic';
 import { isWordDue } from '../services/masteryService';
-import {
-  getWeaknessData,
-  generateTargetedLesson,
-  generateHardestWordsLesson,
-} from '../services/weaknessService';
-import {
-  HeatmapGrid,
-  BarChart,
-  CircularProgress,
-  type BarChartDataPoint,
-} from '../components/SVGCharts';
-import { Button } from '../components/Common';
+import { getIeltsAttempts } from '../services/ieltsAttemptService';
+import { analyzeWeaknesses, generateHardestWordsLesson, generateTargetedLesson } from '../services/weaknessService';
+import { GeneratedLesson, IeltsAttempt, MasteryLevel, WeaknessPattern, WordMasteryRecord } from '../types';
+import { ActivityHeatmap, ColumnChart, HeatmapLegend, ScoreLine, StackedBar, shortDate, weekdayLabel } from '../components/analytics/AnalyticsCharts';
+import { Tabs } from '../components/ui/Tabs';
+import { Segmented } from '../components/ui/Segmented';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { SRS_LEVEL_META, SRS_LEVEL_ORDER } from '../components/ui/srsTheme';
-import { ErrorState, LoadingRegion, Skeleton } from '../components/ui/States';
+import { EmptyState, ErrorState, LoadingRegion, Skeleton } from '../components/ui/States';
 
 interface AnalyticsDashboardProps {
   userId: string;
-  /** "vocab" opens the screen scrolled to the word notebook (the "Sổ từ" tab). */
+  /** "vocab" opens the Từ vựng tab at the word notebook (the "Sổ từ" nav item). */
   focusSection?: 'overview' | 'vocab';
   onBack: () => void;
   onStartLesson: () => void;
-  /**
-   * Called when a targeted weakness mini-lesson has been generated.
-   * Wired in App.tsx to set the lesson data and switch to FLASHCARDS phase.
-   */
+  /** Opens the SRS review session. Without it the overview suggests a lesson instead. */
+  onStartReview?: () => void;
+  /** Called with a generated practice lesson (weak words / weakness pattern). */
   onStartTargetedLesson?: (lesson: GeneratedLesson) => void;
 }
 
-interface AnalyticsData {
-  distribution: Record<MasteryLevel, number>;
-  heatmap: HeatmapEntry[];
-  quizTrend: QuizScorePoint[];
-  totalStats: TotalStats;
-  goals: UserGoals;
-  weaknesses: WeaknessPattern[];
-  totalIncorrect: number;
-  hardestWords: any[];
-  allTrackedWords: any[];
-}
+type TabId = 'overview' | 'vocab' | 'skills';
 
-/**
- * Minimum total incorrect answers required before the weakness section
- * is surfaced (per requirement 7.1 and task 3.5).
- */
-const WEAKNESS_THRESHOLD = 10;
-
-/**
- * Pick a Lucide icon for each weakness category. Falls back to
- * AlertTriangle for any unrecognised category id.
- */
-const WEAKNESS_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  vocabulary_gap: BookX,
-  grammar_confusion: TypeIcon,
-  spelling_similarity: ShuffleIcon,
-  meaning_overlap: AlertTriangle,
-};
-
-type WordFilter = 'all' | 'new' | 'learning' | 'reviewing' | 'due' | 'lapsed' | 'mastered';
-
-/** Notebook filter pills. Level filters take the shared SRS colours; "Cần ôn" is a time state, not a level. */
-const WORD_FILTERS: ReadonlyArray<{ id: WordFilter; label: string; dot: string | null }> = [
-  { id: 'all', label: 'Tất cả', dot: null },
-  { id: 'due', label: 'Cần ôn', dot: 'bg-amber-500' },
-  { id: 'new', label: SRS_LEVEL_META[MasteryLevel.NEW].label, dot: SRS_LEVEL_META[MasteryLevel.NEW].dot },
-  { id: 'learning', label: SRS_LEVEL_META[MasteryLevel.LEARNING].label, dot: SRS_LEVEL_META[MasteryLevel.LEARNING].dot },
-  { id: 'reviewing', label: SRS_LEVEL_META[MasteryLevel.REVIEWING].label, dot: SRS_LEVEL_META[MasteryLevel.REVIEWING].dot },
-  { id: 'mastered', label: SRS_LEVEL_META[MasteryLevel.MASTERED].label, dot: SRS_LEVEL_META[MasteryLevel.MASTERED].dot },
-  { id: 'lapsed', label: SRS_LEVEL_META[MasteryLevel.LAPSED].label, dot: SRS_LEVEL_META[MasteryLevel.LAPSED].dot },
+const TABS: ReadonlyArray<{ id: TabId; label: string }> = [
+  { id: 'overview', label: 'Tổng quan' },
+  { id: 'vocab', label: 'Từ vựng' },
+  { id: 'skills', label: 'Kỹ năng' },
 ];
 
-/**
- * Format a `YYYY-MM-DD` string as `DD/MM` for compact x-axis labels.
- */
-function formatShortDate(iso: string): string {
-  if (!iso || iso.length < 10) return iso;
-  const [, month, day] = iso.split('-');
-  return `${day}/${month}`;
-}
+/** Heatmap span, in days (12 weeks). */
+const HEATMAP_DAYS = 84;
+/** Total wrong answers before weakness patterns mean anything. */
+const WEAKNESS_THRESHOLD = 10;
+/** Quiz results needed to draw a trend. */
+const QUIZ_MIN_POINTS = 2;
 
-// --- Section components ---
+// --- Building blocks -------------------------------------------------------
 
-const SummaryCard: React.FC<{
-  icon: React.ReactNode;
-  label: string;
-  value: React.ReactNode;
-  accent: string;
-}> = ({ icon, label, value, accent }) => (
-  <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5">
-    <div className={`inline-flex items-center justify-center p-2 rounded-xl ${accent}`}>
-      {icon}
-    </div>
-    <div className="mt-3 text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tabular-nums">
-      {value}
-    </div>
-    <div className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-      {label}
-    </div>
-  </div>
-);
-
-const SectionCard: React.FC<{
+const Panel: React.FC<{
   title: string;
+  aside?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
-}> = ({ title, children, className = '' }) => (
+  id?: string;
+}> = ({ title, aside, children, className = '', id }) => (
   <section
-    className={`bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 sm:p-6 ${className}`}
+    id={id}
+    className={`rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 sm:p-6 ${className}`}
   >
-    <h3 className="text-base sm:text-lg font-semibold text-slate-900 dark:text-white mb-4">
-      {title}
-    </h3>
+    <div className="mb-4 flex min-h-touch items-center justify-between gap-3">
+      <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{title}</h3>
+      {aside}
+    </div>
     {children}
   </section>
 );
 
+/** Muted line used wherever there is not enough data for a number. */
+const Placeholder: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <p className="rounded-xl bg-slate-50 px-4 py-6 text-center text-sm text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+    {children}
+  </p>
+);
+
+const Metric: React.FC<{ label: string; value: React.ReactNode; foot?: React.ReactNode }> = ({ label, value, foot }) => (
+  <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 sm:p-5">
+    <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</dt>
+    <dd className="mt-1.5 text-2xl font-semibold tabular-nums text-slate-900 dark:text-white">{value}</dd>
+    {foot && <dd className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">{foot}</dd>}
+  </div>
+);
+
+const primaryBtn =
+  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200';
+const secondaryBtn =
+  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800';
+
+const Delta: React.FC<{ delta: number; previous: number }> = ({ delta, previous }) => {
+  if (previous === 0 && delta === 0) return <>Chưa có tuần trước để so sánh</>;
+  if (delta === 0) return <>Bằng tuần trước</>;
+  const Icon = delta > 0 ? ArrowUpRight : ArrowDownRight;
+  return (
+    <span>
+      <Icon
+        className={`-mt-0.5 mr-0.5 inline h-3.5 w-3.5 ${delta > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}
+        aria-hidden="true"
+      />
+      <span className="tabular-nums">{delta > 0 ? `+${delta}` : delta}</span> so với tuần trước
+    </span>
+  );
+};
+
+const RETENTION_COPY = {
+  low: 'Dưới mục tiêu: ôn đúng hạn hơn và học lại những từ hay quên.',
+  'on-target': 'Trong khoảng mục tiêu. Cứ giữ nhịp này.',
+  high: 'Cao hơn mục tiêu: bạn có thể học thêm từ mới mỗi ngày.',
+} as const;
+
+const RetentionGauge: React.FC<{ result: RetentionResult; hasLogs: boolean }> = ({ result, hasLogs }) => {
+  if (!hasLogs) return <Placeholder>Chưa có nhật ký ôn tập để tính tỷ lệ nhớ.</Placeholder>;
+  if (result.rate === null) return <Placeholder>Cần thêm {result.needed} lần ôn để tính.</Placeholder>;
+  // Track spans 50–100%; anything lower pins to the left edge.
+  const pos = (v: number) => Math.max(0, Math.min(1, (v - 0.5) / 0.5)) * 100;
+  const pct = Math.round(result.rate * 100);
+  return (
+    <div>
+      <div className="flex items-baseline gap-2">
+        <span className="text-display font-semibold tabular-nums text-slate-900 dark:text-white">{pct}%</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400">trên {result.samples} lần ôn</span>
+      </div>
+      <div className="relative mt-5 h-2 rounded-full bg-slate-100 dark:bg-slate-800" aria-hidden="true">
+        <div
+          className="absolute inset-y-0 rounded-full bg-emerald-200 dark:bg-emerald-700"
+          style={{ left: `${pos(RETENTION_TARGET.min)}%`, width: `${pos(RETENTION_TARGET.max) - pos(RETENTION_TARGET.min)}%` }}
+        />
+        <div
+          className="absolute -top-1 h-4 w-1 -translate-x-1/2 rounded-full bg-slate-900 dark:bg-white"
+          style={{ left: `${pos(result.rate)}%` }}
+        />
+      </div>
+      <div className="mt-1.5 flex justify-between text-[11px] text-slate-400 dark:text-slate-500" aria-hidden="true">
+        <span>50%</span>
+        <span>Mục tiêu 85–90%</span>
+        <span>100%</span>
+      </div>
+      <p className="mt-4 text-sm text-slate-600 dark:text-slate-300">{RETENTION_COPY[retentionStatus(result.rate)]}</p>
+    </div>
+  );
+};
+
+// --- Word notebook ---------------------------------------------------------
+
+type WordFilter = 'all' | 'due' | 'new' | 'learning' | 'reviewing' | 'mastered' | 'lapsed';
+
+const LEVEL_FILTER: Partial<Record<WordFilter, MasteryLevel>> = {
+  new: MasteryLevel.NEW,
+  learning: MasteryLevel.LEARNING,
+  reviewing: MasteryLevel.REVIEWING,
+  mastered: MasteryLevel.MASTERED,
+  lapsed: MasteryLevel.LAPSED,
+};
+
+const FILTERS: ReadonlyArray<{ id: WordFilter; label: string }> = [
+  { id: 'all', label: 'Tất cả' },
+  { id: 'due', label: 'Cần ôn' },
+  ...(['new', 'learning', 'reviewing', 'mastered', 'lapsed'] as const).map((id) => ({
+    id,
+    label: SRS_LEVEL_META[LEVEL_FILTER[id] as MasteryLevel].label,
+  })),
+];
+
+const EMPTY_COPY: Record<WordFilter, string> = {
+  all: 'Chưa có từ nào. Học một bài để bắt đầu sổ từ.',
+  due: 'Không có từ nào đến hạn ôn.',
+  new: 'Không có từ mới chưa học.',
+  learning: 'Không có từ nào đang học.',
+  reviewing: 'Không có từ nào đang ôn định kỳ.',
+  mastered: 'Chưa có từ nào thành thạo. Một từ thành thạo khi khoảng ôn vượt 21 ngày.',
+  lapsed: 'Không có từ nào bị quên.',
+};
+
+const PAGE = 12;
+
+const WordNotebook: React.FC<{ words: WordMasteryRecord[]; now: Date }> = ({ words, now }) => {
+  const [filter, setFilter] = useState<WordFilter>('all');
+  const [limit, setLimit] = useState(PAGE);
+
+  const matches = useCallback(
+    (w: WordMasteryRecord, f: WordFilter) =>
+      f === 'all' ? true : f === 'due' ? isWordDue(w, now) : w.mastery_level === LEVEL_FILTER[f],
+    [now],
+  );
+  const counts = useMemo(() => {
+    const out = {} as Record<WordFilter, number>;
+    for (const f of FILTERS) out[f.id] = words.filter((w) => matches(w, f.id)).length;
+    return out;
+  }, [words, matches]);
+  const list = useMemo(() => words.filter((w) => matches(w, filter)), [words, filter, matches]);
+
+  return (
+    <Panel id="vocab-notebook" title="Sổ từ" className="scroll-mt-20" aside={<span className="text-xs tabular-nums text-slate-500 dark:text-slate-400">{words.length} từ</span>}>
+      <Tabs
+        variant="pill"
+        label="Lọc từ theo trạng thái"
+        value={filter}
+        onChange={(f) => {
+          setFilter(f);
+          setLimit(PAGE);
+        }}
+        items={FILTERS.map((f) => ({ id: f.id, label: f.label, count: counts[f.id] }))}
+      />
+      {list.length === 0 ? (
+        <div className="mt-4">
+          <Placeholder>{EMPTY_COPY[filter]}</Placeholder>
+        </div>
+      ) : (
+        <>
+          <ul className="mt-2 divide-y divide-slate-100 dark:divide-slate-800">
+            {list.slice(0, limit).map((w) => (
+              <li key={w.word} className="flex items-start justify-between gap-4 py-3">
+                <div className="min-w-0">
+                  <p className="flex flex-wrap items-baseline gap-x-2">
+                    <span className="font-semibold text-slate-900 dark:text-white">{w.word}</span>
+                    {w.ipa && <span className="font-mono text-xs text-slate-500 dark:text-slate-400">/{w.ipa}/</span>}
+                    {w.part_of_speech && <span className="text-xs text-slate-400 dark:text-slate-500">{w.part_of_speech}</span>}
+                  </p>
+                  <p className="mt-0.5 truncate text-sm text-slate-600 dark:text-slate-300">
+                    {w.meaning_vi || <span className="text-slate-400 dark:text-slate-500">Chưa có nghĩa</span>}
+                  </p>
+                </div>
+                <div className="flex flex-shrink-0 flex-col items-end gap-1 pt-0.5">
+                  <StatusBadge level={w.mastery_level} suspended={!!w.is_suspended} variant="label" />
+                  {isWordDue(w, now) && <span className="text-[11px] font-medium text-amber-700 dark:text-amber-400">Cần ôn</span>}
+                </div>
+              </li>
+            ))}
+          </ul>
+          {list.length > PAGE && (
+            <div className="mt-3 flex justify-center">
+              <button type="button" className={secondaryBtn} onClick={() => setLimit(limit < list.length ? list.length : PAGE)}>
+                {limit < list.length ? (
+                  <>
+                    Xem thêm {list.length - limit} từ
+                    <ChevronDown className="h-4 w-4" aria-hidden="true" />
+                  </>
+                ) : (
+                  <>
+                    Thu gọn
+                    <ChevronUp className="h-4 w-4" aria-hidden="true" />
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </Panel>
+  );
+};
+
+// --- Screen ----------------------------------------------------------------
+
+interface IeltsSummary {
+  writing: IeltsAttempt[];
+  speaking: IeltsAttempt[];
+}
+
 const LoadingSkeleton: React.FC = () => (
-  <LoadingRegion label="Đang tải thống kê…" className="max-w-5xl mx-auto space-y-6">
-    <Skeleton className="h-9 w-56" />
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+  <LoadingRegion label="Đang tải thống kê…" className="mx-auto max-w-5xl space-y-6">
+    <Skeleton className="h-8 w-40" />
+    <Skeleton className="h-11 w-72" />
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       {[0, 1, 2, 3].map((i) => (
         <Skeleton key={i} className="h-28 w-full rounded-2xl" />
       ))}
     </div>
-    <Skeleton className="h-64 w-full rounded-2xl" />
-    <Skeleton className="h-48 w-full rounded-2xl" />
+    <Skeleton className="h-56 w-full rounded-2xl" />
   </LoadingRegion>
 );
 
-const OnboardingCard: React.FC<{ onStartLesson: () => void }> = ({
-  onStartLesson,
-}) => (
-  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 rounded-2xl border border-blue-100 dark:border-blue-900 p-8 sm:p-10 text-center">
-    <div className="inline-flex items-center justify-center p-3 bg-blue-100 dark:bg-blue-900/50 rounded-2xl mb-4">
-      <BarChart3 className="w-7 h-7 text-blue-600 dark:text-blue-300" />
-    </div>
-    <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white mb-2">
-      Bắt đầu học để xem thống kê!
-    </h3>
-    <p className="text-slate-600 dark:text-slate-300 text-sm sm:text-base mb-6 max-w-md mx-auto">
-      Hoàn thành ít nhất 3 từ vựng để Kiro có thể phân tích tiến độ và đưa ra
-      gợi ý phù hợp với bạn.
-    </p>
-    <Button onClick={onStartLesson} className="shadow-lg">
-      <BookOpen className="w-4 h-4 mr-2" />
-      Bắt đầu bài học
-    </Button>
-  </div>
-);
-
+/** Loads the snapshot (and IELTS results on demand) and renders `AnalyticsView`. */
 const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   userId,
   focusSection = 'overview',
   onBack,
   onStartLesson,
+  onStartReview,
   onStartTargetedLesson,
 }) => {
-  const [data, setData] = useState<AnalyticsData | null>(null);
+  const [snapshot, setSnapshot] = useState<AnalyticsSnapshot | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Tracks which weakness category is currently generating a targeted lesson.
-  const [generatingCategory, setGeneratingCategory] = useState<string | null>(
-    null,
-  );
-  const [weaknessError, setWeaknessError] = useState<string | null>(null);
-  const [isGeneratingHardest, setIsGeneratingHardest] = useState(false);
-  const [selectedFilter, setSelectedFilter] = useState<WordFilter>('all');
-  const [visibleWordCount, setVisibleWordCount] = useState<number>(8);
-
-  useEffect(() => {
-    setVisibleWordCount(8);
-  }, [selectedFilter]);
-
-  const allTrackedWords = data?.allTrackedWords ?? [];
-
-  const counts = React.useMemo(() => {
-    const now = new Date();
-    return {
-      all: allTrackedWords.length,
-      new: allTrackedWords.filter(w => w.mastery_level === MasteryLevel.NEW).length,
-      learning: allTrackedWords.filter(w => w.mastery_level === MasteryLevel.LEARNING).length,
-      reviewing: allTrackedWords.filter(w => w.mastery_level === MasteryLevel.REVIEWING).length,
-      due: allTrackedWords.filter(w => isWordDue(w, now)).length,
-      lapsed: allTrackedWords.filter(w => w.mastery_level === MasteryLevel.LAPSED).length,
-      mastered: allTrackedWords.filter(w => w.mastery_level === MasteryLevel.MASTERED).length,
-    };
-  }, [allTrackedWords]);
-
-  const filteredWordsList = React.useMemo(() => {
-    const now = new Date();
-    switch (selectedFilter) {
-      case 'new':
-        return allTrackedWords.filter(w => w.mastery_level === MasteryLevel.NEW);
-      case 'learning':
-        return allTrackedWords.filter(w => w.mastery_level === MasteryLevel.LEARNING);
-      case 'reviewing':
-        return allTrackedWords.filter(w => w.mastery_level === MasteryLevel.REVIEWING);
-      case 'due':
-        return allTrackedWords.filter(w => isWordDue(w, now));
-      case 'lapsed':
-        return allTrackedWords.filter(w => w.mastery_level === MasteryLevel.LAPSED);
-      case 'mastered':
-        return allTrackedWords.filter(w => w.mastery_level === MasteryLevel.MASTERED);
-      case 'all':
-      default:
-        return allTrackedWords;
-    }
-  }, [allTrackedWords, selectedFilter]);
+  const [ielts, setIelts] = useState<IeltsResults>(null);
+  const ieltsRequested = useRef(false);
 
   const load = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [
-        distribution,
-        heatmap,
-        quizTrend,
-        totalStats,
-        goals,
-        weaknesses,
-        hardestWords,
-        allTrackedWords,
-      ] = await withTimeout(
-        Promise.all([
-          getMasteryDistribution(userId),
-          getActivityHeatmap(userId, 30),
-          getQuizScoreTrend(userId, 10),
-          getTotalStats(userId),
-          getOrCreateUserGoals(userId),
-          getWeaknessData(userId),
-          getHardestWords(userId, 5),
-          getAllTrackedWords(userId),
-        ]),
-        12000
-      );
-
-      // Total incorrect across all weakness patterns is a reasonable
-      // proxy for "total incorrect answers" — analyzeWeaknesses only
-      // pulls rows that have incorrect_count > 0, so summing
-      // errorCount captures the same magnitude needed for the 10+
-      // gating per requirement 7.1.
-      const totalIncorrect = weaknesses.reduce(
-        (sum, w) => sum + w.errorCount,
-        0,
-      );
-
-      setData({
-        distribution,
-        heatmap,
-        quizTrend,
-        totalStats,
-        goals,
-        weaknesses,
-        totalIncorrect,
-        hardestWords,
-        allTrackedWords,
-      });
+      setSnapshot(await withTimeout(getAnalyticsSnapshot(userId), 12000));
     } catch (err) {
       console.error('Failed to load analytics:', err);
       setError(err instanceof Error ? err.message : 'Không thể tải dữ liệu thống kê. Vui lòng kiểm tra kết nối mạng.');
@@ -296,644 +310,462 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   }, [userId]);
 
   useEffect(() => {
-    let cancelled = false;
-    if (!cancelled) {
-      load();
-    }
-    return () => {
-      cancelled = true;
-    };
+    void load();
   }, [load]);
 
-  // "Sổ từ" and "Thống kê" share this screen: once the data is on screen,
-  // jump to the notebook or back to the top depending on the tab used.
+  // IELTS results are only needed on the Kỹ năng tab: fetched the first time it opens.
+  const requestIelts = useCallback(() => {
+    if (ieltsRequested.current) return;
+    ieltsRequested.current = true;
+    Promise.all([getIeltsAttempts(userId, 'writing', 10), getIeltsAttempts(userId, 'speaking', 10)])
+      .then(([writing, speaking]) => setIelts({ writing, speaking }))
+      .catch((err) => {
+        console.warn('[Analytics] IELTS attempts failed:', err);
+        setIelts('error');
+      });
+  }, [userId]);
+
+  if (isLoading) return <LoadingSkeleton />;
+
+  if (error || !snapshot) {
+    return (
+      <div className="mx-auto max-w-5xl">
+        <ErrorState title="Không tải được thống kê" message={error ?? 'Đã xảy ra lỗi không xác định.'} onRetry={load} />
+        <div className="mt-4 flex justify-center">
+          <button type="button" className={secondaryBtn} onClick={onBack}>
+            Về trang chủ
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <AnalyticsView
+      snapshot={snapshot}
+      focusSection={focusSection}
+      ielts={ielts}
+      onRequestIelts={requestIelts}
+      onStartLesson={onStartLesson}
+      onStartReview={onStartReview}
+      onStartTargetedLesson={onStartTargetedLesson}
+    />
+  );
+};
+
+type IeltsResults = IeltsSummary | 'error' | null;
+
+interface AnalyticsViewProps {
+  snapshot: AnalyticsSnapshot;
+  focusSection?: 'overview' | 'vocab';
+  /** null while not loaded yet. */
+  ielts: IeltsResults;
+  /** Called when the Kỹ năng tab opens; the container fetches IELTS results once. */
+  onRequestIelts: () => void;
+  onStartLesson: () => void;
+  onStartReview?: () => void;
+  onStartTargetedLesson?: (lesson: GeneratedLesson) => void;
+}
+
+/** The analytics screen for a loaded snapshot: three tabs, no fetching of its own. */
+export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
+  snapshot,
+  focusSection = 'overview',
+  ielts,
+  onRequestIelts,
+  onStartLesson,
+  onStartReview,
+  onStartTargetedLesson,
+}) => {
+  const [tab, setTab] = useState<TabId>(focusSection === 'vocab' ? 'vocab' : 'overview');
+  const [forecastDays, setForecastDays] = useState<7 | 30>(7);
+  const [generating, setGenerating] = useState<string | null>(null);
+  const [practiceError, setPracticeError] = useState<string | null>(null);
+
+  // The "Sổ từ" and "Thống kê" nav items both land here.
   useEffect(() => {
-    if (isLoading || !data) return;
+    setTab(focusSection === 'vocab' ? 'vocab' : 'overview');
     if (focusSection === 'vocab') {
-      document.getElementById('vocab-notebook')?.scrollIntoView({ block: 'start' });
+      requestAnimationFrame(() => document.getElementById('vocab-notebook')?.scrollIntoView({ block: 'start' }));
     } else {
       window.scrollTo({ top: 0 });
     }
-  }, [focusSection, isLoading, data]);
+  }, [focusSection]);
 
-  const handlePracticeWeakness = async (weakness: WeaknessPattern) => {
-    if (!data || generatingCategory) return;
-    setWeaknessError(null);
-    setGeneratingCategory(weakness.category);
+  useEffect(() => {
+    if (tab === 'skills') onRequestIelts();
+  }, [tab, onRequestIelts]);
+
+  const now = useMemo(() => new Date(), [snapshot]);
+
+  const stats = useMemo(() => {
+    if (!snapshot) return null;
+    const { words, logs, goals } = snapshot;
+    const activity = dailyCounts(activityTimestamps(logs, words), HEATMAP_DAYS, now);
+    const withErrors = words.filter((w) => (w.incorrect_count ?? 0) > 0);
+    const weaknesses = analyzeWeaknesses(withErrors);
+    return {
+      activity,
+      week: periodOverPeriod(activity, 7),
+      retention30: retention(logs ?? [], 30, now),
+      forecast30: dueForecast(words, 30, now),
+      due: dueNow(words, now),
+      funnel: levelFunnel(words),
+      newPerWeek: weeklyNewWords(words, 8, now),
+      forgotten: mostForgotten(words, 5),
+      weaknesses,
+      totalErrors: withErrors.reduce((a, w) => a + (w.incorrect_count ?? 0), 0),
+      reviewedToday: goals.last_review_reset_date === localDateKey(now) ? goals.words_reviewed_today : 0,
+    };
+  }, [snapshot, now]);
+
+  const practice = async (key: string, make: () => Promise<GeneratedLesson>) => {
+    if (generating) return;
+    setPracticeError(null);
+    setGenerating(key);
     try {
-      const lesson = await generateTargetedLesson(
-        weakness,
-        data.goals.preferred_level,
-      );
-      onStartTargetedLesson?.(lesson);
+      onStartTargetedLesson?.(await make());
     } catch (err) {
-      console.error('Failed to generate targeted lesson:', err);
-      setWeaknessError(
-        'Không thể tạo bài luyện tập. Vui lòng thử lại sau ít phút.',
-      );
+      console.error('Failed to generate practice lesson:', err);
+      setPracticeError('Không tạo được bài luyện tập. Thử lại sau ít phút.');
     } finally {
-      setGeneratingCategory(null);
+      setGenerating(null);
     }
   };
 
-  const handlePracticeHardestWords = async () => {
-    if (!data || !data.hardestWords || data.hardestWords.length === 0 || isGeneratingHardest) return;
-    setWeaknessError(null);
-    setIsGeneratingHardest(true);
-    try {
-      const lesson = await generateHardestWordsLesson(
-        data.hardestWords,
-        data.goals.preferred_level || 'B1',
-      );
-      onStartTargetedLesson?.(lesson);
-    } catch (err) {
-      console.error('Failed to generate hardest words lesson:', err);
-      setWeaknessError(
-        'Không thể tạo bài luyện tập từ từ khó. Vui lòng thử lại sau ít phút.',
-      );
-    } finally {
-      setIsGeneratingHardest(false);
-    }
-  };
+  if (!stats) return null;
 
-  if (isLoading) {
-    return <LoadingSkeleton />;
-  }
+  const { words, logs, goals, quizTrend } = snapshot;
+  const level = goals.preferred_level || 'B1';
 
-  if (error || !data) {
+  if (words.length < 3) {
     return (
-      <div className="max-w-5xl mx-auto space-y-4 animate-fade-in">
-        <button
-          onClick={onBack}
-          className="inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Quay lại
-        </button>
-        <ErrorState
-          title="Không tải được thống kê"
-          message={error ?? 'Đã xảy ra lỗi không xác định.'}
-          onRetry={load}
+      <div className="mx-auto max-w-5xl space-y-6">
+        <h2 className="text-title text-slate-900 dark:text-white">Thống kê</h2>
+        <EmptyState
+          icon={<BarChart3 className="mx-auto h-8 w-8 text-slate-400" />}
+          title="Chưa đủ dữ liệu"
+          description="Học ít nhất 3 từ để xem tiến độ và lịch ôn của bạn."
+          action={{ label: 'Bắt đầu bài học', onClick: onStartLesson }}
         />
       </div>
     );
   }
 
-  const { distribution, heatmap, quizTrend, totalStats, goals, weaknesses, totalIncorrect, hardestWords } = data;
-  const { totalWords, masteredWords, dueToday, currentLevel } = totalStats;
+  const todayActivity = stats.activity[stats.activity.length - 1]?.count ?? 0;
+  const nextDue = stats.forecast30.find((d, i) => i > 0 && d.count > 0);
+  const forecast = stats.forecast30.slice(0, forecastDays);
+  const forecastTotal = forecast.reduce((a, d) => a + d.count, 0);
+  const heatTotal = stats.activity.reduce((a, d) => a + d.count, 0);
+  const activeDays = stats.activity.filter((d) => d.count > 0).length;
+  const goalPct = goals.daily_word_goal > 0 ? Math.min(100, (stats.reviewedToday / goals.daily_word_goal) * 100) : 0;
 
-  // Onboarding gate — too few words to render meaningful analytics.
-  if (totalWords < 3) {
-    return (
-      <div className="max-w-5xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <button
-            onClick={onBack}
-            className="inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Quay lại
-          </button>
-          <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 dark:text-blue-400" />
-            Thống kê
-          </h2>
-          <div className="w-16" />
-        </div>
-        <OnboardingCard onStartLesson={onStartLesson} />
-      </div>
-    );
+  const quizPoints = quizTrend
+    .filter((q) => q.total > 0)
+    .map((q) => ({ label: shortDate(q.date), value: Math.round((q.score / q.total) * 100) }));
+  const quizAvg = quizPoints.length ? Math.round(quizPoints.reduce((a, p) => a + p.value, 0) / quizPoints.length) : 0;
+
+  // --- Overview: one next step ---
+  let action: { title: string; body: string; label: string; onClick: () => void; primary: boolean };
+  if (stats.due > 0 && onStartReview) {
+    action = {
+      title: `${stats.due} từ đến hạn ôn`,
+      body:
+        stats.due > 20
+          ? `Khoảng ${estimateMinutes(20)} phút cho 20 từ đầu tiên.`
+          : `Khoảng ${estimateMinutes(stats.due)} phút.`,
+      label: 'Ôn ngay',
+      onClick: onStartReview,
+      primary: true,
+    };
+  } else if (todayActivity === 0) {
+    action = {
+      title: 'Hôm nay chưa học',
+      body: 'Không có từ nào đến hạn. Học một bài mới để thêm từ vào lịch ôn.',
+      label: 'Học bài mới',
+      onClick: onStartLesson,
+      primary: true,
+    };
+  } else {
+    action = {
+      title: 'Xong việc hôm nay',
+      body: nextDue
+        ? `Lượt ôn tiếp theo: ${weekdayLabel(nextDue.date)} ${shortDate(nextDue.date)}, ${nextDue.count} từ.`
+        : 'Không có từ nào đến hạn trong 30 ngày tới.',
+      label: 'Học thêm bài mới',
+      onClick: onStartLesson,
+      primary: false,
+    };
   }
-
-  // Build chart inputs.
-  const masteryBars: BarChartDataPoint[] = SRS_LEVEL_ORDER.map((level) => ({
-    label: SRS_LEVEL_META[level].label,
-    value: distribution[level] ?? 0,
-    color: SRS_LEVEL_META[level].dot,
-  }));
-
-  const showStreakFlame = goals.current_streak >= 3;
-  const showWeaknessSection = totalIncorrect >= WEAKNESS_THRESHOLD;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <button
-          onClick={onBack}
-          className="inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors w-fit"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Quay lại
-        </button>
-        <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
-          <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-xl">
-            <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 dark:text-blue-400" />
-          </div>
-          Phân tích học tập
-        </h2>
-        <div className="hidden sm:block w-16" />
-      </div>
+    <div className="mx-auto max-w-5xl space-y-6">
+      <h2 className="text-title text-slate-900 dark:text-white">Thống kê</h2>
 
-      {/* Section 1 — Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <SummaryCard
-          icon={<BookOpen className="w-5 h-5 text-blue-600 dark:text-blue-300" />}
-          label="Tổng số từ"
-          value={totalWords}
-          accent="bg-blue-100 dark:bg-blue-900/40"
-        />
-        <SummaryCard
-          icon={<Award className="w-5 h-5 text-emerald-600 dark:text-emerald-300" />}
-          label="Đã thành thạo"
-          value={masteredWords}
-          accent="bg-emerald-100 dark:bg-emerald-900/40"
-        />
-        <SummaryCard
-          icon={<Clock className="w-5 h-5 text-amber-600 dark:text-amber-300" />}
-          label="Cần ôn hôm nay"
-          value={dueToday}
-          accent="bg-amber-100 dark:bg-amber-900/40"
-        />
-        <SummaryCard
-          icon={<BarChart3 className="w-5 h-5 text-indigo-600 dark:text-indigo-300" />}
-          label="Cấp độ hiện tại"
-          value={currentLevel}
-          accent="bg-indigo-100 dark:bg-indigo-900/40"
-        />
-      </div>
+      <Tabs<TabId> label="Mục thống kê" value={tab} onChange={setTab} items={TABS} />
 
-      {/* Section 2 — 7-day study activity chart */}
-      <SectionCard title="Hoạt động học tập (7 ngày qua)">
-        <div className="space-y-4">
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-            Biểu đồ dưới đây thể hiện số lượng từ vựng bạn đã ôn tập và học tập mỗi ngày trong tuần qua. Hãy duy trì chuỗi học tập đều đặn nhé!
-          </p>
-          <div className="h-48 flex items-end justify-between gap-3 pt-6 px-2 border-b border-slate-200 dark:border-slate-700">
-            {heatmap.slice(-7).map((day, index) => {
-              // Calculate height percent
-              const maxCount = Math.max(...heatmap.slice(-7).map(d => d.count), 1);
-              const percent = (day.count / maxCount) * 100;
-              // Format date label (e.g., "Hôm nay" if today, or "DD/MM")
-              const isToday = index === 6; // since slice(-7) takes the last 7 elements, index 6 is the today element
-              const label = isToday ? 'Hôm nay' : formatShortDate(day.date);
-              
-              return (
-                <div key={day.date} className="flex-1 flex flex-col items-center gap-2 group h-full justify-end">
-                  {/* Tooltip on hover */}
-                  <div className="relative w-full flex justify-center">
-                    <span className="absolute bottom-full mb-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 text-[10px] font-bold px-2 py-0.5 rounded shadow-sm whitespace-nowrap pointer-events-none z-10">
-                      {day.count} từ
-                    </span>
-                  </div>
-                  
-                  {/* Bar */}
-                  <div 
-                    className={`w-full rounded-t-lg transition-all duration-500 ease-out ${
-                      day.count > 0 
-                        ? 'bg-gradient-to-t from-blue-500 to-indigo-600 dark:from-blue-400 dark:to-indigo-500 hover:from-blue-600 hover:to-indigo-700 shadow-sm' 
-                        : 'bg-slate-100 dark:bg-slate-800'
-                    }`}
-                    style={{ height: `${Math.max(day.count > 0 ? percent * 0.8 : 4, 4)}%` }}
-                  />
-                  
-                  {/* Label */}
-                  <span className={`text-[10px] font-bold tracking-tight truncate max-w-full ${isToday ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 dark:text-slate-400'}`}>
-                    {label}
-                  </span>
-                  
-                  {/* Count indicator below label */}
-                  <span className={`text-[10px] font-extrabold tabular-nums ${day.count > 0 ? 'text-slate-800 dark:text-slate-200' : 'text-slate-500 dark:text-slate-600'}`}>
-                    {day.count}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </SectionCard>
-
-      {/* Section 3 — Mastery distribution */}
-      <SectionCard title="Phân bố từ vựng">
-        <BarChart data={masteryBars} />
-      </SectionCard>
-
-      {/* Section 3.5 — Top 5 Hardest Words */}
-      {hardestWords && hardestWords.length > 0 && (
-        <SectionCard title="Top 5 Từ Vựng Khó Nhất">
-          <div className="space-y-4">
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-              Đây là những từ vựng bạn đã trả lời sai nhiều nhất trong các phiên học. Hãy luyện tập lại ngay để tăng khả năng ghi nhớ dài hạn!
-            </p>
-            <div className="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm bg-slate-50/20 dark:bg-slate-900/10">
-              <table className="w-full text-left border-collapse text-xs sm:text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-bold bg-slate-50/50 dark:bg-slate-900/40">
-                    <th className="py-3 px-4">Từ vựng</th>
-                    <th className="py-3 px-4">Phiên âm</th>
-                    <th className="py-3 px-4">Nghĩa tiếng Việt</th>
-                    <th className="py-3 px-4 text-center">Đúng / Sai</th>
-                    <th className="py-3 px-4 text-center">Trạng thái</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {hardestWords.map((word) => (
-                    <tr key={word.word} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                      <td className="py-3.5 px-4 font-bold text-slate-950 dark:text-white font-sans flex items-center gap-1.5 flex-wrap">
-                        <span className="text-sm sm:text-base">{word.word}</span>
-                        {word.part_of_speech && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[10px] font-bold">
-                            {word.part_of_speech}
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3.5 px-4 font-mono text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                        {word.ipa ? `/${word.ipa}/` : '-'}
-                      </td>
-                      <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300 font-medium">
-                        {word.meaning_vi || '-'}
-                      </td>
-                      <td className="py-3.5 px-4 text-center font-bold tabular-nums text-xs sm:text-sm">
-                        <span className="text-emerald-600 dark:text-emerald-500">{word.correct_count ?? 0}đ</span>
-                        <span className="mx-1.5 text-slate-300 dark:text-slate-700">|</span>
-                        <span className="text-red-500 dark:text-red-400">{word.incorrect_count ?? 0}s</span>
-                      </td>
-                      <td className="py-3.5 px-4 text-center">
-                        <StatusBadge level={word.mastery_level} suspended={!!word.is_suspended} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <button
-                type="button"
-                onClick={handlePracticeHardestWords}
-                disabled={isGeneratingHardest}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white text-sm font-bold shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isGeneratingHardest ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-                    Đang thiết lập bài học...
-                  </>
-                ) : (
-                  <>
-                    <BookOpen className="w-4 h-4 mr-1" />
-                    Luyện tập từ khó ngay
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </SectionCard>
+      {practiceError && (
+        <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-200">
+          {practiceError}
+        </p>
       )}
 
-      {/* Section 3.6 — Sổ Tay Từ Vựng & Trạng Thái Ghi Nhớ (target of the "Sổ từ" tab) */}
-      <div id="vocab-notebook" className="scroll-mt-20">
-      <SectionCard title="Sổ Tay Từ Vựng & Trạng Thái Ghi Nhớ">
-        <div className="space-y-6">
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-            Dưới đây là danh sách toàn bộ từ vựng bạn đã tích lũy và học tập. Sử dụng bộ lọc dưới đây để theo dõi lộ trình giãn cách khoảng cách ôn tập (Spaced Repetition) và tối ưu hóa tiến trình ghi nhớ của bạn.
-          </p>
+      {tab === 'overview' && (
+        <div role="tabpanel" aria-label="Tổng quan" className="space-y-6">
+          <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+            <div>
+              <p className="text-heading text-slate-900 dark:text-white">{action.title}</p>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{action.body}</p>
+            </div>
+            <button type="button" onClick={action.onClick} className={`${action.primary ? primaryBtn : secondaryBtn} sm:flex-shrink-0`}>
+              {action.label}
+            </button>
+          </section>
 
-          {/* Filter Tabs/Pills */}
-          <div
-            role="group"
-            aria-label="Lọc từ theo trạng thái"
-            className="flex items-center gap-2 overflow-x-auto pb-3 -mx-2 px-2 scrollbar-none sm:-mx-0 sm:px-0"
-          >
-            {WORD_FILTERS.map((tab) => {
-              const isActive = selectedFilter === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  aria-pressed={isActive}
-                  onClick={() => setSelectedFilter(tab.id)}
-                  className={`flex-shrink-0 flex min-h-touch items-center gap-1.5 px-3 rounded-full text-xs font-bold border transition-colors ${
-                    isActive
-                      ? 'bg-slate-900 text-white border-transparent shadow-sm dark:bg-slate-100 dark:text-slate-900'
-                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 dark:bg-slate-800/50 dark:text-slate-200 dark:border-slate-700 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  {tab.dot && <span aria-hidden="true" className={`h-2 w-2 rounded-full ${tab.dot}`} />}
-                  <span>{tab.label}</span>
-                  <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] tabular-nums font-extrabold ${
-                    isActive
-                      ? 'bg-white/20 text-current'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                  }`}>
-                    {counts[tab.id]}
-                  </span>
-                </button>
-              );
-            })}
+          <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Metric label="Lượt ôn 7 ngày" value={stats.week.current} foot={<Delta delta={stats.week.delta} previous={stats.week.previous} />} />
+            <Metric
+              label="Tỷ lệ nhớ 30 ngày"
+              value={stats.retention30.rate === null ? '—' : `${Math.round(stats.retention30.rate * 100)}%`}
+              foot={
+                !logs
+                  ? 'Chưa có nhật ký ôn tập'
+                  : stats.retention30.rate === null
+                    ? `Cần thêm ${stats.retention30.needed} lần ôn để tính`
+                    : 'Mục tiêu 85–90%'
+              }
+            />
+            <Metric label="Chuỗi ngày" value={goals.current_streak} foot={`Kỷ lục ${goals.longest_streak} ngày`} />
+            <Metric
+              label="Mục tiêu hôm nay"
+              value={
+                <>
+                  {stats.reviewedToday}
+                  <span className="text-base font-medium text-slate-400 dark:text-slate-500">/{goals.daily_word_goal}</span>
+                </>
+              }
+              foot={
+                <span className="mt-2.5 block h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" aria-hidden="true">
+                  <span className="block h-full rounded-full bg-blue-500 dark:bg-blue-400" style={{ width: `${goalPct}%` }} />
+                </span>
+              }
+            />
+          </dl>
+
+          <Panel title="Hoạt động 12 tuần" aside={<HeatmapLegend />}>
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+              <ActivityHeatmap days={stats.activity} />
+              <dl className="grid grid-cols-3 gap-4 sm:w-56 sm:grid-cols-1">
+                <div>
+                  <dt className="text-xs text-slate-500 dark:text-slate-400">Lượt ôn</dt>
+                  <dd className="text-heading tabular-nums text-slate-900 dark:text-white">{heatTotal}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-500 dark:text-slate-400">Ngày có học</dt>
+                  <dd className="text-heading tabular-nums text-slate-900 dark:text-white">
+                    {activeDays}
+                    <span className="text-sm font-medium text-slate-400 dark:text-slate-500">/{HEATMAP_DAYS}</span>
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-500 dark:text-slate-400">TB mỗi ngày</dt>
+                  <dd className="text-heading tabular-nums text-slate-900 dark:text-white">{activeDays ? Math.round(heatTotal / activeDays) : 0}</dd>
+                </div>
+              </dl>
+            </div>
+            {!logs && (
+              <p className="mt-4 text-xs text-slate-500 dark:text-slate-400">Chỉ tính lần ôn gần nhất của mỗi từ.</p>
+            )}
+          </Panel>
+        </div>
+      )}
+
+      {tab === 'vocab' && (
+        <div role="tabpanel" aria-label="Từ vựng" className="space-y-6">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <Panel title="Tỷ lệ nhớ · 30 ngày">
+              <RetentionGauge result={stats.retention30} hasLogs={!!logs} />
+            </Panel>
+            <Panel
+              title="Lịch ôn sắp tới"
+              aside={
+                <Segmented<7 | 30>
+                  label="Khoảng dự báo"
+                  value={forecastDays}
+                  onChange={setForecastDays}
+                  options={[
+                    { value: 7, label: '7 ngày' },
+                    { value: 30, label: '30 ngày' },
+                  ]}
+                  className="w-40"
+                />
+              }
+            >
+              <ColumnChart
+                data={forecast}
+                highlight={0}
+                unit="từ"
+                label={`Số từ đến hạn ôn mỗi ngày trong ${forecastDays} ngày tới`}
+                labelFor={(d, i) => (i === 0 ? 'Nay' : forecastDays === 7 ? weekdayLabel(d.date) : i % 7 === 0 ? shortDate(d.date) : '')}
+              />
+              <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                <span className="tabular-nums">{forecastTotal}</span> lượt ôn trong {forecastDays} ngày tới, tính cả từ quá hạn
+              </p>
+            </Panel>
           </div>
 
-          {/* Cards Grid or Empty State */}
-          {filteredWordsList.length > 0 ? (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 animate-fade-in">
-                {filteredWordsList.slice(0, visibleWordCount).map((word) => {
-                  const isDue = isWordDue(word);
+          <div className="grid gap-6 lg:grid-cols-2">
+            <Panel title="Trạng thái từ">
+              <StackedBar
+                label="Phân bố từ theo trạng thái ghi nhớ"
+                segments={SRS_LEVEL_ORDER.map((lv) => ({
+                  key: lv,
+                  label: SRS_LEVEL_META[lv].label,
+                  value: stats.funnel[lv],
+                  color: SRS_LEVEL_META[lv].dot,
+                }))}
+              />
+            </Panel>
+            <Panel title="Từ mới mỗi tuần">
+              <ColumnChart
+                data={stats.newPerWeek}
+                highlight={stats.newPerWeek.length - 1}
+                unit="từ mới"
+                label="Số từ mới mỗi tuần trong 8 tuần qua"
+                labelFor={(d, i) => (i === stats.newPerWeek.length - 1 ? 'Tuần này' : i % 2 === 0 ? shortDate(d.date) : '')}
+              />
+            </Panel>
+          </div>
 
+          <Panel
+            title="Từ hay quên"
+            aside={
+              stats.forgotten.length > 0 && onStartTargetedLesson ? (
+                <button
+                  type="button"
+                  className={secondaryBtn}
+                  disabled={generating !== null}
+                  onClick={() => practice('forgotten', () => generateHardestWordsLesson(stats.forgotten, level))}
+                >
+                  {generating === 'forgotten' && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                  Luyện các từ này
+                </button>
+              ) : undefined
+            }
+          >
+            {stats.forgotten.length === 0 ? (
+              <Placeholder>Chưa có từ nào bị trả lời sai.</Placeholder>
+            ) : (
+              <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                {stats.forgotten.map((w) => (
+                  <li key={w.word} className="flex items-center justify-between gap-4 py-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-slate-900 dark:text-white">{w.word}</p>
+                      <p className="truncate text-sm text-slate-600 dark:text-slate-400">{w.meaning_vi || '—'}</p>
+                    </div>
+                    <div className="flex-shrink-0 text-right">
+                      <p className="text-sm font-semibold tabular-nums text-slate-900 dark:text-white">
+                        Sai {w.incorrect_count}/{(w.correct_count ?? 0) + (w.incorrect_count ?? 0)}
+                      </p>
+                      <p className="text-xs tabular-nums text-slate-500 dark:text-slate-400">{Math.round(lapseRate(w) * 100)}% trả lời sai</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+
+          <WordNotebook words={words} now={now} />
+        </div>
+      )}
+
+      {tab === 'skills' && (
+        <div role="tabpanel" aria-label="Kỹ năng" className="space-y-6">
+          <Panel
+            title="Bài kiểm tra cuối bài học"
+            aside={
+              quizPoints.length >= QUIZ_MIN_POINTS ? (
+                <span className="text-xs tabular-nums text-slate-500 dark:text-slate-400">Trung bình {quizAvg}%</span>
+              ) : undefined
+            }
+          >
+            {quizPoints.length < QUIZ_MIN_POINTS ? (
+              <Placeholder>Cần thêm {QUIZ_MIN_POINTS - quizPoints.length} bài kiểm tra để vẽ xu hướng.</Placeholder>
+            ) : (
+              <ScoreLine points={quizPoints} />
+            )}
+          </Panel>
+
+          <Panel title="Lỗi thường gặp">
+            {stats.totalErrors < WEAKNESS_THRESHOLD ? (
+              <Placeholder>Cần thêm {WEAKNESS_THRESHOLD - stats.totalErrors} câu trả lời sai để nhận ra quy luật lỗi.</Placeholder>
+            ) : stats.weaknesses.length === 0 ? (
+              <Placeholder>Không thấy quy luật lỗi nào lặp lại.</Placeholder>
+            ) : (
+              <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                {stats.weaknesses.map((w: WeaknessPattern) => {
+                  const examples = Array.from(new Set(w.examples.map((e) => e.word).filter(Boolean))).slice(0, 3);
                   return (
-                    <div
-                      key={word.word}
-                      className="relative flex flex-col justify-between p-4 rounded-2xl border border-slate-200 bg-white shadow-card transition-shadow hover:shadow-raised dark:border-slate-700 dark:bg-slate-900/40"
-                    >
-                      <div>
-                        {/* Top row: Word and Mastery Level */}
-                        <div className="flex items-start justify-between gap-2 mb-1.5">
-                          <div className="flex items-center flex-wrap gap-1.5 min-w-0">
-                            <span className="font-extrabold text-slate-900 dark:text-white text-base sm:text-lg break-all whitespace-normal" title={word.word}>
-                              {word.word}
-                            </span>
-                            {word.part_of_speech && (
-                              <span className="inline-flex px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[9px] font-bold uppercase tracking-wider">
-                                {word.part_of_speech}
-                              </span>
-                            )}
-                          </div>
-                          {isDue && (
-                            <span className="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[9px] font-extrabold shadow-sm animate-pulse">
-                              ⏰ Cần ôn
-                            </span>
-                          )}
-                        </div>
-
-                        {/* IPA */}
-                        {word.ipa && (
-                          <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mb-2">
-                            /{word.ipa}/
-                          </p>
-                        )}
-
-                        {/* Vietnamese Meaning */}
-                        <p className="text-sm text-slate-800 dark:text-slate-200 font-bold mb-2 break-words">
-                          {word.meaning_vi || '(Chưa cập nhật nghĩa)'}
+                    <li key={w.category} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="flex items-baseline gap-2">
+                          <span className="font-semibold text-slate-900 dark:text-white">{w.categoryVi}</span>
+                          <span className="text-xs tabular-nums text-slate-500 dark:text-slate-400">{w.errorCount} lỗi</span>
                         </p>
-
-                        {/* English Definition */}
-                        {word.definition_en && (
-                          <p className="text-xs text-slate-500 dark:text-slate-400 italic whitespace-normal break-words mb-3 border-l-2 border-slate-200 dark:border-slate-700 pl-2" title={word.definition_en}>
-                            {word.definition_en}
-                          </p>
+                        {examples.length > 0 && (
+                          <p className="mt-0.5 truncate text-sm text-slate-600 dark:text-slate-400">{examples.join(', ')}</p>
                         )}
                       </div>
+                      {onStartTargetedLesson && (
+                        <button
+                          type="button"
+                          className={`${secondaryBtn} sm:flex-shrink-0`}
+                          disabled={generating !== null}
+                          onClick={() => practice(w.category, () => generateTargetedLesson(w, level))}
+                        >
+                          {generating === w.category && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                          Luyện tập
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Panel>
 
-                      {/* Footer badge */}
-                      <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800/40 flex items-center justify-between">
-                        <StatusBadge level={word.mastery_level} suspended={!!word.is_suspended} />
-                        {word.correct_count !== undefined && (
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400 tabular-nums">
-                            Tỷ lệ: {word.correct_count + word.incorrect_count > 0 
-                              ? Math.round((word.correct_count / (word.correct_count + word.incorrect_count)) * 100) 
-                              : 100}%
-                          </span>
-                        )}
-                      </div>
+          <Panel title="IELTS">
+            {ielts === null ? (
+              <Skeleton className="h-20 w-full rounded-xl" />
+            ) : ielts === 'error' ? (
+              <Placeholder>Không tải được kết quả IELTS.</Placeholder>
+            ) : (
+              <dl className="grid grid-cols-2 divide-x divide-slate-100 dark:divide-slate-800">
+                {(
+                  [
+                    ['Writing', ielts.writing],
+                    ['Speaking', ielts.speaking],
+                  ] as const
+                ).map(([name, attempts]) => {
+                  const bands = attempts.map((a) => a.estimatedBand).filter((b): b is number => typeof b === 'number');
+                  const recent = bands.slice(0, 5);
+                  const avg = recent.length ? recent.reduce((a, b) => a + b, 0) / recent.length : null;
+                  return (
+                    <div key={name} className="px-4 first:pl-0 last:pr-0">
+                      <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">{name}</dt>
+                      <dd className="mt-1.5 text-2xl font-semibold tabular-nums text-slate-900 dark:text-white">
+                        {bands.length ? bands[0].toFixed(1) : '—'}
+                      </dd>
+                      <dd className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        {avg === null ? 'Chưa có bài nào' : `TB ${recent.length} bài gần nhất: ${avg.toFixed(1)}`}
+                      </dd>
                     </div>
                   );
                 })}
-              </div>
-
-              {filteredWordsList.length > 8 && (
-                <div className="flex justify-center pt-4">
-                  {visibleWordCount < filteredWordsList.length ? (
-                    <button
-                      type="button"
-                      onClick={() => setVisibleWordCount(filteredWordsList.length)}
-                      className="inline-flex items-center gap-1.5 px-6 py-2.5 rounded-full border border-slate-200 dark:border-slate-700 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 text-xs font-extrabold shadow-sm hover:shadow active:scale-95 transition-all duration-200"
-                    >
-                      <span>Xem thêm ({filteredWordsList.length - visibleWordCount} từ khác)</span>
-                      <span className="text-xs">▼</span>
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setVisibleWordCount(8)}
-                      className="inline-flex items-center gap-1.5 px-6 py-2.5 rounded-full border border-slate-200 dark:border-slate-700 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 text-xs font-extrabold shadow-sm hover:shadow active:scale-95 transition-all duration-200"
-                    >
-                      <span>Thu gọn danh sách</span>
-                      <span className="text-xs">▲</span>
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          ) : (
-            /* Premium Empty State */
-            <div className="text-center py-12 px-6 bg-slate-50/50 dark:bg-slate-900/20 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800/80 max-w-xl mx-auto animate-fade-in">
-              {selectedFilter === 'all' && (
-                <>
-                  <span className="text-4xl sm:text-5xl block mb-3" aria-hidden="true">🌱</span>
-                  <h4 className="text-base sm:text-lg font-extrabold text-slate-800 dark:text-slate-200 mb-2">
-                    Chào mừng bạn đến với Sổ Tay Từ Vựng!
-                  </h4>
-                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                    Bạn chưa có từ vựng nào trong danh sách học tập. Hãy quay lại trang chủ và bắt đầu một bài học mới để lưu trữ những từ vựng đầu tiên nhé!
-                  </p>
-                </>
-              )}
-              {selectedFilter === 'new' && (
-                <>
-                  <span className="text-4xl sm:text-5xl block mb-3" aria-hidden="true">✨</span>
-                  <h4 className="text-base sm:text-lg font-extrabold text-slate-800 dark:text-slate-200 mb-2">
-                    Không có từ mới nào!
-                  </h4>
-                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                    Tất cả các từ vựng đã được học ít nhất một lần. Từ mới sẽ tự động xuất hiện tại đây khi bạn khởi tạo và bắt đầu học một bài mới.
-                  </p>
-                </>
-              )}
-              {selectedFilter === 'learning' && (
-                <>
-                  <span className="text-4xl sm:text-5xl block mb-3" aria-hidden="true">🚀</span>
-                  <h4 className="text-base sm:text-lg font-extrabold text-slate-800 dark:text-slate-200 mb-2">
-                    Không có từ nào đang học!
-                  </h4>
-                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                    Bạn đã ôn tập hoặc thành thạo toàn bộ từ vựng hiện có. Hãy tích cực học thêm các từ mới từ gợi ý thông minh trên Dashboard nhé!
-                  </p>
-                </>
-              )}
-              {selectedFilter === 'reviewing' && (
-                <>
-                  <span className="text-4xl sm:text-5xl block mb-3" aria-hidden="true">📚</span>
-                  <h4 className="text-base sm:text-lg font-extrabold text-slate-800 dark:text-slate-200 mb-2">
-                    Trống lịch trình ôn tập!
-                  </h4>
-                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                    Không có từ vựng nào đang ở trạng thái ôn tập định kỳ. Hãy kiên trì học và làm bài ôn để tích lũy và chuyển dịch trạng thái ghi nhớ của các từ.
-                  </p>
-                </>
-              )}
-              {selectedFilter === 'due' && (
-                <>
-                  <span className="text-4xl sm:text-5xl block mb-3" aria-hidden="true">🎉</span>
-                  <h4 className="text-base sm:text-lg font-extrabold text-emerald-600 dark:text-emerald-400 mb-2">
-                    Tuyệt vời! Đã hoàn thành ôn tập
-                  </h4>
-                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                    Chúc mừng! Bạn không còn từ vựng nào đến hạn cần ôn hôm nay. Trí nhớ dài hạn của bạn đang ở trạng thái cực kỳ tốt và được củng cố vững chắc!
-                  </p>
-                </>
-              )}
-              {selectedFilter === 'lapsed' && (
-                <>
-                  <span className="text-4xl sm:text-5xl block mb-3" aria-hidden="true">💪</span>
-                  <h4 className="text-base sm:text-lg font-extrabold text-slate-800 dark:text-slate-200 mb-2">
-                    Giữ vững phong độ tuyệt đỉnh!
-                  </h4>
-                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                    Không có bất kỳ từ vựng nào bị quên (Lapsed). Khả năng phản xạ và ghi nhớ của bạn thực sự xuất sắc, hãy duy trì lịch ôn tập hàng ngày nhé!
-                  </p>
-                </>
-              )}
-              {selectedFilter === 'mastered' && (
-                <>
-                  <span className="text-4xl sm:text-5xl block mb-3" aria-hidden="true">👑</span>
-                  <h4 className="text-base sm:text-lg font-extrabold text-slate-800 dark:text-slate-200 mb-2">
-                    Chinh phục Trí nhớ dài hạn!
-                  </h4>
-                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                    Chưa có từ vựng nào đạt mốc <b>Thành thạo</b>. Để một từ đạt mốc này, hãy ôn tập chính xác và đều đặn để giãn khoảng cách ôn tập vượt mốc <b>21 ngày</b>! Bạn sẽ làm được thôi!
-                  </p>
-                </>
-              )}
-            </div>
-          )}
+              </dl>
+            )}
+          </Panel>
         </div>
-      </SectionCard>
-      </div>
-
-
-
-      {/* Section 5 — Streak & daily goal */}
-      <SectionCard title="Chuỗi học tập & mục tiêu">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
-          {/* Current streak */}
-          <div className="flex flex-col items-center justify-center text-center bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 rounded-xl p-4 border border-orange-100 dark:border-orange-900/40">
-            <div className="flex items-center gap-2 text-3xl sm:text-4xl font-bold text-orange-600 dark:text-orange-300 tabular-nums">
-              {showStreakFlame ? <span aria-hidden="true">🔥</span> : <Flame className="w-7 h-7" />}
-              <span>{goals.current_streak}</span>
-            </div>
-            <div className="mt-1 text-xs sm:text-sm text-slate-600 dark:text-slate-300">
-              Ngày liên tiếp
-            </div>
-          </div>
-
-          {/* Longest streak */}
-          <div className="flex flex-col items-center justify-center text-center bg-slate-50 dark:bg-slate-900/40 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
-            <div className="flex items-center gap-2 text-3xl sm:text-4xl font-bold text-slate-700 dark:text-slate-200 tabular-nums">
-              <Award className="w-7 h-7 text-amber-500" />
-              <span>{goals.longest_streak}</span>
-            </div>
-            <div className="mt-1 text-xs sm:text-sm text-slate-600 dark:text-slate-300">
-              Kỷ lục dài nhất
-            </div>
-          </div>
-
-          {/* Daily goal progress */}
-          <div className="flex flex-col items-center justify-center text-center bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 border border-blue-100 dark:border-blue-900/40">
-            <CircularProgress
-              value={goals.words_reviewed_today}
-              max={goals.daily_word_goal}
-              size={80}
-            />
-            <div className="mt-2 flex items-center gap-1.5 text-xs sm:text-sm text-slate-600 dark:text-slate-300">
-              <Target className="w-3.5 h-3.5" />
-              <span className="tabular-nums">
-                {goals.words_reviewed_today}/{goals.daily_word_goal} từ hôm nay
-              </span>
-            </div>
-          </div>
-        </div>
-      </SectionCard>
-
-      {/* Section 6 — Weakness detection */}
-      {showWeaknessSection && (
-        <SectionCard title="Điểm yếu cần cải thiện">
-          {weaknessError && (
-            <div className="mb-3 text-sm rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 px-3 py-2">
-              {weaknessError}
-            </div>
-          )}
-          {weaknesses.length === 0 ? (
-            <div className="flex items-center gap-3 rounded-xl border border-emerald-100 dark:border-emerald-900/40 bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-200">
-              <Sparkles className="w-5 h-5 flex-shrink-0" />
-              <span>Tuyệt vời! Không phát hiện điểm yếu nào.</span>
-            </div>
-          ) : (
-            <ul className="space-y-3">
-              {weaknesses.map((w) => {
-                const Icon = WEAKNESS_ICONS[w.category] ?? AlertTriangle;
-                const isImproving = w.status === 'improving';
-                const isGenerating = generatingCategory === w.category;
-                const exampleWords = Array.from(
-                  new Set(w.examples.map((e) => e.word).filter(Boolean)),
-                ).slice(0, 3);
-
-                return (
-                  <li
-                    key={w.category}
-                    className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-4"
-                  >
-                    <div className="flex items-start gap-3 flex-1 min-w-0">
-                      <div className="inline-flex items-center justify-center p-2 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex-shrink-0">
-                        <Icon className="w-5 h-5 text-amber-600 dark:text-amber-300" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h4 className="font-semibold text-slate-900 dark:text-white">
-                            {w.categoryVi}
-                          </h4>
-                          <span className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 tabular-nums">
-                            {w.errorCount} lỗi
-                          </span>
-                          {isImproving && (
-                            <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
-                              <TrendingUp className="w-3 h-3" />
-                              Đang cải thiện
-                            </span>
-                          )}
-                        </div>
-                        {exampleWords.length > 0 && (
-                          <p className="mt-1 text-xs sm:text-sm text-slate-600 dark:text-slate-300 truncate">
-                            Ví dụ:{' '}
-                            <span className="font-medium text-slate-800 dark:text-slate-100">
-                              {exampleWords.join(', ')}
-                            </span>
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <div className="sm:flex-shrink-0">
-                      <Button
-                        onClick={() => handlePracticeWeakness(w)}
-                        disabled={isGenerating || generatingCategory !== null}
-                        className="w-full sm:w-auto"
-                      >
-                        {isGenerating ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Đang tạo...
-                          </>
-                        ) : (
-                          'Luyện tập'
-                        )}
-                      </Button>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </SectionCard>
       )}
     </div>
   );

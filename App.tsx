@@ -813,6 +813,7 @@ function App() {
             focusSection={analyticsSection}
             onBack={() => setPhase(AppPhase.DASHBOARD)}
             onStartLesson={() => setPhase(AppPhase.DASHBOARD)}
+            onStartReview={() => setPhase(AppPhase.REVIEW_SESSION)}
             onStartTargetedLesson={async (lesson: GeneratedLesson) => {
               // Resolve the user's current preferred level so the targeted
               // practice lesson runs at the right difficulty. Fall back to
