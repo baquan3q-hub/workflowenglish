@@ -923,6 +923,7 @@ function App() {
             userId={currentUser.id}
             onStartLesson={() => setPhase(AppPhase.DASHBOARD)}
             onOpenLesson={handleOpenLesson}
+            onReviewWords={reviewSelectedWords}
             isLoadingLesson={isLoading}
           />
         ) : null;

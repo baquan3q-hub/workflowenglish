@@ -56,7 +56,11 @@ export function aiErrorMessage(err: unknown): string {
     case 'timeout':
       return 'AI phản hồi quá lâu. Vui lòng thử lại.';
     case 'network':
-      return 'Mất kết nối mạng. Kiểm tra mạng rồi thử lại.';
+      // Online but the request still failed: the AI server is unreachable
+      // (down, or the ai-proxy function is not deployed), not the learner's network.
+      return typeof navigator !== 'undefined' && navigator.onLine === false
+        ? 'Mất kết nối mạng. Kiểm tra mạng rồi thử lại.'
+        : 'Chưa kết nối được máy chủ AI. Vui lòng thử lại sau ít phút.';
     case 'auth':
       return 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
     case 'bad_request':
@@ -108,6 +112,11 @@ async function post(op: string, payload: unknown, opts: InvokeOptions): Promise<
     if (err instanceof AiError) throw err;
     if (timedOut) throw new AiError('timeout', `${op} timed out`);
     if (opts.signal?.aborted) throw err;
+    if (process.env.NODE_ENV !== 'production') {
+      console.error(
+        `[AI] Could not reach ${FUNCTION_URL}. A CORS or 404 error here usually means the ai-proxy function is not deployed: see supabase/functions/ai-proxy/README.md.`,
+      );
+    }
     throw new AiError('network', err instanceof Error ? err.message : String(err));
   } finally {
     clearTimeout(timer);

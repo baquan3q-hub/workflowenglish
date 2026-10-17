@@ -31,7 +31,7 @@ describe('aiErrorMessage', () => {
   });
 
   it('has a line per kind and a generic one for anything else', () => {
-    expect(aiErrorMessage(new AiError('network', 'x'))).toContain('Mất kết nối');
+    expect(aiErrorMessage(new AiError('network', 'x'))).toMatch(/Mất kết nối|máy chủ AI/);
     expect(aiErrorMessage(new AiError('timeout', 'x'))).toContain('quá lâu');
     expect(aiErrorMessage(new Error('boom'))).toContain('AI đang bận');
   });
