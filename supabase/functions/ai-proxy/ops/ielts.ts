@@ -26,8 +26,42 @@ const feedbackFields = {
   improvedVersion: S.str(),
   nextActions: S.arr(S.str()),
 };
-const writingSchema = S.obj(feedbackFields);
 const speakingSchema = S.obj({ ...feedbackFields, pronunciationNotes: S.arr(S.str()), followUpDrill: S.str() });
+
+/** Same ids as data/ielts/errorCategories.ts (a test keeps them equal). */
+export const WRITING_ERROR_CATEGORIES = [
+  'article',
+  'tense',
+  'agreement',
+  'word_form',
+  'collocation',
+  'preposition',
+  'punctuation',
+  'run_on',
+  'cohesion',
+  'task_response',
+];
+export const TASK1_CHECKS = ['overview', 'key_features', 'comparisons', 'no_opinion'];
+
+/** Paragraphs as the learner typed them: one per non-empty line. */
+export function splitEssayParagraphs(text: string): string[] {
+  return text
+    .split(/\n+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+}
+
+function writingSchema(isTask1: boolean) {
+  const fields: Record<string, Record<string, unknown>> = {
+    ...feedbackFields,
+    sentenceCorrections: S.arr(
+      S.obj({ original: S.str(), corrected: S.str(), explanation: S.str(), category: S.str(WRITING_ERROR_CATEGORIES) }),
+    ),
+    paragraphFeedback: S.arr(S.obj({ index: S.num(), role: S.str(), comment: S.str(), suggestion: S.str() })),
+  };
+  if (isTask1) fields.task1Checklist = S.arr(S.obj({ id: S.str(TASK1_CHECKS), passed: S.bool(), note: S.str() }));
+  return S.obj(fields);
+}
 
 function checkFeedback(data: unknown): unknown {
   const f = data as { estimatedBand?: unknown; criterionScores?: unknown } | null;
@@ -55,6 +89,17 @@ export const gradeIeltsWriting: OpSpec = {
       ? 'Hoàn thành nhiệm vụ (Đúng đề, đủ thông tin biểu đồ)'
       : 'Trả lời yêu cầu đề bài (Lập luận, ý kiến cá nhân)';
     const minWords = isTask1 ? 150 : 250;
+    const paragraphs = splitEssayParagraphs(answer);
+    const numbered = paragraphs.map((t, i) => `[P${i + 1}] ${t}`).join('\n');
+    const checklistStep = isTask1
+      ? `7. task1Checklist: exactly 4 objects with id overview, key_features, comparisons, no_opinion, each with passed (true/false) and note (one short Vietnamese sentence):
+   - overview: there is a clear overview of the main trends or stages
+   - key_features: the most important features are selected and supported with data
+   - comparisons: data is compared, not just listed
+   - no_opinion: no personal opinion or reasons not shown in the visual
+`
+      : '';
+    const n = isTask1 ? 8 : 7;
 
     const prompt = `You are an IELTS Writing examiner assistant.
 Evaluate the user's answer based on IELTS public band descriptors.
@@ -65,8 +110,9 @@ Input:
 - Task: ${isTask1 ? 'Task 1 (Describe graph/table/map/process)' : 'Task 2 (Essay)'}
 - Essay/Chart type: ${essayType}
 - Question: ${question}
-- User answer: ${answer}
 - Target band: ${targetBand}
+- User answer, one paragraph per line, numbered [P1] to [P${paragraphs.length}]:
+${numbered}
 
 Output format (JSON):
 1. estimatedBand: overall estimated band (number like 5.0, 5.5, 6.0)
@@ -77,12 +123,19 @@ Output format (JSON):
    - comment: brief comment mixing Vietnamese and English (feedback dễ hiểu cho người Việt)
 3. strengths: array of 2-3 strengths (mix Vietnamese and English)
 4. weaknesses: array of 2-3 main weaknesses (mix Vietnamese and English). If the user wrote less than ${minWords} words, mention the word count penalty.
-5. sentenceCorrections: array of up to 5 sentence-level corrections, each with:
-   - original: the original sentence from user's answer
+5. sentenceCorrections: array of up to 6 sentence-level corrections, each with:
+   - original: the original sentence copied exactly from the user's answer
    - corrected: the corrected version
    - explanation: explanation in Vietnamese why this was wrong or how to improve it
-6. improvedVersion: a full rewritten version of the essay at the target band level (about ${isTask1 ? '160-180' : '260-290'} words)
-7. nextActions: array of 3 specific actions the learner should practise next (mix Vietnamese and English)
+   - category: the main problem, one of ${WRITING_ERROR_CATEGORIES.join(', ')}
+     (run_on = sentence structure problems such as run-ons and fragments; cohesion = wrong or repetitive linking words, unclear reference; task_response = off-topic sentences or an unclear position${isTask1 ? ', a missing overview or a personal opinion' : ''})
+6. paragraphFeedback: one object per paragraph [P1]..[P${paragraphs.length}], in order, each with:
+   - index: the paragraph number (1 for [P1])
+   - role: what the paragraph does, in Vietnamese (e.g. "Mở bài", ${isTask1 ? '"Overview", "Chi tiết 1"' : '"Thân bài 1", "Kết bài"'})
+   - comment: 1-2 sentences in Vietnamese on how well it does that job
+   - suggestion: one concrete change for this paragraph, in Vietnamese with English examples. Do not rewrite the whole paragraph.
+${checklistStep}${n}. improvedVersion: a full rewritten version of the essay at the target band level (about ${isTask1 ? '160-180' : '260-290'} words), one paragraph per line
+${n + 1}. nextActions: array of 3 specific actions the learner should practise next (mix Vietnamese and English)
 
 Rules:
 - Be strict but helpful and encouraging.
@@ -93,7 +146,54 @@ Rules:
 - For Task 1: Check if the user successfully selected main features, compared trends, and avoided inserting subjective opinions.
 - For Task 2: Check if the user stated a clear position, supported ideas with examples, and structured paragraphs correctly.
 - The improved version should sound natural, not overly academic.`;
-    return { contents: userText(prompt), generationConfig: jsonConfig(writingSchema) };
+    return { contents: userText(prompt), generationConfig: jsonConfig(writingSchema(isTask1)) };
+  },
+};
+
+const ideasSchema = S.obj({
+  sides: S.arr(S.obj({ label: S.str(), ideas: S.arr(S.obj({ point: S.str(), example: S.str() })) })),
+  vocabulary: S.arr(S.obj({ phrase: S.str(), meaningVi: S.str() })),
+  outline: S.arr(S.obj({ paragraph: S.str(), plan: S.str() })),
+});
+
+function checkIdeas(data: unknown): unknown {
+  const d = data as { sides?: unknown; outline?: unknown } | null;
+  if (!d || !Array.isArray(d.sides) || d.sides.length === 0 || !Array.isArray(d.outline)) {
+    throw new Error('ideas are missing sides or outline');
+  }
+  return data;
+}
+
+/**
+ * Planning help for Task 2: ideas for each side, examples, useful phrases and
+ * a paragraph plan. Never a finished essay.
+ */
+export const ieltsIdeas: OpSpec = {
+  hourlyLimit: 20,
+  models: FLASH_MODELS,
+  timeoutMs: 45_000,
+  kind: 'json',
+  finalize: checkIdeas,
+  build(payload) {
+    const p = asObject(payload);
+    const question = str(p, 'question', { max: 3000 });
+    const essayType = str(p, 'essayType', { max: 80, optional: true }) || 'opinion';
+
+    const prompt = `You help a Vietnamese learner plan an IELTS Writing Task 2 essay (target band 6.5-7).
+Essay type: ${essayType}
+Question: ${question}
+
+Return JSON:
+- sides: 2 sides of the issue that fit this essay type (for example "Ủng hộ" / "Phản đối", "Quan điểm 1" / "Quan điểm 2", "Nguyên nhân" / "Giải pháp"). label is in Vietnamese. Each side has 3 ideas, each with:
+  - point: the idea in English, at most 15 words, written as a note, not a full sentence
+  - example: a short, concrete example in English (at most 20 words)
+- vocabulary: 6-8 topic phrases or collocations a band 7 writer could use, each with meaningVi (Vietnamese meaning)
+- outline: 4 paragraphs (Mở bài, Thân bài 1, Thân bài 2, Kết bài) with plan: 1-2 sentences in Vietnamese saying what to put in that paragraph and which ideas to use
+
+Rules:
+- Never write the essay or any full paragraph for the learner.
+- Ideas must be realistic and easy to explain with everyday examples.`;
+    return { contents: userText(prompt), generationConfig: jsonConfig(ideasSchema) };
   },
 };
 

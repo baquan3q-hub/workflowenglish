@@ -43,7 +43,7 @@ import IeltsListeningDictation from './views/IeltsListeningDictation';
 import IeltsListeningDrill from './views/IeltsListeningDrill';
 import { gradeWritingTask } from './services/ieltsWritingService';
 import { gradeSpeakingAnswer } from './services/ieltsSpeakingService';
-import { saveIeltsAttempt, saveListeningAttempt, resolveAttemptQuestion, isListeningDetails } from './services/ieltsAttemptService';
+import { saveIeltsAttempt, saveListeningAttempt, resolveAttemptQuestion, isListeningDetails, getPreviousWritingAttempt } from './services/ieltsAttemptService';
 import { getListeningTest, type ListeningAnswers } from './data/ielts/listening';
 import { attemptLabels, scoreSections, sessionSections, type ListeningMode } from './services/listeningLogic';
 import { speakingPart1Questions } from './data/ieltsSpeakingQuestions';
@@ -146,6 +146,8 @@ function App() {
   const [ieltsWritingDraft, setIeltsWritingDraft] = useState<string>('');
   const [ieltsFeedbackData, setIeltsFeedbackData] = useState<IeltsAiFeedback | null>(null);
   const [ieltsUserAnswer, setIeltsUserAnswer] = useState<string>('');
+  /** The attempt before the one on screen (same prompt), for the band change and the diff. */
+  const [ieltsWritingPrevious, setIeltsWritingPrevious] = useState<{ answer: string; feedback: IeltsAiFeedback } | null>(null);
   const [isIeltsGrading, setIsIeltsGrading] = useState(false);
   const [ieltsSpeakingAudioBase64, setIeltsSpeakingAudioBase64] = useState<string>('');
   const [ieltsSpeakingAudioMime, setIeltsSpeakingAudioMime] = useState<string>('audio/webm');
@@ -891,7 +893,15 @@ function App() {
     setIeltsWritingDraft('');
     setIeltsFeedbackData(null);
     setIeltsUserAnswer('');
+    setIeltsWritingPrevious(null);
     setPhase(AppPhase.IELTS_WRITING_PRACTICE);
+  };
+
+  /** Latest saved Writing attempt on a prompt (before `before` if given), as feedback-screen input. */
+  const findPreviousWriting = async (prompt: string, before?: string) => {
+    if (!currentUser) return null;
+    const attempt = await getPreviousWritingAttempt(currentUser.id, prompt, before);
+    return attempt?.aiFeedback ? { answer: attempt.answerText, feedback: attempt.aiFeedback } : null;
   };
 
   const openIeltsLibrary = (lessonId?: string) => {
@@ -940,7 +950,11 @@ function App() {
     setIeltsUserAnswer(attempt.answerText);
     if (attempt.skill === 'writing') {
       setIeltsWritingDraft('');
+      setIeltsWritingPrevious(null);
       setPhase(AppPhase.IELTS_WRITING_FEEDBACK);
+      if (attempt.createdAt && (attempt.attemptNumber ?? 1) > 1) {
+        void findPreviousWriting(attempt.questionPrompt, attempt.createdAt).then(setIeltsWritingPrevious);
+      }
     } else {
       setIsSpeakingMockTest(false);
       setPhase(AppPhase.IELTS_SPEAKING_FEEDBACK);
@@ -1258,6 +1272,10 @@ function App() {
             onSubmit={async (answer, durationSeconds) => {
               setIsIeltsGrading(true);
               setIeltsUserAnswer(answer);
+              // Looked up before this attempt is saved, so it is the one before it.
+              const previous = ieltsWritingPrevious
+                ? Promise.resolve(ieltsWritingPrevious)
+                : findPreviousWriting(selectedIeltsQuestion.prompt);
               try {
                 const feedback = await gradeWritingTask(
                   selectedIeltsQuestion.prompt,
@@ -1266,6 +1284,7 @@ function App() {
                   selectedIeltsQuestion.targetBand,
                   selectedIeltsQuestion.taskOrPart as 'task_1' | 'task_2'
                 );
+                setIeltsWritingPrevious(await previous);
                 setIeltsFeedbackData(feedback);
                 setPhase(AppPhase.IELTS_WRITING_FEEDBACK);
                 recordIeltsAttempt({
@@ -1294,7 +1313,9 @@ function App() {
             question={selectedIeltsQuestion}
             userAnswer={ieltsUserAnswer}
             feedback={ieltsFeedbackData}
+            previous={ieltsWritingPrevious}
             onRewrite={() => {
+              setIeltsWritingPrevious({ answer: ieltsUserAnswer, feedback: ieltsFeedbackData });
               setIeltsWritingDraft(ieltsUserAnswer);
               setIeltsFeedbackData(null);
               setPhase(AppPhase.IELTS_WRITING_PRACTICE);
@@ -1304,6 +1325,7 @@ function App() {
               setIeltsFeedbackData(null);
               setIeltsWritingDraft('');
               setIeltsUserAnswer('');
+              setIeltsWritingPrevious(null);
               setPhase(AppPhase.IELTS_WRITING_HUB);
             }}
           />

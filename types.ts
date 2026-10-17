@@ -70,6 +70,29 @@ export interface IeltsSentenceCorrection {
   original: string;
   corrected: string;
   explanation: string;
+  /** Writing only, from data/ielts/errorCategories.ts; absent on older attempts. */
+  category?: string;
+}
+
+export interface IeltsParagraphFeedback {
+  /** 1-based, matching the paragraphs of the submitted answer. */
+  index: number;
+  role: string;
+  comment: string;
+  suggestion: string;
+}
+
+export interface IeltsTask1Check {
+  id: 'overview' | 'key_features' | 'comparisons' | 'no_opinion';
+  passed: boolean;
+  note: string;
+}
+
+/** Planning help from the ieltsIdeas op. */
+export interface IeltsWritingIdeas {
+  sides: { label: string; ideas: { point: string; example: string }[] }[];
+  vocabulary: { phrase: string; meaningVi: string }[];
+  outline: { paragraph: string; plan: string }[];
 }
 
 export interface IeltsAiFeedback {
@@ -82,6 +105,9 @@ export interface IeltsAiFeedback {
   nextActions: string[];
   pronunciationNotes?: string[];
   followUpDrill?: string;
+  /** Writing feedback 2.0 (Phase I6); absent on older attempts. */
+  paragraphFeedback?: IeltsParagraphFeedback[];
+  task1Checklist?: IeltsTask1Check[];
 }
 
 export interface IeltsAttempt {

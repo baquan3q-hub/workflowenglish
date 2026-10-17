@@ -1,4 +1,4 @@
-import { IeltsAiFeedback, IeltsQuestion } from '../types';
+import { IeltsAiFeedback, IeltsQuestion, IeltsWritingIdeas } from '../types';
 import { writingTask2Questions } from '../data/ieltsWritingQuestions';
 import { guideForQuestionType } from '../data/ielts/writingGuides';
 import { invokeAi } from './aiClient';
@@ -14,6 +14,11 @@ export async function gradeWritingTask(
   taskType: 'task_1' | 'task_2' = 'task_2'
 ): Promise<IeltsAiFeedback> {
   return invokeAi<IeltsAiFeedback>('gradeIeltsWriting', { question, answer, essayType, targetBand, taskType });
+}
+
+/** Task 2 planning help (op ieltsIdeas): ideas per side, phrases and a paragraph plan, never an essay. */
+export async function getWritingIdeas(question: string, essayType: string): Promise<IeltsWritingIdeas> {
+  return invokeAi<IeltsWritingIdeas>('ieltsIdeas', { question, essayType });
 }
 
 // ─── Get Writing Questions ──────────────────────────────────────────

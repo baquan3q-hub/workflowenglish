@@ -227,6 +227,33 @@ export async function saveListeningAttempt(input: {
   }
 }
 
+/**
+ * The latest Writing attempt on the same prompt, or the latest one before
+ * `before` (an ISO time) when given. Best-effort: null on any failure.
+ */
+export async function getPreviousWritingAttempt(
+  userId: string,
+  questionPrompt: string,
+  before?: string,
+): Promise<IeltsAttempt | null> {
+  try {
+    let query = supabase
+      .from(TABLE)
+      .select('*')
+      .eq('user_id', userId)
+      .eq('skill', 'writing')
+      .eq('question_prompt', questionPrompt);
+    if (before) query = query.lt('created_at', before);
+    const { data, error } = await withTimeout(Promise.resolve(query.order('created_at', { ascending: false }).limit(1)));
+    if (error) throw error;
+    const row = (data as IeltsAttemptRow[] | null)?.[0];
+    return row ? rowToAttempt(row) : null;
+  } catch (err) {
+    console.warn('[IELTS Attempts] previous attempt lookup failed:', err);
+    return null;
+  }
+}
+
 /** Most recent attempts for one skill, newest first. */
 export async function getIeltsAttempts(
   userId: string,

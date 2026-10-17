@@ -10,6 +10,7 @@ import { ieltsFrameworks } from '../ieltsFrameworks';
 import { foldText } from '../../services/vocabLibraryLogic';
 import { CRITERION_DESCRIPTORS, DESCRIPTOR_BANDS, type DescriptorSkill } from './bandDescriptors';
 import { WRITING_GUIDES, type WritingGuide } from './writingGuides';
+import { ERROR_CATEGORIES } from './errorCategories';
 
 export type LibrarySkill = 'general' | IeltsSkill;
 
@@ -520,12 +521,40 @@ export function guideLesson(g: WritingGuide): LibraryLesson {
   };
 }
 
+export const WRITING_ERRORS_LESSON_ID = 'wr_error_types';
+
+/** The error labels used in Writing feedback, one section each. */
+function errorTypesLesson(): LibraryLesson {
+  return {
+    id: WRITING_ERRORS_LESSON_ID,
+    skill: 'writing',
+    title: '10 loại lỗi trong phần sửa câu',
+    summary: 'Mỗi lỗi AI chỉ ra được gắn một nhãn. Đây là ý nghĩa từng nhãn và cách tự sửa.',
+    minutes: 5,
+    tags: ['lỗi', 'ngữ pháp', 'grammar', 'feedback', ...ERROR_CATEGORIES.map((c) => c.label)],
+    sections: [
+      {
+        text: [
+          'Lỗi lặp lại qua nhiều bài là thứ giữ band Grammar và Lexical lại. Khi đọc phần "Sửa lỗi câu", hãy để ý loại lỗi nào xuất hiện nhiều nhất và rà riêng loại đó trước khi nộp bài sau.',
+        ],
+      },
+      ...ERROR_CATEGORIES.map((c) => ({
+        heading: c.label,
+        text: [c.hintVi],
+        example: `Sai: ${c.example.wrong}
+Đúng: ${c.example.right}`,
+      })),
+    ],
+  };
+}
+
 export const LIBRARY_LESSONS: readonly LibraryLesson[] = [
   ...WRITTEN_LESSONS.filter((l) => l.skill === 'general'),
   ...WRITTEN_LESSONS.filter((l) => l.skill === 'listening'),
   descriptorLesson('writing'),
   ...WRITTEN_LESSONS.filter((l) => l.skill === 'writing'),
   ...WRITING_GUIDES.map(guideLesson),
+  errorTypesLesson(),
   ...ieltsFrameworks.filter((f) => f.skill === 'writing').map(frameworkLesson),
   ...WRITTEN_LESSONS.filter((l) => l.skill === 'speaking'),
   descriptorLesson('speaking'),

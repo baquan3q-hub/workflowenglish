@@ -1,5 +1,5 @@
 import { asObject, str, userText, type OpSpec } from '../lib.ts';
-import { gradeIeltsSpeaking, gradeIeltsWriting, ieltsChat, transcribeAudio } from './ielts.ts';
+import { gradeIeltsSpeaking, gradeIeltsWriting, ieltsChat, ieltsIdeas, transcribeAudio } from './ielts.ts';
 import { generateLesson, generateRemedialLesson, recommendWords } from './lesson.ts';
 import { listeningAudio } from './listening.ts';
 import { generateSentences, gradeSentence } from './sentences.ts';
@@ -33,6 +33,7 @@ export const OPS: Record<string, OpSpec> = {
   gradeIeltsSpeaking,
   transcribeAudio,
   ieltsChat,
+  ieltsIdeas,
   tts,
   listeningAudio,
 };

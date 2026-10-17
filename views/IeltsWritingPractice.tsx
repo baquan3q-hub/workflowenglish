@@ -6,6 +6,7 @@ import IeltsChartRenderer from '../components/IeltsChartRenderer';
 import { ArrowLeft, Send, Lightbulb, ChevronDown, ChevronUp, Loader2, BookOpen, Columns2, Maximize2, TriangleAlert, CircleCheck } from 'lucide-react';
 import { guideForQuestionType } from '../data/ielts/writingGuides';
 import GuideDrawer from '../components/ielts/writing/GuideDrawer';
+import IdeasPanel from '../components/ielts/writing/IdeasPanel';
 
 function WordStatus({ wordCount, minWords }: { wordCount: number; minWords: number }) {
   const ok = wordCount >= minWords;
@@ -135,6 +136,8 @@ export default function IeltsWritingPractice({ question, onSubmit, onBack, isGra
             )}
           </div>
         )}
+
+        {!isTask1 && <IdeasPanel question={question} />}
       </div>
     );
   };
