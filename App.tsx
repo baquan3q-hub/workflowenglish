@@ -30,6 +30,7 @@ import { lessonStepStates } from './services/lessonSummaryLogic';
 import IeltsHome from './views/IeltsHome';
 import IeltsLibrary from './views/IeltsLibrary';
 import IeltsWritingHub from './views/IeltsWritingHub';
+import IeltsWritingStudy, { type WritingStudyTab } from './views/IeltsWritingStudy';
 import IeltsWritingPractice from './views/IeltsWritingPractice';
 import IeltsWritingFeedback from './views/IeltsWritingFeedback';
 import IeltsSpeakingHub from './views/IeltsSpeakingHub';
@@ -151,6 +152,7 @@ function App() {
   const [isSpeakingMockTest, setIsSpeakingMockTest] = useState(false);
   /** Lesson to open in Thư viện IELTS; undefined shows the list. */
   const [ieltsLibraryLessonId, setIeltsLibraryLessonId] = useState<string | undefined>(undefined);
+  const [ieltsWritingStudyTab, setIeltsWritingStudyTab] = useState<WritingStudyTab>('guides');
   /** Listening session: which test and parts, and the answers once submitted. `run` restarts the sheet on retry. */
   const [ieltsListening, setIeltsListening] = useState<{
     testId: string;
@@ -884,6 +886,14 @@ function App() {
     });
   };
 
+  const startIeltsWriting = (q: IeltsQuestion) => {
+    setSelectedIeltsQuestion(q);
+    setIeltsWritingDraft('');
+    setIeltsFeedbackData(null);
+    setIeltsUserAnswer('');
+    setPhase(AppPhase.IELTS_WRITING_PRACTICE);
+  };
+
   const openIeltsLibrary = (lessonId?: string) => {
     setIeltsLibraryLessonId(lessonId);
     setPhase(AppPhase.IELTS_LIBRARY);
@@ -1223,13 +1233,21 @@ function App() {
           <IeltsWritingHub
             userId={currentUser?.id ?? ''}
             onOpenAttempt={openIeltsAttempt}
-            onSelectQuestion={(q) => {
-              setSelectedIeltsQuestion(q);
-              setIeltsWritingDraft('');
-              setIeltsFeedbackData(null);
-              setIeltsUserAnswer('');
-              setPhase(AppPhase.IELTS_WRITING_PRACTICE);
+            onSelectQuestion={startIeltsWriting}
+            onOpenStudy={(tab) => {
+              setIeltsWritingStudyTab(tab);
+              setPhase(AppPhase.IELTS_WRITING_STUDY);
             }}
+          />
+        );
+
+      case AppPhase.IELTS_WRITING_STUDY:
+        return (
+          <IeltsWritingStudy
+            key={ieltsWritingStudyTab}
+            initialTab={ieltsWritingStudyTab}
+            onBack={() => setPhase(AppPhase.IELTS_WRITING_HUB)}
+            onPractice={startIeltsWriting}
           />
         );
 

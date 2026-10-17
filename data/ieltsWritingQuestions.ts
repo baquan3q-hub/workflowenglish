@@ -1,6 +1,7 @@
 import { IeltsQuestion } from '../types';
+import { MORE_TASK2_QUESTIONS } from './ielts/writingTask2Bank';
 
-export const writingTask2Questions: IeltsQuestion[] = [
+const BASE_QUESTIONS: IeltsQuestion[] = [
   // ─── TASK 1 QUESTIONS (5 questions) ──────────────────────────────
   {
     id: 'wr_t1_tourism_line_001',
@@ -524,3 +525,6 @@ In my opinion, although outright bans might be difficult to implement, advertisi
     grammarFocus: ['relative clauses', 'passive forms of reporting', 'conditional sentences'],
   },
 ];
+
+/** Every Writing question (Task 1 and Task 2), despite the historical name. */
+export const writingTask2Questions: IeltsQuestion[] = [...BASE_QUESTIONS, ...MORE_TASK2_QUESTIONS];

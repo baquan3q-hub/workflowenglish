@@ -3,7 +3,19 @@ import { IeltsQuestion } from '../types';
 import { ieltsFrameworks } from '../data/ieltsFrameworks';
 import { WritingTimer, WordCountDisplay, FrameworkCard } from '../components/IeltsCommon';
 import IeltsChartRenderer from '../components/IeltsChartRenderer';
-import { ArrowLeft, Send, Lightbulb, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import { ArrowLeft, Send, Lightbulb, ChevronDown, ChevronUp, Loader2, BookOpen, Columns2, Maximize2, TriangleAlert, CircleCheck } from 'lucide-react';
+import { guideForQuestionType } from '../data/ielts/writingGuides';
+import GuideDrawer from '../components/ielts/writing/GuideDrawer';
+
+function WordStatus({ wordCount, minWords }: { wordCount: number; minWords: number }) {
+  const ok = wordCount >= minWords;
+  return (
+    <p className={`flex items-center gap-1.5 text-xs ${ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
+      {ok ? <CircleCheck className="h-3.5 w-3.5" /> : <TriangleAlert className="h-3.5 w-3.5 text-amber-500" />}
+      {ok ? `Đạt yêu cầu tối thiểu (${wordCount} từ)` : `Còn thiếu ${minWords - wordCount} từ (vẫn có thể gửi chấm)`}
+    </p>
+  );
+}
 
 interface Props {
   question: IeltsQuestion;
@@ -19,6 +31,9 @@ export default function IeltsWritingPractice({ question, onSubmit, onBack, isGra
   const [showPlanningPrompts, setShowPlanningPrompts] = useState(true);
   const [startTime] = useState(Date.now());
   const [isSplit, setIsSplit] = useState(true);
+  const [showGuide, setShowGuide] = useState(false);
+  const guide = guideForQuestionType(question.questionType);
+  const closeGuide = useCallback(() => setShowGuide(false), []);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isTask1 = question.taskOrPart === 'task_1';
@@ -69,7 +84,17 @@ export default function IeltsWritingPractice({ question, onSubmit, onBack, isGra
           <IeltsChartRenderer data={question.chartData} />
         )}
 
-        {/* Framework Guide */}
+        {/* Question-type guide and framework */}
+        {guide && (
+          <button
+            type="button"
+            onClick={() => setShowGuide(true)}
+            className="inline-flex min-h-touch items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+          >
+            <BookOpen className="h-4 w-4" /> Xem hướng dẫn dạng này
+          </button>
+        )}
+
         {framework && (
           <div>
             <button
@@ -95,7 +120,7 @@ export default function IeltsWritingPractice({ question, onSubmit, onBack, isGra
               onClick={() => setShowPlanningPrompts(!showPlanningPrompts)}
               className="w-full px-4 py-2.5 flex items-center justify-between"
             >
-              <span className="text-xs font-bold text-amber-700 dark:text-amber-400">💡 Gợi ý lập dàn ý</span>
+              <span className="flex items-center gap-1.5 text-xs font-bold text-amber-700 dark:text-amber-400"><Lightbulb className="h-3.5 w-3.5" /> Gợi ý lập dàn ý</span>
               {showPlanningPrompts ? <ChevronUp className="w-3 h-3 text-amber-400" /> : <ChevronDown className="w-3 h-3 text-amber-400" />}
             </button>
             {showPlanningPrompts && (
@@ -116,6 +141,8 @@ export default function IeltsWritingPractice({ question, onSubmit, onBack, isGra
 
   return (
     <div className="space-y-4 anim-fade-up">
+      {showGuide && guide && <GuideDrawer guide={guide} onClose={closeGuide} />}
+
       {/* Top Bar */}
       <div className="flex items-center justify-between gap-3">
         <button
@@ -131,7 +158,7 @@ export default function IeltsWritingPractice({ question, onSubmit, onBack, isGra
             onClick={() => setIsSplit(!isSplit)}
             className="hidden lg:flex items-center gap-1 text-[11px] font-bold text-indigo-650 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-850 rounded-lg px-2.5 py-1.5 bg-indigo-50/50 dark:bg-indigo-900/10 hover:bg-indigo-100 dark:hover:bg-indigo-900/25 transition-colors"
           >
-            {isSplit ? '🖥️ Chế độ tập trung' : '📖 Chia đôi màn hình'}
+            {isSplit ? <><Maximize2 className="h-3.5 w-3.5" /> Chế độ tập trung</> : <><Columns2 className="h-3.5 w-3.5" /> Chia đôi màn hình</>}
           </button>
           <WritingTimer startTime={startTime} limitMinutes={timeLimit} />
           <WordCountDisplay text={answer} minimum={minWords} />
@@ -160,12 +187,7 @@ export default function IeltsWritingPractice({ question, onSubmit, onBack, isGra
             />
             {/* Submit bar */}
             <div className="flex items-center justify-between gap-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {wordCount < minWords
-                  ? `⚠️ Còn thiếu ${minWords - wordCount} từ (vẫn có thể gửi chấm)`
-                  : `✅ Đạt yêu cầu tối thiểu (${wordCount} từ)`
-                }
-              </p>
+              <WordStatus wordCount={wordCount} minWords={minWords} />
               <button
                 onClick={handleSubmit}
                 disabled={isGrading || wordCount < 1}
@@ -192,8 +214,8 @@ export default function IeltsWritingPractice({ question, onSubmit, onBack, isGra
           {/* Collapsible info header */}
           <details className="group border border-slate-250 dark:border-slate-700 rounded-xl overflow-hidden bg-slate-50/50 dark:bg-slate-900/30">
             <summary className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 cursor-pointer hover:bg-slate-100/50 transition-colors list-none flex justify-between items-center">
-              <span>📖 Xem đề bài & Biểu đồ</span>
-              <span className="text-[10px] text-slate-500 dark:text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+              <span>Xem đề bài và biểu đồ</span>
+              <ChevronDown className="h-3.5 w-3.5 text-slate-500 transition-transform group-open:rotate-180 dark:text-slate-400" />
             </summary>
             <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
               {renderLeftSection()}
@@ -216,12 +238,7 @@ export default function IeltsWritingPractice({ question, onSubmit, onBack, isGra
           />
           {/* Submit bar */}
           <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              {wordCount < minWords
-                ? `⚠️ Còn thiếu ${minWords - wordCount} từ (vẫn có thể gửi chấm)`
-                : `✅ Đạt yêu cầu tối thiểu (${wordCount} từ)`
-              }
-            </p>
+            <WordStatus wordCount={wordCount} minWords={minWords} />
             <button
               onClick={handleSubmit}
               disabled={isGrading || wordCount < 1}

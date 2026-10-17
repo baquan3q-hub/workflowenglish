@@ -9,6 +9,7 @@ import type { IeltsFramework, IeltsSkill } from '../../types';
 import { ieltsFrameworks } from '../ieltsFrameworks';
 import { foldText } from '../../services/vocabLibraryLogic';
 import { CRITERION_DESCRIPTORS, DESCRIPTOR_BANDS, type DescriptorSkill } from './bandDescriptors';
+import { WRITING_GUIDES, type WritingGuide } from './writingGuides';
 
 export type LibrarySkill = 'general' | IeltsSkill;
 
@@ -499,11 +500,32 @@ function descriptorLesson(skill: DescriptorSkill): LibraryLesson {
   };
 }
 
+/** A Writing guide as a lesson, for the Library and the panel next to the editor. */
+export function guideLesson(g: WritingGuide): LibraryLesson {
+  return {
+    id: `lib_guide_${g.id}`,
+    skill: 'writing',
+    title: g.title,
+    summary: g.summary,
+    minutes: 4,
+    tags: [g.task === 'task_1' ? 'task 1' : 'task 2', 'dạng bài', ...g.questionTypes.map((t) => t.replace(/_/g, ' '))],
+    sections: [
+      { heading: 'Nhận diện đề', text: [g.recognise] },
+      { heading: 'Bố cục 4 đoạn', bullets: g.structure.map((s) => `${s.label}: ${s.detail}`) },
+      { heading: 'Mẫu câu', bullets: g.templates },
+      ...(g.language ? [{ heading: g.language.heading, bullets: g.language.items }] : []),
+      { heading: 'Lỗi thường gặp', bullets: g.mistakes },
+      ...(g.example ? [{ heading: 'Ví dụ', example: g.example }] : []),
+    ],
+  };
+}
+
 export const LIBRARY_LESSONS: readonly LibraryLesson[] = [
   ...WRITTEN_LESSONS.filter((l) => l.skill === 'general'),
   ...WRITTEN_LESSONS.filter((l) => l.skill === 'listening'),
   descriptorLesson('writing'),
   ...WRITTEN_LESSONS.filter((l) => l.skill === 'writing'),
+  ...WRITING_GUIDES.map(guideLesson),
   ...ieltsFrameworks.filter((f) => f.skill === 'writing').map(frameworkLesson),
   ...WRITTEN_LESSONS.filter((l) => l.skill === 'speaking'),
   descriptorLesson('speaking'),

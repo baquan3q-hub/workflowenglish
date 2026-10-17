@@ -4,15 +4,25 @@ import { getWritingQuestions } from '../services/ieltsWritingService';
 import { ieltsFrameworks } from '../data/ieltsFrameworks';
 import { QuestionCard, FilterBar, FrameworkCard } from '../components/IeltsCommon';
 import IeltsAttemptHistory from '../components/IeltsAttemptHistory';
-import { PenTool, BookOpen, TrendingUp, Filter, Lightbulb, ChevronDown, ChevronUp } from 'lucide-react';
+import { PenTool, BookOpen, TrendingUp, Filter, Lightbulb, ChevronDown, ChevronUp, ChevronRight, LayoutList, FileText, Languages } from 'lucide-react';
+import { WRITING_GUIDES } from '../data/ielts/writingGuides';
+import { questionTopics } from '../services/writingStudyLogic';
+import type { WritingStudyTab } from './IeltsWritingStudy';
+
+const STUDY_LINKS: ReadonlyArray<{ tab: WritingStudyTab; title: string; subtitle: string; icon: React.ElementType }> = [
+  { tab: 'guides', title: 'Cách viết từng dạng', subtitle: '7 dạng Task 1, 6 dạng Task 2', icon: LayoutList },
+  { tab: 'samples', title: 'Bài mẫu band 6 · 7 · 8', subtitle: 'Cùng một đề, có chú thích', icon: FileText },
+  { tab: 'language', title: 'Từ nối và collocation', subtitle: 'Theo chức năng và chủ đề', icon: Languages },
+];
 
 interface Props {
   userId: string;
   onOpenAttempt: (attempt: IeltsAttempt) => void;
   onSelectQuestion: (q: IeltsQuestion) => void;
+  onOpenStudy: (tab: WritingStudyTab) => void;
 }
 
-export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttempt }: Props) {
+export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttempt, onOpenStudy }: Props) {
   const [activeTab, setActiveTab] = useState<'task_1' | 'task_2'>('task_1');
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [showFrameworks, setShowFrameworks] = useState(false);
@@ -26,59 +36,18 @@ export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttemp
 
   const writingFrameworks = ieltsFrameworks.filter(f => f.skill === 'writing');
 
-  const filterOptions = activeTab === 'task_2' ? [
+  const topics = useMemo(() => questionTopics(getWritingQuestions({ taskOrPart: activeTab })), [activeTab]);
+
+  const filterOptions = [
     {
       key: 'essayType',
-      label: 'Tất cả dạng bài',
-      options: [
-        { value: 'opinion', label: 'Opinion (Agree/Disagree)' },
-        { value: 'discussion', label: 'Discussion (Both views)' },
-        { value: 'problem_solution', label: 'Problem & Solution' },
-        { value: 'advantages_disadvantages', label: 'Advantages & Disadvantages' },
-        { value: 'two_part', label: 'Two-part Question' },
-      ],
+      label: activeTab === 'task_2' ? 'Tất cả dạng bài' : 'Tất cả dạng biểu đồ',
+      options: WRITING_GUIDES.filter((g) => g.task === activeTab).map((g) => ({ value: g.id, label: g.title })),
     },
     {
       key: 'topic',
       label: 'Tất cả chủ đề',
-      options: [
-        { value: 'Education', label: 'Education' },
-        { value: 'Technology', label: 'Technology' },
-        { value: 'Environment', label: 'Environment' },
-        { value: 'Health', label: 'Health' },
-        { value: 'Work', label: 'Work' },
-      ],
-    },
-    {
-      key: 'difficulty',
-      label: 'Tất cả mức độ',
-      options: [
-        { value: 'easy', label: 'Easy' },
-        { value: 'medium', label: 'Medium' },
-        { value: 'hard', label: 'Hard' },
-      ],
-    },
-  ] : [
-    {
-      key: 'essayType',
-      label: 'Tất cả dạng biểu đồ',
-      options: [
-        { value: 'line_graph', label: 'Line Graph (Đường)' },
-        { value: 'bar_chart', label: 'Bar Chart (Cột)' },
-        { value: 'pie_chart', label: 'Pie Chart (Tròn)' },
-        { value: 'table', label: 'Table (Bảng số liệu)' },
-        { value: 'map', label: 'Map (Bản đồ)' },
-      ],
-    },
-    {
-      key: 'topic',
-      label: 'Tất cả chủ đề',
-      options: [
-        { value: 'Tourism', label: 'Tourism' },
-        { value: 'Environment', label: 'Environment' },
-        { value: 'Society', label: 'Society' },
-        { value: 'Technology', label: 'Technology' },
-      ],
+      options: topics.map((topic) => ({ value: topic, label: topic })),
     },
     {
       key: 'difficulty',
@@ -150,6 +119,29 @@ export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttemp
         </div>
       </div>
 
+      {/* Study before writing */}
+      <section aria-labelledby="writing-study-title" className="space-y-2">
+        <h2 id="writing-study-title" className="text-sm font-bold text-slate-800 dark:text-white">Học trước khi viết</h2>
+        <ul className="grid gap-2 sm:grid-cols-3">
+          {STUDY_LINKS.map(({ tab, title, subtitle, icon: Icon }) => (
+            <li key={tab}>
+              <button
+                type="button"
+                onClick={() => onOpenStudy(tab)}
+                className="flex h-full min-h-touch w-full items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600"
+              >
+                <Icon className="h-5 w-5 flex-shrink-0 text-blue-600 dark:text-blue-400" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-slate-900 dark:text-white">{title}</span>
+                  <span className="block text-caption text-slate-500 dark:text-slate-400">{subtitle}</span>
+                </span>
+                <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-400" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      </section>
+
       {/* Practice history */}
       <IeltsAttemptHistory userId={userId} skill="writing" onOpenAttempt={onOpenAttempt} />
 
@@ -162,7 +154,7 @@ export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttemp
           <div className="flex items-center gap-2">
             <Lightbulb className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
             <span className="text-sm font-bold text-indigo-700 dark:text-indigo-300">
-              📚 Framework hướng dẫn viết
+              Framework hướng dẫn viết
             </span>
           </div>
           {showFrameworks ? <ChevronUp className="w-4 h-4 text-indigo-400" /> : <ChevronDown className="w-4 h-4 text-indigo-400" />}

@@ -1,5 +1,6 @@
 import { IeltsAiFeedback, IeltsQuestion } from '../types';
 import { writingTask2Questions } from '../data/ieltsWritingQuestions';
+import { guideForQuestionType } from '../data/ielts/writingGuides';
 import { invokeAi } from './aiClient';
 
 // ─── Grade Writing Task ──────────────────────────────────────────
@@ -29,7 +30,8 @@ export function getWritingQuestions(filters?: {
     questions = questions.filter(q => q.taskOrPart === filters.taskOrPart);
   }
   if (filters?.essayType) {
-    questions = questions.filter(q => q.questionType === filters.essayType);
+    // Grouped by guide, so "positive_negative" counts as advantages_disadvantages.
+    questions = questions.filter(q => (guideForQuestionType(q.questionType)?.id ?? q.questionType) === filters.essayType);
   }
   if (filters?.topic) {
     questions = questions.filter(q => q.topic.toLowerCase() === filters.topic!.toLowerCase());
