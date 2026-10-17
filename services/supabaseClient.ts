@@ -244,7 +244,12 @@ export const saveLearningRecord = async (record: {
     topic: string;
     level: string;
     words: string;
-    quiz_score: number;
+    /**
+     * Omit (undefined) when the quiz hasn't been completed in this save.
+     * On update the existing score is preserved; on insert it is stored as
+     * NULL so analytics / adaptive difficulty don't count it as a 0% quiz.
+     */
+    quiz_score?: number;
     quiz_total: number;
     lesson_data?: any;
 }) => {
@@ -253,10 +258,14 @@ export const saveLearningRecord = async (record: {
         topic: record.topic,
         level: record.level,
         words: record.words,
-        quiz_score: record.quiz_score,
         quiz_total: record.quiz_total,
         lesson_data: record.lesson_data,
     };
+    if (record.quiz_score !== undefined) {
+        payload.quiz_score = record.quiz_score;
+    } else if (!record.id) {
+        payload.quiz_score = null;
+    }
 
     let query;
     if (record.id) {

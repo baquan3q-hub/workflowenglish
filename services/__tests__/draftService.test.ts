@@ -18,6 +18,9 @@ globalThis.localStorage = mockLocalStorage as any;
 // Import draftService AFTER mocking localStorage to ensure it resolves properly
 import { saveDraft, loadDraft, clearDraft, hasDraft, DraftData } from '../draftService';
 
+const USER_A = 'user-a';
+const USER_B = 'user-b';
+
 describe('draftService', () => {
   const mockDraftData: Omit<DraftData, 'timestamp'> = {
     lessonData: {
@@ -66,21 +69,21 @@ describe('draftService', () => {
   });
 
   it('should return false for hasDraft when no draft exists', () => {
-    expect(hasDraft()).toBe(false);
+    expect(hasDraft(USER_A)).toBe(false);
   });
 
   it('should return null for loadDraft when no draft exists', () => {
-    expect(loadDraft()).toBe(null);
+    expect(loadDraft(USER_A)).toBe(null);
   });
 
   it('should save draft and return true for hasDraft', () => {
-    saveDraft(mockDraftData);
-    expect(hasDraft()).toBe(true);
+    saveDraft(USER_A, mockDraftData);
+    expect(hasDraft(USER_A)).toBe(true);
   });
 
   it('should load saved draft correctly with all fields', () => {
-    saveDraft(mockDraftData);
-    const loaded = loadDraft();
+    saveDraft(USER_A, mockDraftData);
+    const loaded = loadDraft(USER_A);
     
     expect(loaded).not.toBeNull();
     expect(loaded?.lessonData).toEqual(mockDraftData.lessonData);
@@ -94,12 +97,12 @@ describe('draftService', () => {
   });
 
   it('should clear draft correctly', () => {
-    saveDraft(mockDraftData);
-    expect(hasDraft()).toBe(true);
+    saveDraft(USER_A, mockDraftData);
+    expect(hasDraft(USER_A)).toBe(true);
     
-    clearDraft();
-    expect(hasDraft()).toBe(false);
-    expect(loadDraft()).toBeNull();
+    clearDraft(USER_A);
+    expect(hasDraft(USER_A)).toBe(false);
+    expect(loadDraft(USER_A)).toBeNull();
   });
 
   it('should handle missing settings/records gracefully', () => {
@@ -109,11 +112,39 @@ describe('draftService', () => {
       currentRecordId: null,
     };
     
-    saveDraft(minimalDraft);
-    const loaded = loadDraft();
+    saveDraft(USER_A, minimalDraft);
+    const loaded = loadDraft(USER_A);
     
     expect(loaded).not.toBeNull();
     expect(loaded?.lessonSettings).toBeNull();
     expect(loaded?.currentRecordId).toBeNull();
+  });
+
+  it('should keep drafts isolated per user', () => {
+    saveDraft(USER_A, mockDraftData);
+    expect(hasDraft(USER_A)).toBe(true);
+    expect(hasDraft(USER_B)).toBe(false);
+    expect(loadDraft(USER_B)).toBeNull();
+
+    clearDraft(USER_B);
+    expect(hasDraft(USER_A)).toBe(true);
+  });
+
+  it('should strip story audio from the stored draft', () => {
+    saveDraft(USER_A, {
+      ...mockDraftData,
+      lessonData: {
+        ...mockDraftData.lessonData!,
+        story: { ...mockDraftData.lessonData!.story, audioBase64: 'AAAA' },
+      },
+    });
+    expect(loadDraft(USER_A)?.lessonData?.story.audioBase64).toBeUndefined();
+  });
+
+  it('should remove legacy global draft keys', () => {
+    localStorage.setItem('vocabmaster-draft-lesson', '{}');
+    localStorage.setItem('vocabmaster-draft-phase', 'FLASHCARDS');
+    expect(loadDraft(USER_A)).toBeNull();
+    expect(localStorage.getItem('vocabmaster-draft-lesson')).toBeNull();
   });
 });

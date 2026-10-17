@@ -1,15 +1,18 @@
 import React, { useState, useMemo } from 'react';
-import { IeltsQuestion } from '../types';
+import { IeltsAttempt, IeltsQuestion } from '../types';
 import { getWritingQuestions } from '../services/ieltsWritingService';
 import { ieltsFrameworks } from '../data/ieltsFrameworks';
 import { QuestionCard, FilterBar, FrameworkCard } from '../components/IeltsCommon';
+import IeltsAttemptHistory from '../components/IeltsAttemptHistory';
 import { PenTool, BookOpen, TrendingUp, Filter, Lightbulb, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface Props {
+  userId: string;
+  onOpenAttempt: (attempt: IeltsAttempt) => void;
   onSelectQuestion: (q: IeltsQuestion) => void;
 }
 
-export default function IeltsWritingHub({ onSelectQuestion }: Props) {
+export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttempt }: Props) {
   const [activeTab, setActiveTab] = useState<'task_1' | 'task_2'>('task_1');
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [showFrameworks, setShowFrameworks] = useState(false);
@@ -146,6 +149,9 @@ export default function IeltsWritingHub({ onSelectQuestion }: Props) {
           <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Tiêu chí chấm</p>
         </div>
       </div>
+
+      {/* Practice history */}
+      <IeltsAttemptHistory userId={userId} skill="writing" onOpenAttempt={onOpenAttempt} />
 
       {/* Framework Section */}
       <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-xl border border-indigo-200 dark:border-indigo-800/40 overflow-hidden">

@@ -1,16 +1,19 @@
 import React, { useState, useMemo } from 'react';
-import { IeltsQuestion } from '../types';
+import { IeltsAttempt, IeltsQuestion } from '../types';
 import { getSpeakingQuestions, getRandomSpeakingQuestion } from '../data/ieltsSpeakingQuestions';
 import { ieltsFrameworks } from '../data/ieltsFrameworks';
 import { QuestionCard, FilterBar, FrameworkCard } from '../components/IeltsCommon';
+import IeltsAttemptHistory from '../components/IeltsAttemptHistory';
 import { Mic, BookOpen, TrendingUp, Filter, Lightbulb, ChevronDown, ChevronUp, Shuffle, Star } from 'lucide-react';
 
 interface Props {
+  userId: string;
+  onOpenAttempt: (attempt: IeltsAttempt) => void;
   onSelectQuestion: (q: IeltsQuestion) => void;
   onStartMockTest: () => void;
 }
 
-export default function IeltsSpeakingHub({ onSelectQuestion, onStartMockTest }: Props) {
+export default function IeltsSpeakingHub({ userId, onSelectQuestion, onStartMockTest, onOpenAttempt }: Props) {
   const [activeTab, setActiveTab] = useState<'part_1' | 'part_2' | 'part_3'>('part_1');
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [showFrameworks, setShowFrameworks] = useState(false);
@@ -134,6 +137,9 @@ export default function IeltsSpeakingHub({ onSelectQuestion, onStartMockTest }: 
           <p className="text-[10px] text-slate-550 dark:text-slate-400 font-bold mt-1">Câu ngẫu nhiên</p>
         </button>
       </div>
+
+      {/* Practice history */}
+      <IeltsAttemptHistory userId={userId} skill="speaking" onOpenAttempt={onOpenAttempt} />
 
       {/* Framework Section */}
       <div className="bg-gradient-to-r from-rose-50 to-orange-50 dark:from-rose-900/20 dark:to-orange-900/20 rounded-xl border border-rose-200 dark:border-rose-800/40 overflow-hidden">

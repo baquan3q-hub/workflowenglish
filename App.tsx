@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AppPhase, DifficultyLevel, GeneratedLesson, UserSettings, FlashcardData, IeltsQuestion, IeltsAiFeedback } from './types';
+import { AppPhase, DifficultyLevel, GeneratedLesson, UserSettings, FlashcardData, IeltsQuestion, IeltsAiFeedback, IeltsAttempt, IeltsSkill } from './types';
 import { generateLessonContent } from './services/geminiService';
 import { supabase, getProfile, signOut, saveLearningRecord, getLearningRecordFull, LearningRecord, saveLessonAudio, withTimeout, getCachedSession, resumeAuthRefresh, pauseAuthRefresh } from './services/supabaseClient';
 import {
@@ -28,11 +28,12 @@ import IeltsSpeakingPractice from './views/IeltsSpeakingPractice';
 import IeltsSpeakingFeedback from './views/IeltsSpeakingFeedback';
 import { gradeWritingTask } from './services/ieltsWritingService';
 import { gradeSpeakingAnswer } from './services/ieltsSpeakingService';
+import { saveIeltsAttempt, resolveAttemptQuestion } from './services/ieltsAttemptService';
 import { speakingPart1Questions } from './data/ieltsSpeakingQuestions';
 import { Toast } from './components/Common';
 import { Loader2, Layout, LogOut, User, History, BookOpen, Headphones, HelpCircle, PenTool, Menu, Sun, Moon, BarChart3, Mic } from 'lucide-react';
 import { ConnectionIndicator } from './components/ConnectionIndicator';
-import { saveDraft, loadDraft, clearDraft, hasDraft, DraftData } from './services/draftService';
+import { saveDraft, loadDraft, clearDraft, DraftData } from './services/draftService';
 import { useAutoSave } from './services/autoSaveService';
 import IeltsChatBox from './components/IeltsChatBox';
 
@@ -107,6 +108,15 @@ function App() {
   const [ieltsSpeakingAudioMime, setIeltsSpeakingAudioMime] = useState<string>('audio/webm');
   const [isSpeakingMockTest, setIsSpeakingMockTest] = useState(false);
 
+  // Synchronous mirror of currentRecordId so queued saves always update the
+  // row created by an earlier save instead of inserting a duplicate.
+  const currentRecordIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    currentRecordIdRef.current = currentRecordId;
+  }, [currentRecordId]);
+  const saveQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const savedAudioRef = useRef<{ recordId: string; audio: string } | null>(null);
+
   // Ref to track lessonData for beforeunload warning (avoids stale closure)
   const lessonDataRef = useRef(lessonData);
 
@@ -132,8 +142,16 @@ function App() {
     intervalMs: 120000,
   });
 
+  // Whether a lesson has been active in this session. Until then a missing
+  // lessonData just means "app just loaded", and the stored draft must be
+  // kept so the recovery modal can offer it.
+  const hadLessonRef = useRef(false);
+
   // Local draft auto-save (localStorage) with 3s debounce
   useEffect(() => {
+    const userId = currentUser?.id;
+    if (!userId) return;
+
     if (!lessonData) {
       // Chỉ xoá nháp khi đã thoát khỏi các phase học tập
       const isOutOfLesson = ![
@@ -143,14 +161,15 @@ function App() {
         AppPhase.FILL_BLANK,
       ].includes(phase);
 
-      if (isOutOfLesson) {
-        clearDraft();
+      if (isOutOfLesson && hadLessonRef.current) {
+        clearDraft(userId);
       }
       return;
     }
+    hadLessonRef.current = true;
 
     const timer = setTimeout(() => {
-      saveDraft({
+      saveDraft(userId, {
         lessonData,
         lessonSettings,
         lessonWords,
@@ -164,6 +183,7 @@ function App() {
 
     return () => clearTimeout(timer);
   }, [
+    currentUser?.id,
     lessonData,
     lessonSettings,
     lessonWords,
@@ -175,14 +195,13 @@ function App() {
 
   // Check for draft on login / user session loaded
   useEffect(() => {
-    if (currentUser && hasDraft()) {
-      const draft = loadDraft();
-      if (draft && draft.lessonData) {
-        setRecoveredDraft(draft);
-        setShowRecoveryModal(true);
-      }
+    if (!currentUser) return;
+    const draft = loadDraft(currentUser.id);
+    if (draft && draft.lessonData) {
+      setRecoveredDraft(draft);
+      setShowRecoveryModal(true);
     }
-  }, [currentUser]);
+  }, [currentUser?.id]);
 
   const handleRestoreDraft = () => {
     if (recoveredDraft) {
@@ -200,7 +219,7 @@ function App() {
   };
 
   const handleDiscardDraft = () => {
-    clearDraft();
+    if (currentUser) clearDraft(currentUser.id);
     setShowRecoveryModal(false);
     setRecoveredDraft(null);
   };
@@ -330,6 +349,7 @@ function App() {
         // Reset the flag and proceed with actual logout
         isExplicitLogout = false;
 
+        hadLessonRef.current = false;
         setCurrentUser(null);
         setLessonData(null);
         setPhase(AppPhase.LANDING);
@@ -440,90 +460,70 @@ function App() {
     }
   };
 
-  const saveCurrentLesson = async (overrideData?: GeneratedLesson) => {
-    if (!currentUser) throw new Error('Bạn chưa đăng nhập. Vui lòng đăng nhập.');
-    if (!lessonSettings) throw new Error('Thiếu cấu hình bài học (level/topic).');
-    const dataToSave = overrideData || lessonData;
-    if (!dataToSave) throw new Error('Không có dữ liệu bài học để lưu.');
+  /**
+   * Single entry point for persisting the active lesson to `learning_history`.
+   *
+   * - Saves are serialised through a queue so concurrent callers (periodic
+   *   auto-save, audio generation, manual save) can't race and insert the
+   *   same lesson twice before the first insert returns its id.
+   * - `quizScore` is only sent when the quiz was just completed; otherwise
+   *   the stored score is left untouched (see `saveLearningRecord`).
+   * - Story audio is stripped from `lesson_data` and stored separately in
+   *   `lesson_audio`, uploaded only when it changed since the last save.
+   */
+  const persistLesson = (opts: { data?: GeneratedLesson; quizScore?: number; quizTotal?: number } = {}) => {
+    const run = async () => {
+      if (!currentUser) throw new Error('Bạn chưa đăng nhập. Vui lòng đăng nhập.');
+      if (!lessonSettings) throw new Error('Thiếu cấu hình bài học (level/topic).');
+      const dataToSave = opts.data || lessonData;
+      if (!dataToSave) throw new Error('Không có dữ liệu bài học để lưu.');
 
-    try {
-      console.log("Auto-saving lesson...");
-      // Clean payload: strip the massive base64 audio
-      let strippedData = dataToSave;
-      let audioToSave = dataToSave.story?.audioBase64;
-      if (audioToSave && strippedData.story) {
-        strippedData = {
-          ...dataToSave,
-          story: {
-            ...dataToSave.story,
-            audioBase64: undefined
-          }
-        };
-      }
+      const audioToSave = dataToSave.story?.audioBase64;
+      const strippedData: GeneratedLesson = audioToSave
+        ? { ...dataToSave, story: { ...dataToSave.story, audioBase64: undefined } }
+        : dataToSave;
 
       const savedRecord = await saveLearningRecord({
-        id: currentRecordId || undefined,
+        id: currentRecordIdRef.current || undefined,
         user_id: currentUser.id,
         topic: lessonSettings.topic || 'General',
         level: lessonSettings.level,
         words: lessonWords,
-        quiz_score: 0, // Preserve score? Ideally yes, but we track score in history. 
-        // For now, 0 or existing score if we fetched it? 
-        // We'll trust the latest "save" updates content. 
-        // Quiz completion handles score specifically.
-        quiz_total: dataToSave.quiz.length,
+        quiz_score: opts.quizScore,
+        quiz_total: opts.quizTotal ?? dataToSave.quiz.length,
         lesson_data: strippedData,
       });
-      if (savedRecord && savedRecord.id) {
-        setCurrentRecordId(savedRecord.id);
-        console.log("Lesson saved with ID:", savedRecord.id);
 
-        if (audioToSave) {
-          saveLessonAudio(savedRecord.id, audioToSave).then(success => {
-            if (success) console.log("Audio saved to lesson_audio table.");
-            else console.warn("Could not save audio to lesson_audio table.");
+      if (savedRecord?.id) {
+        currentRecordIdRef.current = savedRecord.id;
+        setCurrentRecordId(savedRecord.id);
+
+        const alreadyUploaded =
+          savedAudioRef.current?.recordId === savedRecord.id &&
+          savedAudioRef.current.audio === audioToSave;
+        if (audioToSave && !alreadyUploaded) {
+          void saveLessonAudio(savedRecord.id, audioToSave).then(success => {
+            if (success) savedAudioRef.current = { recordId: savedRecord.id, audio: audioToSave };
+            else console.warn('Could not save audio to lesson_audio table.');
           });
         }
       }
-    } catch (err) {
-      console.error('Failed to save learning record:', err);
-      throw err; // propagate to handleModalYes
-    }
+      return savedRecord;
+    };
+
+    const result = saveQueueRef.current.then(run, run);
+    saveQueueRef.current = result.catch(() => undefined);
+    return result;
   };
 
-
+  const saveCurrentLesson = async (overrideData?: GeneratedLesson) => {
+    await persistLesson({ data: overrideData });
+  };
 
   const handleQuizComplete = async (score: number, total: number) => {
     if (!currentUser || !lessonSettings || !lessonData) return;
     try {
-      let strippedData = lessonData;
-      let audioToSave = lessonData.story?.audioBase64;
-      if (audioToSave && strippedData.story) {
-        strippedData = {
-          ...lessonData,
-          story: {
-            ...lessonData.story,
-            audioBase64: undefined
-          }
-        };
-      }
-
-      const savedRecord = await saveLearningRecord({
-        id: currentRecordId || undefined,
-        user_id: currentUser.id,
-        topic: lessonSettings.topic || 'General',
-        level: lessonSettings.level,
-        words: lessonWords,
-        quiz_score: score,
-        quiz_total: total,
-        lesson_data: strippedData,
-      });
-      if (savedRecord && savedRecord.id) {
-        setCurrentRecordId(savedRecord.id);
-        if (audioToSave) {
-          saveLessonAudio(savedRecord.id, audioToSave);
-        }
-      }
+      await persistLesson({ quizScore: score, quizTotal: total });
     } catch (err) {
       console.error('Failed to save quiz complete record:', err);
     }
@@ -695,6 +695,34 @@ function App() {
     );
   }
 
+  const recordIeltsAttempt = (input: {
+    skill: IeltsSkill;
+    question: IeltsQuestion;
+    taskOrPart?: string;
+    answerText: string;
+    durationSeconds?: number;
+    feedback: IeltsAiFeedback;
+  }) => {
+    if (!currentUser) return;
+    void saveIeltsAttempt({ userId: currentUser.id, ...input }).then(saved => {
+      if (!saved) showToast('Chưa lưu được bài vào lịch sử luyện tập.', 'info');
+    });
+  };
+
+  const openIeltsAttempt = (attempt: IeltsAttempt) => {
+    if (!attempt.aiFeedback) return;
+    setSelectedIeltsQuestion(resolveAttemptQuestion(attempt));
+    setIeltsFeedbackData(attempt.aiFeedback);
+    setIeltsUserAnswer(attempt.answerText);
+    if (attempt.skill === 'writing') {
+      setIeltsWritingDraft('');
+      setPhase(AppPhase.IELTS_WRITING_FEEDBACK);
+    } else {
+      setIsSpeakingMockTest(false);
+      setPhase(AppPhase.IELTS_SPEAKING_FEEDBACK);
+    }
+  };
+
   const renderContent = () => {
     switch (phase) {
       case AppPhase.LANDING:
@@ -817,62 +845,11 @@ function App() {
             cards={lessonData.flashcards}
             onFinish={() => navigateWithConfirm(AppPhase.DASHBOARD)}
             onSave={async () => {
-              console.log('[Save] Starting save lesson...', {
-                hasUser: !!currentUser,
-                hasSettings: !!lessonSettings,
-                hasLesson: !!lessonData,
-                userId: currentUser?.id,
-                topic: lessonSettings?.topic,
-                level: lessonSettings?.level,
-                words: lessonWords?.substring(0, 50),
-                quizCount: lessonData?.quiz?.length,
-              });
-
-              if (!currentUser) {
-                throw new Error('Bạn chưa đăng nhập. Vui lòng đăng nhập lại.');
-              }
-              if (!lessonSettings) {
-                throw new Error('Thiếu thông tin bài học (level/topic).');
-              }
-              if (!lessonData) {
-                throw new Error('Không có dữ liệu bài học để lưu.');
-              }
               if (!lessonWords || !lessonWords.trim()) {
                 throw new Error('Danh sách từ vựng trống.');
               }
-
               try {
-                let strippedData = lessonData;
-                let audioToSave = lessonData.story?.audioBase64;
-                if (audioToSave && strippedData.story) {
-                  strippedData = {
-                    ...lessonData,
-                    story: {
-                      ...lessonData.story,
-                      audioBase64: undefined
-                    }
-                  };
-                }
-
-                const savedRecord = await saveLearningRecord({
-                  id: currentRecordId || undefined,
-                  user_id: currentUser.id,
-                  topic: lessonSettings.topic || 'General',
-                  level: lessonSettings.level,
-                  words: lessonWords,
-                  quiz_score: 0,
-                  quiz_total: lessonData.quiz.length,
-                  lesson_data: strippedData,
-                });
-                console.log('[Save] Saved successfully:', savedRecord?.id);
-                if (savedRecord && savedRecord.id) {
-                  setCurrentRecordId(savedRecord.id);
-                  if (audioToSave) {
-                    saveLessonAudio(savedRecord.id, audioToSave).then(success => {
-                      if (success) console.log("Audio saved successfully from FillBlank Save.");
-                    });
-                  }
-                }
+                await persistLesson();
               } catch (err: any) {
                 console.error('[Save] Failed:', err);
                 throw new Error(err?.message || 'Không thể lưu bài học. Vui lòng kiểm tra kết nối.');
@@ -885,6 +862,8 @@ function App() {
       case AppPhase.IELTS_WRITING_HUB:
         return (
           <IeltsWritingHub
+            userId={currentUser?.id ?? ''}
+            onOpenAttempt={openIeltsAttempt}
             onSelectQuestion={(q) => {
               setSelectedIeltsQuestion(q);
               setIeltsWritingDraft('');
@@ -912,6 +891,13 @@ function App() {
                 );
                 setIeltsFeedbackData(feedback);
                 setPhase(AppPhase.IELTS_WRITING_FEEDBACK);
+                recordIeltsAttempt({
+                  skill: 'writing',
+                  question: selectedIeltsQuestion,
+                  answerText: answer,
+                  durationSeconds,
+                  feedback,
+                });
               } catch (err) {
                 console.error('Writing grading failed:', err);
                 showToast('Không thể chấm bài. Vui lòng thử lại.', 'info');
@@ -950,6 +936,8 @@ function App() {
       case AppPhase.IELTS_SPEAKING_HUB:
         return (
           <IeltsSpeakingHub
+            userId={currentUser?.id ?? ''}
+            onOpenAttempt={openIeltsAttempt}
             onSelectQuestion={(q) => {
               setSelectedIeltsQuestion(q);
               setIeltsFeedbackData(null);
@@ -979,17 +967,26 @@ function App() {
               setIeltsUserAnswer(transcript);
               setIeltsSpeakingAudioBase64(audioBase64);
               setIeltsSpeakingAudioMime(audioMimeType);
+              const gradedPart = isSpeakingMockTest ? 'part_3' : selectedIeltsQuestion.taskOrPart;
               try {
                 const feedback = await gradeSpeakingAnswer(
                   selectedIeltsQuestion.prompt,
                   transcript,
-                  isSpeakingMockTest ? 'part_3' : selectedIeltsQuestion.taskOrPart,
+                  gradedPart,
                   selectedIeltsQuestion.targetBand,
                   audioBase64,
                   audioMimeType
                 );
                 setIeltsFeedbackData(feedback);
                 setPhase(AppPhase.IELTS_SPEAKING_FEEDBACK);
+                recordIeltsAttempt({
+                  skill: 'speaking',
+                  question: selectedIeltsQuestion,
+                  taskOrPart: gradedPart,
+                  answerText: transcript,
+                  durationSeconds,
+                  feedback,
+                });
               } catch (err) {
                 console.error('Speaking grading failed:', err);
                 showToast('Không thể chấm bài. Vui lòng thử lại.', 'info');

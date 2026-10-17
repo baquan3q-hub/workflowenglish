@@ -11,82 +11,88 @@ export interface DraftData {
   timestamp: string;
 }
 
-const KEYS = {
-  LESSON: 'vocabmaster-draft-lesson',
-  SETTINGS: 'vocabmaster-draft-settings',
-  WORDS: 'vocabmaster-draft-words',
-  PHASE: 'vocabmaster-draft-phase',
-  RECORD_ID: 'vocabmaster-draft-record-id',
-  FLASHCARD_INDEX: 'vocabmaster-draft-flashcard-index',
-  MASTERY_MAP: 'vocabmaster-draft-mastery-map',
-  TIMESTAMP: 'vocabmaster-draft-timestamp',
-};
+const KEY_PREFIX = 'vocabmaster-draft:';
 
 /**
- * Lưu bản nháp hiện tại của bài học vào localStorage
+ * Các khoá cũ (trước khi tách nháp theo user). Không thể biết nháp cũ thuộc
+ * về ai nên chỉ xoá đi để tránh lộ bài học của người khác trên máy dùng chung.
  */
-export function saveDraft(data: Omit<DraftData, 'timestamp'>): void {
+const LEGACY_KEYS = [
+  'vocabmaster-draft-lesson',
+  'vocabmaster-draft-settings',
+  'vocabmaster-draft-words',
+  'vocabmaster-draft-phase',
+  'vocabmaster-draft-record-id',
+  'vocabmaster-draft-flashcard-index',
+  'vocabmaster-draft-mastery-map',
+  'vocabmaster-draft-timestamp',
+];
+
+const draftKey = (userId: string) => `${KEY_PREFIX}${userId}`;
+
+function clearLegacyDraft(): void {
+  try {
+    LEGACY_KEYS.forEach(key => localStorage.removeItem(key));
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Lưu bản nháp hiện tại của bài học vào localStorage (riêng cho từng user).
+ * Audio base64 của story bị loại bỏ vì quá nặng (dễ vượt quota localStorage);
+ * audio đã được lưu riêng ở bảng `lesson_audio` khi bài học được lưu lên cloud.
+ */
+export function saveDraft(userId: string, data: Omit<DraftData, 'timestamp'>): void {
+  if (!userId) return;
   try {
     if (!data.lessonData) {
       // Nếu không có lessonData, không lưu nháp hoặc xóa nháp hiện tại
-      clearDraft();
+      clearDraft(userId);
       return;
     }
 
-    localStorage.setItem(KEYS.LESSON, JSON.stringify(data.lessonData));
-    if (data.lessonSettings) {
-      localStorage.setItem(KEYS.SETTINGS, JSON.stringify(data.lessonSettings));
-    } else {
-      localStorage.removeItem(KEYS.SETTINGS);
-    }
-    localStorage.setItem(KEYS.WORDS, data.lessonWords || '');
-    localStorage.setItem(KEYS.PHASE, data.phase);
-    localStorage.setItem(KEYS.RECORD_ID, data.currentRecordId || '');
-    localStorage.setItem(KEYS.FLASHCARD_INDEX, String(data.flashcardIndex || 0));
-    localStorage.setItem(KEYS.MASTERY_MAP, JSON.stringify(data.lessonMasteryMap || {}));
-    localStorage.setItem(KEYS.TIMESTAMP, new Date().toISOString());
+    const lessonData: GeneratedLesson = data.lessonData.story?.audioBase64
+      ? { ...data.lessonData, story: { ...data.lessonData.story, audioBase64: undefined } }
+      : data.lessonData;
+
+    const draft: DraftData = {
+      ...data,
+      lessonData,
+      lessonWords: data.lessonWords || '',
+      currentRecordId: data.currentRecordId || null,
+      flashcardIndex: data.flashcardIndex || 0,
+      lessonMasteryMap: data.lessonMasteryMap || {},
+      timestamp: new Date().toISOString(),
+    };
+    localStorage.setItem(draftKey(userId), JSON.stringify(draft));
   } catch (error) {
     console.error('[DraftService] Failed to save draft to localStorage:', error);
   }
 }
 
 /**
- * Tải bản nháp bài học từ localStorage nếu có
+ * Tải bản nháp bài học của user từ localStorage nếu có
  */
-export function loadDraft(): DraftData | null {
+export function loadDraft(userId: string): DraftData | null {
+  if (!userId) return null;
+  clearLegacyDraft();
   try {
-    const lessonStr = localStorage.getItem(KEYS.LESSON);
-    const phaseStr = localStorage.getItem(KEYS.PHASE);
-    const timestampStr = localStorage.getItem(KEYS.TIMESTAMP);
+    const raw = localStorage.getItem(draftKey(userId));
+    if (!raw) return null;
 
-    if (!lessonStr || !phaseStr) {
-      return null;
-    }
-
-    const lessonData = JSON.parse(lessonStr) as GeneratedLesson;
-    const phase = phaseStr as AppPhase;
-    const timestamp = timestampStr || new Date().toISOString();
-
-    const settingsStr = localStorage.getItem(KEYS.SETTINGS);
-    const lessonSettings = settingsStr ? (JSON.parse(settingsStr) as UserSettings) : null;
-    const lessonWords = localStorage.getItem(KEYS.WORDS) || '';
-    const currentRecordId = localStorage.getItem(KEYS.RECORD_ID) || null;
-    
-    const indexStr = localStorage.getItem(KEYS.FLASHCARD_INDEX);
-    const flashcardIndex = indexStr ? Number(indexStr) : 0;
-
-    const masteryStr = localStorage.getItem(KEYS.MASTERY_MAP);
-    const lessonMasteryMap = masteryStr ? JSON.parse(masteryStr) : {};
+    const draft = JSON.parse(raw) as Partial<DraftData>;
+    if (!draft.lessonData || !draft.phase) return null;
 
     return {
-      lessonData,
-      lessonSettings,
-      lessonWords,
-      phase,
-      currentRecordId: currentRecordId === '' ? null : currentRecordId,
-      flashcardIndex,
-      lessonMasteryMap,
-      timestamp,
+      lessonData: draft.lessonData,
+      lessonSettings: draft.lessonSettings ?? null,
+      lessonWords: draft.lessonWords || '',
+      phase: draft.phase,
+      currentRecordId: draft.currentRecordId || null,
+      flashcardIndex: Number(draft.flashcardIndex) || 0,
+      lessonMasteryMap: draft.lessonMasteryMap || {},
+      timestamp: draft.timestamp || new Date().toISOString(),
     };
   } catch (error) {
     console.error('[DraftService] Failed to load draft from localStorage:', error);
@@ -95,30 +101,20 @@ export function loadDraft(): DraftData | null {
 }
 
 /**
- * Xóa toàn bộ bản nháp bài học khỏi localStorage
+ * Xóa bản nháp bài học của user khỏi localStorage
  */
-export function clearDraft(): void {
+export function clearDraft(userId: string): void {
+  if (!userId) return;
   try {
-    localStorage.removeItem(KEYS.LESSON);
-    localStorage.removeItem(KEYS.SETTINGS);
-    localStorage.removeItem(KEYS.WORDS);
-    localStorage.removeItem(KEYS.PHASE);
-    localStorage.removeItem(KEYS.RECORD_ID);
-    localStorage.removeItem(KEYS.FLASHCARD_INDEX);
-    localStorage.removeItem(KEYS.MASTERY_MAP);
-    localStorage.removeItem(KEYS.TIMESTAMP);
+    localStorage.removeItem(draftKey(userId));
   } catch (error) {
     console.error('[DraftService] Failed to clear draft from localStorage:', error);
   }
 }
 
 /**
- * Kiểm tra xem có bản nháp bài học hợp lệ trong localStorage không
+ * Kiểm tra xem user có bản nháp bài học hợp lệ trong localStorage không
  */
-export function hasDraft(): boolean {
-  try {
-    return localStorage.getItem(KEYS.LESSON) !== null && localStorage.getItem(KEYS.PHASE) !== null;
-  } catch (error) {
-    return false;
-  }
+export function hasDraft(userId: string): boolean {
+  return loadDraft(userId) !== null;
 }
