@@ -711,7 +711,7 @@ export default function IeltsChatBox({ darkMode }: IeltsChatBoxProps) {
             {/* Image upload */}
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="p-2 rounded-lg text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
+              className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
               title="Upload ảnh biểu đồ/chart"
               disabled={isStreaming}
             >
@@ -728,7 +728,7 @@ export default function IeltsChatBox({ darkMode }: IeltsChatBoxProps) {
             {/* Audio upload */}
             <button
               onClick={() => audioInputRef.current?.click()}
-              className="p-2 rounded-lg text-slate-400 hover:text-violet-500 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors"
+              className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:text-violet-500 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors"
               title="Upload file audio"
               disabled={isStreaming}
             >
@@ -748,7 +748,7 @@ export default function IeltsChatBox({ darkMode }: IeltsChatBoxProps) {
               className={`p-2 rounded-lg transition-colors ${
                 isRecording
                   ? 'text-red-500 bg-red-50 dark:bg-red-900/20 hover:bg-red-100'
-                  : 'text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20'
               }`}
               title={isRecording ? 'Dừng ghi âm' : 'Ghi âm giọng nói'}
               disabled={isStreaming}
@@ -797,7 +797,7 @@ export default function IeltsChatBox({ darkMode }: IeltsChatBoxProps) {
         </div>
 
         {/* Help text */}
-        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5 text-center">
+        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1.5 text-center">
           Nhấn Enter gửi • Shift+Enter xuống dòng • Kéo thả ảnh/audio vào chat
         </p>
       </div>

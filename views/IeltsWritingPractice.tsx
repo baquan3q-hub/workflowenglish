@@ -160,7 +160,7 @@ export default function IeltsWritingPractice({ question, onSubmit, onBack, isGra
             />
             {/* Submit bar */}
             <div className="flex items-center justify-between gap-3">
-              <p className="text-xs text-slate-400 dark:text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 {wordCount < minWords
                   ? `⚠️ Còn thiếu ${minWords - wordCount} từ (vẫn có thể gửi chấm)`
                   : `✅ Đạt yêu cầu tối thiểu (${wordCount} từ)`
@@ -193,7 +193,7 @@ export default function IeltsWritingPractice({ question, onSubmit, onBack, isGra
           <details className="group border border-slate-250 dark:border-slate-700 rounded-xl overflow-hidden bg-slate-50/50 dark:bg-slate-900/30">
             <summary className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 cursor-pointer hover:bg-slate-100/50 transition-colors list-none flex justify-between items-center">
               <span>📖 Xem đề bài & Biểu đồ</span>
-              <span className="text-[10px] text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 group-open:rotate-180 transition-transform">▼</span>
             </summary>
             <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
               {renderLeftSection()}
@@ -216,7 +216,7 @@ export default function IeltsWritingPractice({ question, onSubmit, onBack, isGra
           />
           {/* Submit bar */}
           <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-slate-400 dark:text-slate-500">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               {wordCount < minWords
                 ? `⚠️ Còn thiếu ${minWords - wordCount} từ (vẫn có thể gửi chấm)`
                 : `✅ Đạt yêu cầu tối thiểu (${wordCount} từ)`

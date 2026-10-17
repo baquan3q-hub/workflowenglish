@@ -114,7 +114,7 @@ const LearningHistory: React.FC<LearningHistoryProps> = ({ userId, onStartLesson
             {records.length === 0 ? (
                 <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-8 sm:p-12 text-center">
                     <div className="inline-flex items-center justify-center p-4 bg-slate-100 dark:bg-slate-700 rounded-full mb-4">
-                        <BookOpen className="w-8 h-8 text-slate-400 dark:text-slate-500" />
+                        <BookOpen className="w-8 h-8 text-slate-500 dark:text-slate-400" />
                     </div>
                     <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-2">Chưa có lịch sử</h3>
                     <p className="text-slate-500 dark:text-slate-400 mb-6 text-sm sm:text-base">Bắt đầu bài học đầu tiên để xem kết quả ở đây!</p>
@@ -145,7 +145,7 @@ const LearningHistory: React.FC<LearningHistoryProps> = ({ userId, onStartLesson
                                             <span className="font-medium">Từ vựng:</span>{' '}
                                             <span className="text-slate-500 dark:text-slate-400">{record.words}</span>
                                         </p>
-                                        <div className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
+                                        <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
                                             <Calendar className="w-3 h-3" />
                                             {formatDate(record.completed_at)}
                                         </div>

@@ -42,9 +42,14 @@ import {
   type BarChartDataPoint,
 } from '../components/SVGCharts';
 import { Button } from '../components/Common';
+import { StatusBadge } from '../components/ui/StatusBadge';
+import { SRS_LEVEL_META, SRS_LEVEL_ORDER } from '../components/ui/srsTheme';
+import { ErrorState, LoadingRegion, Skeleton } from '../components/ui/States';
 
 interface AnalyticsDashboardProps {
   userId: string;
+  /** "vocab" opens the screen scrolled to the word notebook (the "Sổ từ" tab). */
+  focusSection?: 'overview' | 'vocab';
   onBack: () => void;
   onStartLesson: () => void;
   /**
@@ -83,17 +88,17 @@ const WEAKNESS_ICONS: Record<string, React.ComponentType<{ className?: string }>
   meaning_overlap: AlertTriangle,
 };
 
-// --- Mastery distribution config (color + Vietnamese label per level) ---
-const MASTERY_BAR_CONFIG: Array<{
-  level: MasteryLevel;
-  label: string;
-  color: string;
-}> = [
-  { level: MasteryLevel.NEW, label: 'Mới', color: 'bg-gray-400 dark:bg-gray-500' },
-  { level: MasteryLevel.LEARNING, label: 'Đang học', color: 'bg-yellow-500 dark:bg-yellow-400' },
-  { level: MasteryLevel.REVIEWING, label: 'Ôn tập', color: 'bg-blue-500 dark:bg-blue-400' },
-  { level: MasteryLevel.MASTERED, label: 'Thành thạo', color: 'bg-emerald-500 dark:bg-emerald-400' },
-  { level: MasteryLevel.LAPSED, label: 'Đã quên', color: 'bg-red-500 dark:bg-red-400' },
+type WordFilter = 'all' | 'new' | 'learning' | 'reviewing' | 'due' | 'lapsed' | 'mastered';
+
+/** Notebook filter pills. Level filters take the shared SRS colours; "Cần ôn" is a time state, not a level. */
+const WORD_FILTERS: ReadonlyArray<{ id: WordFilter; label: string; dot: string | null }> = [
+  { id: 'all', label: 'Tất cả', dot: null },
+  { id: 'due', label: 'Cần ôn', dot: 'bg-amber-500' },
+  { id: 'new', label: SRS_LEVEL_META[MasteryLevel.NEW].label, dot: SRS_LEVEL_META[MasteryLevel.NEW].dot },
+  { id: 'learning', label: SRS_LEVEL_META[MasteryLevel.LEARNING].label, dot: SRS_LEVEL_META[MasteryLevel.LEARNING].dot },
+  { id: 'reviewing', label: SRS_LEVEL_META[MasteryLevel.REVIEWING].label, dot: SRS_LEVEL_META[MasteryLevel.REVIEWING].dot },
+  { id: 'mastered', label: SRS_LEVEL_META[MasteryLevel.MASTERED].label, dot: SRS_LEVEL_META[MasteryLevel.MASTERED].dot },
+  { id: 'lapsed', label: SRS_LEVEL_META[MasteryLevel.LAPSED].label, dot: SRS_LEVEL_META[MasteryLevel.LAPSED].dot },
 ];
 
 /**
@@ -142,12 +147,16 @@ const SectionCard: React.FC<{
 );
 
 const LoadingSkeleton: React.FC = () => (
-  <div className="max-w-5xl mx-auto flex items-center justify-center py-20">
-    <div className="flex flex-col items-center gap-3 text-slate-500 dark:text-slate-400">
-      <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-      <p className="text-sm">Đang tải thống kê...</p>
+  <LoadingRegion label="Đang tải thống kê…" className="max-w-5xl mx-auto space-y-6">
+    <Skeleton className="h-9 w-56" />
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      {[0, 1, 2, 3].map((i) => (
+        <Skeleton key={i} className="h-28 w-full rounded-2xl" />
+      ))}
     </div>
-  </div>
+    <Skeleton className="h-64 w-full rounded-2xl" />
+    <Skeleton className="h-48 w-full rounded-2xl" />
+  </LoadingRegion>
 );
 
 const OnboardingCard: React.FC<{ onStartLesson: () => void }> = ({
@@ -173,6 +182,7 @@ const OnboardingCard: React.FC<{ onStartLesson: () => void }> = ({
 
 const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   userId,
+  focusSection = 'overview',
   onBack,
   onStartLesson,
   onStartTargetedLesson,
@@ -186,7 +196,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   );
   const [weaknessError, setWeaknessError] = useState<string | null>(null);
   const [isGeneratingHardest, setIsGeneratingHardest] = useState(false);
-  const [selectedFilter, setSelectedFilter] = useState<'all' | 'new' | 'learning' | 'reviewing' | 'due' | 'lapsed' | 'mastered'>('all');
+  const [selectedFilter, setSelectedFilter] = useState<WordFilter>('all');
   const [visibleWordCount, setVisibleWordCount] = useState<number>(8);
 
   useEffect(() => {
@@ -295,6 +305,17 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
     };
   }, [load]);
 
+  // "Sổ từ" and "Thống kê" share this screen: once the data is on screen,
+  // jump to the notebook or back to the top depending on the tab used.
+  useEffect(() => {
+    if (isLoading || !data) return;
+    if (focusSection === 'vocab') {
+      document.getElementById('vocab-notebook')?.scrollIntoView({ block: 'start' });
+    } else {
+      window.scrollTo({ top: 0 });
+    }
+  }, [focusSection, isLoading, data]);
+
   const handlePracticeWeakness = async (weakness: WeaknessPattern) => {
     if (!data || generatingCategory) return;
     setWeaknessError(null);
@@ -349,12 +370,11 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           <ArrowLeft className="w-4 h-4" />
           Quay lại
         </button>
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-2xl p-6 text-center space-y-4 shadow-sm">
-          <p className="font-semibold">{error ?? 'Đã xảy ra lỗi không xác định.'}</p>
-          <Button onClick={load} className="shadow-md">
-            Thử lại
-          </Button>
-        </div>
+        <ErrorState
+          title="Không tải được thống kê"
+          message={error ?? 'Đã xảy ra lỗi không xác định.'}
+          onRetry={load}
+        />
       </div>
     );
   }
@@ -386,10 +406,10 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
   }
 
   // Build chart inputs.
-  const masteryBars: BarChartDataPoint[] = MASTERY_BAR_CONFIG.map((cfg) => ({
-    label: cfg.label,
-    value: distribution[cfg.level] ?? 0,
-    color: cfg.color,
+  const masteryBars: BarChartDataPoint[] = SRS_LEVEL_ORDER.map((level) => ({
+    label: SRS_LEVEL_META[level].label,
+    value: distribution[level] ?? 0,
+    color: SRS_LEVEL_META[level].dot,
   }));
 
   const showStreakFlame = goals.current_streak >= 3;
@@ -483,7 +503,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                   </span>
                   
                   {/* Count indicator below label */}
-                  <span className={`text-[10px] font-extrabold tabular-nums ${day.count > 0 ? 'text-slate-800 dark:text-slate-200' : 'text-slate-400 dark:text-slate-600'}`}>
+                  <span className={`text-[10px] font-extrabold tabular-nums ${day.count > 0 ? 'text-slate-800 dark:text-slate-200' : 'text-slate-500 dark:text-slate-600'}`}>
                     {day.count}
                   </span>
                 </div>
@@ -539,19 +559,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                         <span className="text-red-500 dark:text-red-400">{word.incorrect_count ?? 0}s</span>
                       </td>
                       <td className="py-3.5 px-4 text-center">
-                        <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold
-                          ${word.mastery_level === MasteryLevel.MASTERED ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' :
-                            word.mastery_level === MasteryLevel.REVIEWING ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300' :
-                            word.mastery_level === MasteryLevel.LEARNING ? 'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-300' :
-                            word.mastery_level === MasteryLevel.LAPSED ? 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300' :
-                            'bg-gray-100 dark:bg-gray-500/20 text-gray-700 dark:text-gray-300'
-                          }`}
-                        >
-                          {word.mastery_level === MasteryLevel.MASTERED ? 'Thành thạo' :
-                           word.mastery_level === MasteryLevel.REVIEWING ? 'Ôn tập' :
-                           word.mastery_level === MasteryLevel.LEARNING ? 'Đang học' :
-                           word.mastery_level === MasteryLevel.LAPSED ? 'Cần ôn lại' : 'Mới'}
-                        </span>
+                        <StatusBadge level={word.mastery_level} suspended={!!word.is_suspended} />
                       </td>
                     </tr>
                   ))}
@@ -583,7 +591,8 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         </SectionCard>
       )}
 
-      {/* Section 3.6 — Sổ Tay Từ Vựng & Trạng Thái Ghi Nhớ */}
+      {/* Section 3.6 — Sổ Tay Từ Vựng & Trạng Thái Ghi Nhớ (target of the "Sổ từ" tab) */}
+      <div id="vocab-notebook" className="scroll-mt-20">
       <SectionCard title="Sổ Tay Từ Vựng & Trạng Thái Ghi Nhớ">
         <div className="space-y-6">
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
@@ -591,35 +600,33 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           </p>
 
           {/* Filter Tabs/Pills */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-3 -mx-2 px-2 scrollbar-none sm:-mx-0 sm:px-0">
-            {[
-              { id: 'all', label: 'Tất cả', count: counts.all, color: 'border-slate-300 dark:border-slate-700 bg-slate-100/50 text-slate-700 dark:text-slate-300', activeColor: 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900' },
-              { id: 'new', label: '🌱 Từ mới', count: counts.new, color: 'border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400', activeColor: 'bg-slate-400 text-white dark:bg-slate-500 dark:text-white' },
-              { id: 'learning', label: '🚀 Đang học', count: counts.learning, color: 'border-yellow-200 dark:border-yellow-900/40 text-yellow-600 dark:text-yellow-400', activeColor: 'bg-yellow-500 text-white dark:bg-yellow-400 dark:text-slate-900' },
-              { id: 'reviewing', label: '📚 Ôn tập', count: counts.reviewing, color: 'border-blue-200 dark:border-blue-900/40 text-blue-600 dark:text-blue-400', activeColor: 'bg-blue-500 text-white dark:bg-blue-400 dark:text-white' },
-              { id: 'due', label: '⏰ Cần ôn tập', count: counts.due, color: 'border-amber-200 dark:border-amber-900/40 text-amber-600 dark:text-amber-400', activeColor: 'bg-amber-500 text-white dark:bg-amber-400 dark:text-slate-900 font-bold' },
-              { id: 'lapsed', label: '⚠️ Đã quên', count: counts.lapsed, color: 'border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400', activeColor: 'bg-red-500 text-white dark:bg-red-400 dark:text-white' },
-              { id: 'mastered', label: '🎉 Thành thạo', count: counts.mastered, color: 'border-emerald-200 dark:border-emerald-900/40 text-emerald-600 dark:text-emerald-400', activeColor: 'bg-emerald-500 text-white dark:bg-emerald-400 dark:text-white' },
-            ].map((tab) => {
+          <div
+            role="group"
+            aria-label="Lọc từ theo trạng thái"
+            className="flex items-center gap-2 overflow-x-auto pb-3 -mx-2 px-2 scrollbar-none sm:-mx-0 sm:px-0"
+          >
+            {WORD_FILTERS.map((tab) => {
               const isActive = selectedFilter === tab.id;
               return (
                 <button
                   key={tab.id}
                   type="button"
-                  onClick={() => setSelectedFilter(tab.id as any)}
-                  className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all duration-200 active:scale-95 ${
+                  aria-pressed={isActive}
+                  onClick={() => setSelectedFilter(tab.id)}
+                  className={`flex-shrink-0 flex min-h-touch items-center gap-1.5 px-3 rounded-full text-xs font-bold border transition-colors ${
                     isActive
-                      ? `${tab.activeColor} border-transparent shadow-sm`
-                      : `bg-white hover:bg-slate-50 dark:bg-slate-800/50 dark:hover:bg-slate-800/80 ${tab.color}`
+                      ? 'bg-slate-900 text-white border-transparent shadow-sm dark:bg-slate-100 dark:text-slate-900'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 dark:bg-slate-800/50 dark:text-slate-200 dark:border-slate-700 dark:hover:bg-slate-800'
                   }`}
                 >
+                  {tab.dot && <span aria-hidden="true" className={`h-2 w-2 rounded-full ${tab.dot}`} />}
                   <span>{tab.label}</span>
                   <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] tabular-nums font-extrabold ${
                     isActive
                       ? 'bg-white/20 text-current'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
                   }`}>
-                    {tab.count}
+                    {counts[tab.id]}
                   </span>
                 </button>
               );
@@ -631,41 +638,12 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             <div className="space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 animate-fade-in">
                 {filteredWordsList.slice(0, visibleWordCount).map((word) => {
-                  // Determine style based on mastery level
-                  let cardStyle = 'border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/10';
-                  let badgeText = 'Mới';
-                  let badgeColor = 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400';
-                  let dotColor = 'bg-slate-400';
-
-                  if (word.mastery_level === MasteryLevel.MASTERED) {
-                    cardStyle = 'border-emerald-100 dark:border-emerald-900/40 bg-gradient-to-br from-emerald-50/20 to-teal-50/10 dark:from-emerald-950/10 dark:to-teal-950/10 shadow-sm';
-                    badgeText = 'Thành thạo';
-                    badgeColor = 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300';
-                    dotColor = 'bg-emerald-500';
-                  } else if (word.mastery_level === MasteryLevel.REVIEWING) {
-                    cardStyle = 'border-blue-100 dark:border-blue-900/40 bg-gradient-to-br from-blue-50/20 to-indigo-50/10 dark:from-blue-950/10 dark:to-indigo-950/10';
-                    badgeText = 'Ôn tập';
-                    badgeColor = 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300';
-                    dotColor = 'bg-blue-500';
-                  } else if (word.mastery_level === MasteryLevel.LEARNING) {
-                    cardStyle = 'border-yellow-100 dark:border-yellow-900/40 bg-gradient-to-br from-yellow-50/20 to-amber-50/10 dark:from-yellow-950/10 dark:to-amber-950/10';
-                    badgeText = 'Đang học';
-                    badgeColor = 'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-300';
-                    dotColor = 'bg-yellow-500';
-                  } else if (word.mastery_level === MasteryLevel.LAPSED) {
-                    cardStyle = 'border-red-100 dark:border-red-900/40 bg-gradient-to-br from-red-50/20 to-rose-50/10 dark:from-red-950/10 dark:to-rose-950/10';
-                    badgeText = 'Đã quên';
-                    badgeColor = 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300';
-                    dotColor = 'bg-red-500';
-                  }
-
-                  // Check if due for review
                   const isDue = isWordDue(word);
 
                   return (
                     <div
                       key={word.word}
-                      className={`relative flex flex-col justify-between p-4 rounded-2xl border hover:shadow-md hover:scale-[1.02] active:scale-[0.99] transition-all duration-200 ${cardStyle}`}
+                      className="relative flex flex-col justify-between p-4 rounded-2xl border border-slate-200 bg-white shadow-card transition-shadow hover:shadow-raised dark:border-slate-700 dark:bg-slate-900/40"
                     >
                       <div>
                         {/* Top row: Word and Mastery Level */}
@@ -689,7 +667,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
 
                         {/* IPA */}
                         {word.ipa && (
-                          <p className="text-xs text-slate-400 dark:text-slate-500 font-mono mb-2">
+                          <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mb-2">
                             /{word.ipa}/
                           </p>
                         )}
@@ -709,12 +687,9 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
 
                       {/* Footer badge */}
                       <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800/40 flex items-center justify-between">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${badgeColor}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
-                          {badgeText}
-                        </span>
+                        <StatusBadge level={word.mastery_level} suspended={!!word.is_suspended} />
                         {word.correct_count !== undefined && (
-                          <span className="text-[10px] text-slate-400 dark:text-slate-500 tabular-nums">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 tabular-nums">
                             Tỷ lệ: {word.correct_count + word.incorrect_count > 0 
                               ? Math.round((word.correct_count / (word.correct_count + word.incorrect_count)) * 100) 
                               : 100}%
@@ -755,7 +730,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
             <div className="text-center py-12 px-6 bg-slate-50/50 dark:bg-slate-900/20 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800/80 max-w-xl mx-auto animate-fade-in">
               {selectedFilter === 'all' && (
                 <>
-                  <span className="text-4xl sm:text-5xl block mb-3" role="img" aria-label="sprout">🌱</span>
+                  <span className="text-4xl sm:text-5xl block mb-3" aria-hidden="true">🌱</span>
                   <h4 className="text-base sm:text-lg font-extrabold text-slate-800 dark:text-slate-200 mb-2">
                     Chào mừng bạn đến với Sổ Tay Từ Vựng!
                   </h4>
@@ -766,7 +741,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
               )}
               {selectedFilter === 'new' && (
                 <>
-                  <span className="text-4xl sm:text-5xl block mb-3" role="img" aria-label="shining-star">✨</span>
+                  <span className="text-4xl sm:text-5xl block mb-3" aria-hidden="true">✨</span>
                   <h4 className="text-base sm:text-lg font-extrabold text-slate-800 dark:text-slate-200 mb-2">
                     Không có từ mới nào!
                   </h4>
@@ -777,7 +752,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
               )}
               {selectedFilter === 'learning' && (
                 <>
-                  <span className="text-4xl sm:text-5xl block mb-3" role="img" aria-label="rocket">🚀</span>
+                  <span className="text-4xl sm:text-5xl block mb-3" aria-hidden="true">🚀</span>
                   <h4 className="text-base sm:text-lg font-extrabold text-slate-800 dark:text-slate-200 mb-2">
                     Không có từ nào đang học!
                   </h4>
@@ -788,7 +763,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
               )}
               {selectedFilter === 'reviewing' && (
                 <>
-                  <span className="text-4xl sm:text-5xl block mb-3" role="img" aria-label="books">📚</span>
+                  <span className="text-4xl sm:text-5xl block mb-3" aria-hidden="true">📚</span>
                   <h4 className="text-base sm:text-lg font-extrabold text-slate-800 dark:text-slate-200 mb-2">
                     Trống lịch trình ôn tập!
                   </h4>
@@ -799,7 +774,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
               )}
               {selectedFilter === 'due' && (
                 <>
-                  <span className="text-4xl sm:text-5xl block mb-3" role="img" aria-label="celebration">🎉</span>
+                  <span className="text-4xl sm:text-5xl block mb-3" aria-hidden="true">🎉</span>
                   <h4 className="text-base sm:text-lg font-extrabold text-emerald-600 dark:text-emerald-400 mb-2">
                     Tuyệt vời! Đã hoàn thành ôn tập
                   </h4>
@@ -810,7 +785,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
               )}
               {selectedFilter === 'lapsed' && (
                 <>
-                  <span className="text-4xl sm:text-5xl block mb-3" role="img" aria-label="strong-arm">💪</span>
+                  <span className="text-4xl sm:text-5xl block mb-3" aria-hidden="true">💪</span>
                   <h4 className="text-base sm:text-lg font-extrabold text-slate-800 dark:text-slate-200 mb-2">
                     Giữ vững phong độ tuyệt đỉnh!
                   </h4>
@@ -821,7 +796,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
               )}
               {selectedFilter === 'mastered' && (
                 <>
-                  <span className="text-4xl sm:text-5xl block mb-3" role="img" aria-label="crown">👑</span>
+                  <span className="text-4xl sm:text-5xl block mb-3" aria-hidden="true">👑</span>
                   <h4 className="text-base sm:text-lg font-extrabold text-slate-800 dark:text-slate-200 mb-2">
                     Chinh phục Trí nhớ dài hạn!
                   </h4>
@@ -834,6 +809,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           )}
         </div>
       </SectionCard>
+      </div>
 
 
 

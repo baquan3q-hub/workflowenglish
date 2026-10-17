@@ -21,7 +21,7 @@ Bản cập nhật `c1dd63f` (từ máy khác) đã làm sẵn một phần kế
 | Phím tắt ôn tập (6.3) | Đã có Space/Enter lật thẻ, 1–4 chấm, Enter nhận gợi ý | Chỉ thêm **Z hoàn tác** |
 | Ôn bằng gõ từ (6.3) | Đã có: tự bật cho từ Ôn tập / Thành thạo / Đã quên có nghĩa tiếng Việt | Thêm bộ chọn chế độ ở đầu phiên |
 | IPA trên thẻ ôn (1.1) | Đã hiện IPA ở cả hai mặt | Xong |
-| Flashcard chấm 4 mức (6.2) | Đã có 4 nút + vuốt nhanh 2 hướng | Chỉ thêm "Đã chấm 7/10 thẻ" |
+| Flashcard chấm 4 mức (6.2) | Chỉ có 2 nút nhanh (Nhớ = 2, Quên = 0) + vuốt 2 hướng | Thay bằng `RatingButtons` 4 mức (Phase 3), thêm "Đã chấm 7/10 thẻ" |
 | Fill-blank chấp nhận gần đúng (6.2) | Đã dùng `gradeTypedAnswer` | Chỉ hiện chỗ sai bằng `spellingDiff` |
 | Giai đoạn 0 (nền tảng) | Xong (`0916fda`, `bc0f510`) | **Bạn cần chạy** `docs/migrations/005_review_logs.sql`, nếu chưa chạy thì `review_logs` không ghi được |
 
@@ -175,6 +175,7 @@ Cần: P1. Có P2 thì tốt hơn (ghi chú hiện trong Sổ từ), nhưng khô
     - Thanh công cụ: Hoàn tác, Xoá, độ dày nét (3 mức), Bút/Tẩy.
     - Nút "So sánh" phủ đáp án lên nét viết, sau đó hiện 4 nút tự chấm.
   - **Ghi chú**: ô nhập tự lưu kèm trạng thái "Đang lưu…" / "Đã lưu ✓". Placeholder gợi ý viết mẹo nhớ.
+- Flashcards dùng `RatingButtons` 4 mức (Lại · Khó · Tốt · Dễ) thay cho 2 nút nhanh hiện tại; vuốt trái/phải vẫn là Lại/Tốt.
 - Dòng "Đã chấm 7/10 thẻ" ở đầu Flashcards. Khi bấm sang Story mà còn thẻ chưa chấm thì nhắc một lần.
 - **Ôn tập**:
   - **Màn bắt đầu phiên**: chọn chế độ (Tự động · Lật thẻ · Gõ từ · Viết tay) và số từ (10 / 20 / 30 / 50). Lần sau nhớ lựa chọn.

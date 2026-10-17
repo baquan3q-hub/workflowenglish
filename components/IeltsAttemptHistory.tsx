@@ -87,13 +87,13 @@ export default function IeltsAttemptHistory({ userId, skill, onOpenAttempt }: Pr
             </span>
           )}
         </div>
-        {isOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+        {isOpen ? <ChevronUp className="w-4 h-4 text-slate-500 dark:text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-500 dark:text-slate-400" />}
       </button>
 
       {isOpen && (
         <div className="px-4 pb-4 space-y-3">
           {!attempts && !error && (
-            <div className="flex items-center justify-center py-6 text-slate-400">
+            <div className="flex items-center justify-center py-6 text-slate-500 dark:text-slate-400">
               <Loader2 className="w-5 h-5 animate-spin" />
             </div>
           )}

@@ -18,6 +18,7 @@ import {
 import { DifficultyLevel, UserGoals, UserSettings, VocabularyTemplate, WordRecommendation } from '../types';
 import { Button, Select } from '../components/Common';
 import { getDueWordCount } from '../services/masteryService';
+import { dueBadgeText } from '../components/navConfig';
 import { getOrCreateUserGoals, updateDailyGoal } from '../services/goalService';
 import { CircularProgress } from '../components/SVGCharts';
 import { supabase } from '../services/supabaseClient';
@@ -358,7 +359,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onGenerate, isLoading, userId, on
                   >
                     Từ vựng gợi ý cho bạn
                   </h2>
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
                     {fallbackTopicsActive ? 'Chủ đề từ vựng phổ biến' : 'Từ vựng thích ứng theo tiến độ'}
                   </p>
                 </div>
@@ -457,7 +458,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onGenerate, isLoading, userId, on
               recommendations &&
               recommendations.length === 0 &&
               !recsError && (
-                <p className="text-xs text-slate-400 dark:text-slate-500 py-4">
+                <p className="text-xs text-slate-500 dark:text-slate-400 py-4">
                   Chưa có gợi ý nào. Thử click icon “Làm mới”.
                 </p>
               )}
@@ -526,7 +527,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onGenerate, isLoading, userId, on
                 size={68}
               />
               <div className="text-left">
-                <p className="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">Đã ôn luyện</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wide font-semibold">Đã ôn luyện</p>
                 <p className="text-base font-extrabold text-slate-800 dark:text-slate-100">
                   {userGoals.words_reviewed_today} / {userGoals.daily_word_goal} từ
                 </p>
@@ -534,7 +535,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onGenerate, isLoading, userId, on
             </div>
 
             <div className="pt-2 border-t border-amber-200/30 dark:border-slate-700/30 flex items-center justify-between gap-2">
-              <label htmlFor="daily-goal-select" className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+              <label htmlFor="daily-goal-select" className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                 Mục tiêu:
               </label>
               <select
@@ -564,19 +565,19 @@ const Dashboard: React.FC<DashboardProps> = ({ onGenerate, isLoading, userId, on
             className="relative bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700/50 p-4 shadow-sm flex flex-col items-center justify-center text-center space-y-2 hover:border-blue-300 dark:hover:border-blue-700 w-full"
             title="Bắt đầu ôn tập từ vựng"
           >
-            <img src="/icon-mic.svg" className="w-14 h-16 object-contain" alt="Spaced Repetition System" />
-            <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Spaced Repetition System</span>
+            <img src="/icon-mic.svg" className="w-14 h-16 object-contain" alt="" />
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Ôn tập từ vựng</span>
             {dueCount > 0 && (
-              <span className="absolute top-2.5 right-2.5 bg-red-500 text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded-full min-w-5 h-5 flex items-center justify-center shadow-sm">
-                {dueCount}
+              <span aria-hidden="true" className="absolute top-2.5 right-2.5 bg-rose-600 text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded-full min-w-5 h-5 flex items-center justify-center shadow-sm tabular-nums">
+                {dueBadgeText(dueCount)}
               </span>
             )}
             {dueCount > 0 ? (
-              <span className="text-[10px] font-semibold text-rose-500 dark:text-rose-400">
+              <span className="text-[11px] font-semibold text-rose-700 dark:text-rose-300">
                 Có {dueCount} từ cần ôn tập
               </span>
             ) : (
-              <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+              <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
                 Đã hoàn thành! 🎉
               </span>
             )}
@@ -595,7 +596,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onGenerate, isLoading, userId, on
           </button>
         ) : (
           <div className="bg-white dark:bg-slate-800 rounded-3xl border border-dashed border-slate-200 dark:border-slate-700 p-4 flex items-center justify-center text-center">
-            <p className="text-xs text-slate-400">Sẵn sàng học bài mới</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Sẵn sàng học bài mới</p>
           </div>
         )}
       </div>
@@ -608,15 +609,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onGenerate, isLoading, userId, on
             <Sparkles className="w-4.5 h-4.5" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">AI Lesson Generator</h2>
-            <p className="text-xs text-slate-400 dark:text-slate-500">Tạo bài học thông minh từ danh sách từ vựng của bạn</p>
+            <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">Tạo bài học bằng AI</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Tạo bài học thông minh từ danh sách từ vựng của bạn</p>
           </div>
         </div>
 
         {/* Settings Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Select
-            label="Target Level (Cấp độ mục tiêu)"
+            label="Cấp độ mục tiêu"
             value={settings.level}
             onChange={(e) => setSettings({ ...settings, level: e.target.value as DifficultyLevel })}
           >
@@ -626,7 +627,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onGenerate, isLoading, userId, on
           </Select>
 
           <Select
-            label="Topic Context (Chủ đề ngữ cảnh)"
+            label="Chủ đề ngữ cảnh"
             value={settings.topic}
             onChange={(e) => setSettings({ ...settings, topic: e.target.value })}
           >
@@ -638,7 +639,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onGenerate, isLoading, userId, on
         <div className="space-y-2 relative">
           <label className="text-xs font-bold text-slate-600 dark:text-slate-300 flex justify-between">
             <span>Danh sách từ vựng cần học</span>
-            <span className="text-slate-400 font-normal text-[10px]">Phân cách bởi dấu phẩy</span>
+            <span className="text-slate-500 dark:text-slate-400 font-normal text-[11px]">Phân cách bởi dấu phẩy</span>
           </label>
           
           <div className="relative">

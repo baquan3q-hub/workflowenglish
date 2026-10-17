@@ -52,7 +52,7 @@ export const HeatmapGrid: React.FC<HeatmapGridProps> = ({ data, columns = 6 }) =
   return (
     <div
       role="img"
-      aria-label="Activity heatmap for the last 30 days"
+      aria-label="Bản đồ hoạt động học 30 ngày qua"
       className={`grid ${gridColsClass} gap-1`}
     >
       {cells.map((cell, index) => (
@@ -176,7 +176,7 @@ export const LineChart: React.FC<LineChartProps> = ({ data }) => {
         className="h-auto w-full"
         preserveAspectRatio="none"
         role="img"
-        aria-label="Line chart"
+        aria-label="Biểu đồ đường"
       >
         {/* Y-axis gridlines at 0%, 50%, 100% */}
         {[0, 50, 100].map((tick) => {

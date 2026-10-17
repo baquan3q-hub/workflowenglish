@@ -51,7 +51,7 @@ export function CriterionScoreBar({ criterion }: { criterion: IeltsCriterionScor
       <div className="flex items-center justify-between">
         <div>
           <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{criterion.name}</span>
-          <span className="text-xs text-slate-400 dark:text-slate-500 ml-2">({criterion.nameVi})</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400 ml-2">({criterion.nameVi})</span>
         </div>
         <span className={`text-sm font-bold ${criterion.score >= 6 ? 'text-blue-600 dark:text-blue-400' : 'text-amber-600 dark:text-amber-400'}`}>
           {criterion.score.toFixed(1)}
@@ -88,7 +88,7 @@ export function FrameworkCard({ framework, isCompact }: { framework: IeltsFramew
             {!isCompact && <p className="text-xs text-slate-500 dark:text-slate-400">{framework.nameVi}</p>}
           </div>
         </div>
-        {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+        {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-500 dark:text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-500 dark:text-slate-400" />}
       </button>
 
       {isExpanded && (
@@ -174,7 +174,7 @@ export function QuestionCard({
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          <Target className="w-3 h-3 text-slate-400" />
+          <Target className="w-3 h-3 text-slate-500 dark:text-slate-400" />
           <span className="text-xs text-slate-500 dark:text-slate-400">Band {question.targetBand}</span>
         </div>
         <button

@@ -42,7 +42,7 @@ export default function IeltsSpeakingFeedback({ question, userTranscript, feedba
           targetBand={question.targetBand}
           label=""
         />
-        <p className="text-xs text-slate-400 dark:text-slate-500 italic">
+        <p className="text-xs text-slate-500 dark:text-slate-400 italic">
           ⚠️ Đây là điểm ước lượng bởi AI, không phải điểm IELTS chính thức
         </p>
       </div>
@@ -75,7 +75,7 @@ export default function IeltsSpeakingFeedback({ question, userTranscript, feedba
             <Mic className="w-4 h-4 text-slate-500" />
             <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Transcript của bạn</span>
           </div>
-          {showOriginal ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+          {showOriginal ? <ChevronUp className="w-4 h-4 text-slate-500 dark:text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-500 dark:text-slate-400" />}
         </button>
         {showOriginal && (
           <div className="px-4 pb-4 border-t border-slate-100 dark:border-slate-700 pt-3">
@@ -119,7 +119,7 @@ export default function IeltsSpeakingFeedback({ question, userTranscript, feedba
               ✨ Câu trả lời cải thiện (Target Band {question.targetBand})
             </span>
           </div>
-          {showImproved ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+          {showImproved ? <ChevronUp className="w-4 h-4 text-slate-500 dark:text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-500 dark:text-slate-400" />}
         </button>
         {showImproved && (
           <div className="px-4 pb-4 border-t border-rose-100 dark:border-rose-800/40 pt-3">

@@ -165,9 +165,9 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
       return (
         <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
           <Button variant="ghost" onClick={handleBackToResult} className="mb-4">
-            <ArrowLeft className="w-4 h-4 mr-2" /> Back to Result
+            <ArrowLeft className="w-4 h-4 mr-2" /> Về kết quả
           </Button>
-          <h2 className="text-2xl font-bold text-slate-900 mb-6">Review Answers</h2>
+          <h2 className="text-2xl font-bold text-slate-900 mb-6">Xem lại đáp án</h2>
           <div className="space-y-4">
             {questions.map((q, idx) => (
               <div key={q.id} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
@@ -178,7 +178,7 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
                   <div className="space-y-2 w-full">
                     <h3 className="font-semibold text-slate-800">{q.question}</h3>
                     <div className="p-3 bg-green-50 border border-green-100 rounded-lg text-sm text-green-800">
-                      <span className="font-bold">Correct Answer:</span> {q.correctAnswer}
+                      <span className="font-bold">Đáp án đúng:</span> {q.correctAnswer}
                     </div>
                     <p className="text-slate-500 text-sm italic">{q.explanation}</p>
                   </div>
@@ -213,7 +213,7 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
             <RotateCcw className="w-4 h-4 mr-2" /> Bài học mới
           </Button>
         </div>
-        <p className="text-xs text-slate-400 mt-4">
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-4">
           Hãy ôn lại trước khi bắt đầu bài mới nhé!
         </p>
       </div>
@@ -235,7 +235,7 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
       <div className="bg-white p-5 sm:p-8 rounded-2xl shadow-lg border border-slate-100">
         <div className="flex justify-between items-center mb-4">
           <span className="inline-block px-3 py-1 bg-indigo-50 text-indigo-600 text-xs font-bold rounded-full uppercase tracking-wide">
-            Word Meaning Check
+            Kiểm tra nghĩa của từ
           </span>
         </div>
 
@@ -291,7 +291,7 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
                 <Check className="w-5 h-5 text-green-700" />
               </div>
               <div>
-                <p className="font-bold text-green-800">Correct!</p>
+                <p className="font-bold text-green-800">Chính xác!</p>
                 <p className="text-sm text-green-700">{currentQuestion.explanation}</p>
               </div>
             </div>
@@ -305,8 +305,8 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
           <div className="bg-red-50 border border-red-100 p-4 rounded-xl flex items-center gap-3 animate-shake">
             <AlertCircle className="w-6 h-6 text-red-500" />
             <div>
-              <p className="font-bold text-red-800">Not quite right.</p>
-              <p className="text-sm text-red-600">Try again! Mastery requires getting it right.</p>
+              <p className="font-bold text-red-800">Chưa đúng.</p>
+              <p className="text-sm text-red-700">Thử lại nhé! Trả lời đúng mới được tính là đã thuộc.</p>
             </div>
           </div>
         )}

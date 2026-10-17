@@ -124,7 +124,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onBack }) => {
                                     placeholder="your@email.com"
                                     autoComplete="email"
                                 />
-                                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                                <Mail className="w-4 h-4 text-slate-500 dark:text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                             </div>
                         </div>
 
@@ -171,7 +171,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onBack }) => {
                                 <button
                                     type="button"
                                     onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 hover:text-slate-600 p-1"
                                 >
                                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                 </button>
@@ -212,7 +212,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onBack }) => {
                     {/* Divider */}
                     <div className="flex items-center gap-3 my-5">
                         <div className="flex-1 h-px bg-slate-200"></div>
-                        <span className="text-xs text-slate-400 font-medium">hoặc</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">hoặc</span>
                         <div className="flex-1 h-px bg-slate-200"></div>
                     </div>
 

@@ -173,7 +173,7 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
       setAudioState('ready');
     } catch (err: any) {
       console.error('Generate audio error:', err);
-      setAudioError(err.message || 'Failed to generate audio');
+      setAudioError(err.message || 'Không tạo được âm thanh');
       setAudioState('idle');
     }
   };
@@ -283,7 +283,7 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
           <p className="text-slate-500 dark:text-slate-400">Đọc và nghe. Chạm vào câu để phát từ câu đó · chạm vào <span className="text-blue-600 dark:text-blue-400 font-semibold">từ in xanh</span> để xem nghĩa.</p>
         </div>
         <Button onClick={() => { playerRef.current?.destroy(); onNextPhase(); }} variant="secondary" className="shadow-lg hover:shadow-emerald-200">
-          Take the Quiz <ArrowRight className="w-4 h-4 ml-2" />
+          Làm trắc nghiệm <ArrowRight className="w-4 h-4 ml-2" />
         </Button>
       </div>
 
@@ -302,14 +302,14 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
                     className="flex items-center gap-2 px-4 py-2 rounded-full bg-blue-600 text-white hover:bg-blue-700 transition-all"
                   >
                     <Volume2 className="w-4 h-4" />
-                    <span className="text-sm font-medium">Generate Audio</span>
+                    <span className="text-sm font-medium">Tạo âm thanh</span>
                   </button>
                 )}
 
                 {audioState === 'loading' && (
                   <button disabled className="flex items-center gap-2 px-4 py-2 rounded-full bg-blue-100 text-blue-600 cursor-wait">
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span className="text-sm font-medium">Generating...</span>
+                    <span className="text-sm font-medium">Đang tạo…</span>
                   </button>
                 )}
 
@@ -319,7 +319,8 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
                     <button
                       onClick={() => { playerRef.current?.skipBackward(5); setCurrentTime(playerRef.current?.currentTime ?? 0); }}
                       className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
-                      title="Back 5s"
+                      title="Lùi 5 giây"
+                      aria-label="Lùi 5 giây"
                     >
                       <SkipBack className="w-4 h-4" />
                     </button>
@@ -330,9 +331,9 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
                       className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all min-w-[100px] justify-center ${isPlaying ? 'bg-red-100 text-red-600' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
                     >
                       {isPlaying ? (
-                        <><Pause className="w-4 h-4" /> <span className="text-sm font-medium">Pause</span></>
+                        <><Pause className="w-4 h-4" /> <span className="text-sm font-medium">Tạm dừng</span></>
                       ) : (
-                        <><Play className="w-4 h-4" /> <span className="text-sm font-medium">Play</span></>
+                        <><Play className="w-4 h-4" /> <span className="text-sm font-medium">Phát</span></>
                       )}
                     </button>
 
@@ -340,7 +341,8 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
                     <button
                       onClick={() => { playerRef.current?.skipForward(5); setCurrentTime(playerRef.current?.currentTime ?? 0); }}
                       className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
-                      title="Forward 5s"
+                      title="Tiến 5 giây"
+                      aria-label="Tiến 5 giây"
                     >
                       <SkipForward className="w-4 h-4" />
                     </button>
@@ -359,7 +361,8 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
                         URL.revokeObjectURL(url);
                       }}
                       className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
-                      title="Download Audio"
+                      title="Tải âm thanh"
+                      aria-label="Tải âm thanh"
                     >
                       <Download className="w-4 h-4" />
                     </button>
@@ -368,7 +371,7 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
 
                 {/* Speed Control */}
                 <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-700/50 px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600">
-                  <Settings2 className="w-3.5 h-3.5 text-slate-400 dark:text-slate-300" />
+                  <Settings2 className="w-3.5 h-3.5 text-slate-500 dark:text-slate-300" />
                   <select
                     value={playbackSpeed}
                     onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
@@ -386,7 +389,8 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
                 <button
                   onClick={() => setHighlightMode(!highlightMode)}
                   className={`p-2 rounded-lg transition-colors ${highlightMode ? 'bg-blue-100 text-blue-700' : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400'}`}
-                  title="Highlight Vocabulary"
+                  title="Tô sáng từ vựng"
+                  aria-label="Tô sáng từ vựng"
                 >
                   <Highlighter className="w-5 h-5" />
                 </button>
@@ -394,7 +398,8 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
                 <button
                   onClick={() => setShowTranslation(!showTranslation)}
                   className={`p-2 rounded-lg transition-colors ${showTranslation ? 'bg-green-100 text-green-700' : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400'}`}
-                  title="Show Translation"
+                  title="Hiện bản dịch"
+                  aria-label="Hiện bản dịch"
                 >
                   <Languages className="w-5 h-5" />
                 </button>
@@ -404,7 +409,7 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
             {/* Progress bar (only when audio is ready) */}
             {audioState === 'ready' && (
               <div className="flex items-center gap-3">
-                <span className="text-xs font-mono text-slate-400 dark:text-slate-500 w-10 text-right">{formatTime(currentTime)}</span>
+                <span className="text-xs font-mono text-slate-500 dark:text-slate-400 w-10 text-right">{formatTime(currentTime)}</span>
                 <div
                   className="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-full cursor-pointer group relative"
                   onClick={handleSeek}
@@ -416,7 +421,7 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
                     <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white border-2 border-blue-500 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                 </div>
-                <span className="text-xs font-mono text-slate-400 dark:text-slate-500 w-10">{formatTime(duration)}</span>
+                <span className="text-xs font-mono text-slate-500 dark:text-slate-400 w-10">{formatTime(duration)}</span>
               </div>
             )}
 
@@ -435,7 +440,7 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
 
           {showTranslation && (
             <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-700 animate-fade-in">
-              <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Vietnamese Translation</h4>
+              <h4 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Bản dịch tiếng Việt</h4>
               <p className="text-emerald-800 dark:text-emerald-300 leading-relaxed bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-xl">
                 {story.translation}
               </p>
@@ -445,7 +450,7 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
 
         {/* Sidebar: Vocab List Mini */}
         <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 h-fit">
-          <h3 className="font-bold text-slate-700 dark:text-slate-200 mb-4">Key Vocabulary</h3>
+          <h3 className="font-bold text-slate-700 dark:text-slate-200 mb-4">Từ vựng chính</h3>
           <ul className="space-y-3">
             {vocabList.map((v) => (
               <li
@@ -455,7 +460,7 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
               >
                 <div className="flex justify-between">
                   <span className="font-bold text-slate-800 dark:text-slate-200">{v.word}</span>
-                  <span className="text-xs text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 px-1.5 rounded">{v.partOfSpeech}</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 px-1.5 rounded">{v.partOfSpeech}</span>
                 </div>
                 <span className="text-sm text-slate-500 dark:text-slate-400 truncate">{v.meaningVietnamese}</span>
               </li>
@@ -485,7 +490,7 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
                 </div>
                 {selectedVocab.ipa && <p className="text-sm font-mono text-slate-500 dark:text-slate-400">{formatIpa(selectedVocab.ipa)}</p>}
               </div>
-              <button onClick={() => setSelectedVocab(null)} className="p-1 text-slate-400 hover:text-slate-600" aria-label="Đóng">
+              <button onClick={() => setSelectedVocab(null)} className="p-1 text-slate-500 dark:text-slate-400 hover:text-slate-600" aria-label="Đóng">
                 <X className="w-5 h-5" />
               </button>
             </div>

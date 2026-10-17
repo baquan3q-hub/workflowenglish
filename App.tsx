@@ -30,8 +30,11 @@ import { gradeWritingTask } from './services/ieltsWritingService';
 import { gradeSpeakingAnswer } from './services/ieltsSpeakingService';
 import { saveIeltsAttempt, resolveAttemptQuestion } from './services/ieltsAttemptService';
 import { speakingPart1Questions } from './data/ieltsSpeakingQuestions';
-import { Toast } from './components/Common';
-import { Loader2, Layout, LogOut, User, History, BookOpen, Headphones, HelpCircle, PenTool, Menu, Sun, Moon, BarChart3, Mic } from 'lucide-react';
+import { Toast, type ToastAction, type ToastType } from './components/Common';
+import { Loader2, LogOut, History, BookOpen, HelpCircle, PenTool, Sun, Moon, Home, Layers, ChevronRight } from 'lucide-react';
+import { AppNavDesktop, AppNavMobile, type NavRequest } from './components/AppNav';
+import { isLessonPhase, showsTabBar, type AnalyticsSection } from './components/navConfig';
+import { getDueWordCount } from './services/masteryService';
 import { ConnectionIndicator } from './components/ConnectionIndicator';
 import { saveDraft, loadDraft, clearDraft, DraftData } from './services/draftService';
 import { useAutoSave } from './services/autoSaveService';
@@ -70,9 +73,24 @@ function App() {
   const [pendingNavTarget, setPendingNavTarget] = useState<AppPhase | null>(null);
   const [currentRecordId, setCurrentRecordId] = useState<string | null>(null);
   // Top-center notification (e.g. daily goal reached celebration).
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
-  const showToast = (message: string, type: 'success' | 'info' = 'success') =>
-    setToast({ message, type });
+  const [toast, setToast] = useState<{
+    message: string;
+    type: ToastType;
+    action?: ToastAction;
+    durationMs?: number;
+  } | null>(null);
+  const showToast = (
+    message: string,
+    type: ToastType = 'success',
+    options: { action?: ToastAction; durationMs?: number } = {},
+  ) => setToast({ message, type, ...options });
+
+  // App navigation: which part of the analytics screen to open ("Sổ từ" lives
+  // there until it gets its own screen), the due-word badge, and the lesson
+  // step to resume from the dashboard.
+  const [analyticsSection, setAnalyticsSection] = useState<AnalyticsSection>('overview');
+  const [dueCount, setDueCount] = useState<number | null>(null);
+  const [lastLessonPhase, setLastLessonPhase] = useState<AppPhase>(AppPhase.FLASHCARDS);
 
   // Adaptive difficulty: level upgrade/downgrade suggestion modal state.
   // Shown after quiz completion when checkLevelSuggestion returns a direction
@@ -224,6 +242,28 @@ function App() {
     setRecoveredDraft(null);
   };
 
+
+  // Remember the last lesson step so the dashboard can offer "Tiếp tục".
+  useEffect(() => {
+    if (isLessonPhase(phase)) setLastLessonPhase(phase);
+  }, [phase]);
+
+  // Due-word badge on the "Ôn tập" tab. Refreshed whenever the learner moves
+  // to another screen (ratings during a lesson or review change the count);
+  // skipped inside the review session itself. A failed count hides the badge.
+  useEffect(() => {
+    const userId = currentUser?.id;
+    if (!userId) {
+      setDueCount(null);
+      return;
+    }
+    if (phase === AppPhase.REVIEW_SESSION) return;
+    let cancelled = false;
+    getDueWordCount(userId)
+      .then((n) => { if (!cancelled) setDueCount(n); })
+      .catch(() => { if (!cancelled) setDueCount(null); });
+    return () => { cancelled = true; };
+  }, [currentUser?.id, phase]);
 
   // Dark mode state
   const [darkMode, setDarkMode] = useState(() => {
@@ -648,6 +688,21 @@ function App() {
     setPhase(targetPhase);
   };
 
+  /**
+   * Tab-bar / header navigation. Leaving a lesson step asks whether to save
+   * first (same modal as before); from any other screen it just goes.
+   */
+  const navigateTo = ({ phase: target, analyticsSection: section }: NavRequest) => {
+    if (section) setAnalyticsSection(section);
+    if (lessonData && isLessonPhase(phase) && target !== phase) {
+      setPendingNavTarget(target);
+      setShowSaveModal(true);
+      return;
+    }
+    setMobileMenuOpen(false);
+    setPhase(target);
+  };
+
   const handleModalNo = () => {
     setShowSaveModal(false);
     setLessonData(null);
@@ -755,6 +810,7 @@ function App() {
         return currentUser ? (
           <AnalyticsDashboard
             userId={currentUser.id}
+            focusSection={analyticsSection}
             onBack={() => setPhase(AppPhase.DASHBOARD)}
             onStartLesson={() => setPhase(AppPhase.DASHBOARD)}
             onStartTargetedLesson={async (lesson: GeneratedLesson) => {
@@ -1027,20 +1083,25 @@ function App() {
         ) : null;
 
       default:
-        return <div>Unknown Phase</div>;
+        return <div>Không tìm thấy màn hình này.</div>;
     }
   };
 
   const lessonSteps = [
-    { id: AppPhase.DASHBOARD, label: "Input" },
-    { id: AppPhase.FLASHCARDS, label: "Learn" },
-    { id: AppPhase.STORY, label: "Story" },
-    { id: AppPhase.QUIZ, label: "Quiz" },
-    { id: AppPhase.FILL_BLANK, label: "Review" },
+    { id: AppPhase.DASHBOARD, label: "Trang chủ", icon: Home },
+    { id: AppPhase.FLASHCARDS, label: "Thẻ từ", icon: Layers },
+    { id: AppPhase.STORY, label: "Truyện", icon: BookOpen },
+    { id: AppPhase.QUIZ, label: "Trắc nghiệm", icon: HelpCircle },
+    { id: AppPhase.FILL_BLANK, label: "Điền từ", icon: PenTool },
   ];
 
   const currentStepIdx = lessonSteps.findIndex(s => s.id === phase);
   const showHeader = phase !== AppPhase.LANDING && phase !== AppPhase.AUTH;
+  // The lesson step bar replaces the app tab bar while a lesson step is open.
+  const showLessonBar = showHeader && !!lessonData && isLessonPhase(phase);
+  const showAppTabBar = showHeader && !!currentUser && showsTabBar(phase);
+  const goToStep = (target: AppPhase) =>
+    target === AppPhase.DASHBOARD ? navigateWithConfirm(target) : setPhase(target);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans selection:bg-blue-200 selection:text-blue-900">
@@ -1062,52 +1123,64 @@ function App() {
       )}
       {showHeader && (
         <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-50">
-          <div className="max-w-6xl mx-auto px-4 h-14 sm:h-16 flex items-center justify-between">
+          <div className="max-w-6xl mx-auto px-4 h-14 sm:h-16 flex items-center justify-between gap-2">
             {/* Logo */}
-            <div className="flex items-center gap-2 cursor-pointer flex-shrink-0" onClick={() => navigateWithConfirm(AppPhase.DASHBOARD)}>
-              <img src="/avatarandlogo.png" className="w-7 h-7 sm:w-8 sm:h-8 object-contain rounded-lg shadow-sm border border-slate-100 dark:border-slate-700" alt="Logo" />
+            <button
+              type="button"
+              className="flex min-h-touch items-center gap-2 flex-shrink-0 rounded-lg"
+              onClick={() => navigateWithConfirm(AppPhase.DASHBOARD)}
+              aria-label="VocabMaster, về trang chủ"
+            >
+              <img src="/avatarandlogo.png" className="w-7 h-7 sm:w-8 sm:h-8 object-contain rounded-lg shadow-sm border border-slate-100 dark:border-slate-700" alt="" />
               <span className="font-bold text-sm sm:text-base tracking-tight hidden sm:inline">VocabMaster</span>
-            </div>
+            </button>
 
-            {/* Desktop Stepper */}
-            {lessonData && currentStepIdx >= 0 && (
-              <div className="hidden lg:flex gap-1 items-center">
+            {/* Desktop lesson stepper */}
+            {showLessonBar && (
+              <nav aria-label="Các bước bài học" className="hidden lg:flex gap-1 items-center">
                 {lessonSteps.map((step, idx) => {
                   const isActive = step.id === phase;
                   const isPassed = currentStepIdx > idx;
-                  const isDisabled = !lessonData && step.id !== AppPhase.DASHBOARD;
 
                   return (
                     <div key={step.id} className="flex items-center">
                       <button
-                        onClick={() => !isDisabled && (step.id === AppPhase.DASHBOARD ? navigateWithConfirm(step.id) : setPhase(step.id))}
-                        disabled={isDisabled}
-                        className={`
-                          px-3 py-1 rounded-full text-xs font-bold
-                          ${isActive ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-500 ring-offset-1' : ''}
-                          ${isPassed ? 'bg-green-100 text-green-700 hover:bg-green-200' : ''}
-                          ${!isActive && !isPassed ? 'text-slate-400 hover:bg-slate-100' : ''}
-                          ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-                        `}
+                        type="button"
+                        onClick={() => goToStep(step.id)}
+                        aria-current={isActive ? 'step' : undefined}
+                        className={`min-h-touch px-3 rounded-full text-xs font-bold transition-colors ${
+                          isActive
+                            ? 'bg-blue-100 text-blue-700 ring-2 ring-inset ring-blue-500 dark:bg-blue-500/20 dark:text-blue-200'
+                            : isPassed
+                              ? 'text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-500/15'
+                              : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'
+                        }`}
                       >
                         {step.label}
                       </button>
                       {idx < lessonSteps.length - 1 && (
-                        <div className={`w-4 h-0.5 mx-0.5 rounded ${isPassed ? 'bg-green-300' : 'bg-slate-200'}`}></div>
+                        <div className={`w-3 h-0.5 mx-0.5 rounded ${isPassed ? 'bg-emerald-300 dark:bg-emerald-600' : 'bg-slate-200 dark:bg-slate-700'}`} aria-hidden="true"></div>
                       )}
                     </div>
                   );
                 })}
-              </div>
+              </nav>
             )}
-
-            {/* Mobile step indicator - removed, using bottom nav instead */}
 
             {/* Right side */}
             {currentUser && (
               <div className="flex items-center gap-1 sm:gap-1.5">
+                <AppNavDesktop
+                  phase={phase}
+                  analyticsSection={analyticsSection}
+                  dueCount={dueCount}
+                  onNavigate={navigateTo}
+                  compact={isLessonPhase(phase)}
+                />
+                <div className="hidden md:block mx-1 h-6 w-px bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
+
                 {/* Proactive Save Button during learning session */}
-                {lessonData && (phase === AppPhase.FLASHCARDS || phase === AppPhase.STORY || phase === AppPhase.QUIZ || phase === AppPhase.FILL_BLANK) && (
+                {lessonData && isLessonPhase(phase) && (
                   <button
                     disabled={isSaving}
                     onClick={async () => {
@@ -1122,15 +1195,16 @@ function App() {
                         setIsSaving(false);
                       }
                     }}
-                    className="flex items-center gap-1.5 p-1.5 sm:px-3 sm:py-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 text-white rounded-md text-xs font-bold shadow-sm"
-                    title="Lưu tiến trình học chủ động"
+                    className="inline-flex min-h-touch min-w-touch items-center justify-center gap-1.5 px-2 xl:px-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold shadow-sm"
+                    title="Lưu tiến trình bài học"
+                    aria-label={isSaving ? 'Đang lưu bài học' : 'Lưu bài học'}
                   >
                     {isSaving ? (
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     ) : (
                       <BookOpen className="w-3.5 h-3.5" />
                     )}
-                    <span className="hidden md:inline">{isSaving ? 'Đang lưu...' : 'Lưu bài học'}</span>
+                    <span className="hidden xl:inline" aria-hidden="true">{isSaving ? 'Đang lưu…' : 'Lưu bài học'}</span>
                   </button>
                 )}
 
@@ -1138,114 +1212,36 @@ function App() {
 
                 <button
                   onClick={() => setDarkMode(!darkMode)}
-                  className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400"
+                  className="inline-flex min-h-touch min-w-touch items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
                   title={darkMode ? "Chuyển sang chế độ sáng" : "Chuyển sang chế độ tối"}
+                  aria-label={darkMode ? "Chuyển sang chế độ sáng" : "Chuyển sang chế độ tối"}
                 >
                   {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
                 </button>
                 <button
-                  onClick={() => {
-                    if (lessonData && phase !== AppPhase.DASHBOARD && phase !== AppPhase.HISTORY) {
-                      setPendingNavTarget(AppPhase.HISTORY);
-                      setShowSaveModal(true);
-                    } else {
-                      setPhase(AppPhase.HISTORY);
-                      setMobileMenuOpen(false);
-                    }
-                  }}
-                  className={`
-                    group relative flex items-center gap-1.5 p-1.5 sm:px-3 sm:py-1 rounded-md border shadow-sm
-                    ${phase === AppPhase.HISTORY
-                      ? 'bg-indigo-100 text-indigo-700 border-indigo-200 ring-1 ring-indigo-500 font-bold dark:ring-offset-slate-800'
-                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-200 dark:hover:border-indigo-900'
-                    }
-                  `}
-                  title="Xem lịch sử học tập"
+                  onClick={() => navigateTo({ phase: AppPhase.HISTORY })}
+                  aria-current={phase === AppPhase.HISTORY ? 'page' : undefined}
+                  className={`inline-flex min-h-touch min-w-touch items-center justify-center gap-1.5 rounded-lg px-2 text-sm font-semibold transition-colors ${
+                    phase === AppPhase.HISTORY
+                      ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white'
+                  }`}
+                  title="Lịch sử học tập"
                 >
-                  <History className="w-3.5 h-3.5" />
-                  <span className="font-bold text-xs hidden md:inline">Lịch sử</span>
+                  <History className="w-4 h-4" />
+                  <span className="sr-only xl:not-sr-only">Lịch sử</span>
                 </button>
 
-                <button
-                  onClick={() => {
-                    if (lessonData && phase !== AppPhase.DASHBOARD && phase !== AppPhase.ANALYTICS) {
-                      setPendingNavTarget(AppPhase.ANALYTICS);
-                      setShowSaveModal(true);
-                    } else {
-                      setPhase(AppPhase.ANALYTICS);
-                      setMobileMenuOpen(false);
-                    }
-                  }}
-                  className={`
-                    group relative flex items-center gap-1.5 p-1.5 sm:px-3 sm:py-1 rounded-md border shadow-sm
-                    ${phase === AppPhase.ANALYTICS
-                      ? 'bg-emerald-100 text-emerald-700 border-emerald-200 ring-1 ring-emerald-500 font-bold dark:ring-offset-slate-800'
-                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-200 dark:hover:border-emerald-900'
-                    }
-                  `}
-                  title="Xem thống kê học tập"
-                >
-                  <BarChart3 className="w-3.5 h-3.5" />
-                  <span className="font-bold text-xs hidden md:inline">Thống kê</span>
-                </button>
-
-                {/* IELTS Writing Nav Button */}
-                <button
-                  onClick={() => {
-                    if (lessonData && phase !== AppPhase.DASHBOARD && phase !== AppPhase.IELTS_WRITING_HUB) {
-                      setPendingNavTarget(AppPhase.IELTS_WRITING_HUB);
-                      setShowSaveModal(true);
-                    } else {
-                      setPhase(AppPhase.IELTS_WRITING_HUB);
-                      setMobileMenuOpen(false);
-                    }
-                  }}
-                  className={`
-                    group relative flex items-center gap-1.5 p-1.5 sm:px-3 sm:py-1 rounded-md border shadow-sm
-                    ${[AppPhase.IELTS_WRITING_HUB, AppPhase.IELTS_WRITING_PRACTICE, AppPhase.IELTS_WRITING_FEEDBACK].includes(phase)
-                      ? 'bg-blue-100 text-blue-700 border-blue-200 ring-1 ring-blue-500 font-bold dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700 dark:ring-offset-slate-800'
-                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-200 dark:hover:border-blue-900'
-                    }
-                  `}
-                  title="IELTS Writing"
-                >
-                  <PenTool className="w-3.5 h-3.5" />
-                  <span className="font-bold text-xs hidden md:inline">Writing</span>
-                </button>
-
-                {/* IELTS Speaking Nav Button */}
-                <button
-                  onClick={() => {
-                    if (lessonData && phase !== AppPhase.DASHBOARD && phase !== AppPhase.IELTS_SPEAKING_HUB) {
-                      setPendingNavTarget(AppPhase.IELTS_SPEAKING_HUB);
-                      setShowSaveModal(true);
-                    } else {
-                      setPhase(AppPhase.IELTS_SPEAKING_HUB);
-                      setMobileMenuOpen(false);
-                    }
-                  }}
-                  className={`
-                    group relative flex items-center gap-1.5 p-1.5 sm:px-3 sm:py-1 rounded-md border shadow-sm
-                    ${[AppPhase.IELTS_SPEAKING_HUB, AppPhase.IELTS_SPEAKING_PRACTICE, AppPhase.IELTS_SPEAKING_FEEDBACK].includes(phase)
-                      ? 'bg-rose-100 text-rose-700 border-rose-200 ring-1 ring-rose-500 font-bold dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-700 dark:ring-offset-slate-800'
-                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-rose-600 dark:hover:text-rose-400 hover:border-rose-200 dark:hover:border-rose-900'
-                    }
-                  `}
-                  title="IELTS Speaking"
-                >
-                  <Mic className="w-3.5 h-3.5" />
-                  <span className="font-bold text-xs hidden md:inline">Speaking</span>
-                </button>
-
-                <div className="hidden sm:flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/50 px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-700">
-                  <img src="/avatarandlogo.png" className="w-5 h-5 rounded-full object-cover border border-blue-100 dark:border-slate-700 shadow-sm" alt="Avatar" />
+                <div className="hidden xl:flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/50 px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-700">
+                  <img src="/avatarandlogo.png" className="w-5 h-5 rounded-full object-cover border border-blue-100 dark:border-slate-700 shadow-sm" alt="" />
                   <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 max-w-[100px] truncate">{currentUser.displayName}</span>
                 </div>
 
                 <button
                   onClick={handleLogout}
-                  className="p-1.5 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-500"
+                  className="inline-flex min-h-touch min-w-touch items-center justify-center rounded-lg text-slate-600 hover:bg-rose-50 hover:text-rose-700 dark:text-slate-300 dark:hover:bg-rose-500/15 dark:hover:text-rose-300"
                   title="Đăng xuất"
+                  aria-label="Đăng xuất"
                 >
                   <LogOut className="w-4 h-4" />
                 </button>
@@ -1256,13 +1252,39 @@ function App() {
       )}
 
       {showHeader ? (
-        <main className={`max-w-6xl mx-auto px-4 py-6 sm:py-8 md:py-12 ${lessonData && currentStepIdx >= 0 ? 'pb-24 lg:pb-12' : ''}`}>
+        <main
+          className={`max-w-6xl mx-auto px-4 py-6 sm:py-8 md:py-12 ${
+            showLessonBar ? 'pb-24 lg:pb-12' : showAppTabBar ? 'pb-24 md:pb-12' : ''
+          }`}
+        >
           {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6 text-sm" role="alert">
-              <strong className="font-bold">Error: </strong>
+            <div className="bg-rose-50 border border-rose-300 text-rose-800 dark:bg-rose-500/10 dark:border-rose-500/40 dark:text-rose-200 pl-4 pr-12 py-3 rounded-xl relative mb-6 text-sm" role="alert">
+              <strong className="font-bold">Lỗi: </strong>
               <span>{error}</span>
-              <button className="absolute top-0 bottom-0 right-0 px-4 py-3" onClick={() => setError(null)}>
-                <span className="block h-6 w-6">×</span>
+              <button
+                type="button"
+                className="absolute top-0 right-0 inline-flex min-h-touch min-w-touch items-center justify-center text-lg"
+                onClick={() => setError(null)}
+                aria-label="Đóng thông báo lỗi"
+              >
+                <span aria-hidden="true">×</span>
+              </button>
+            </div>
+          )}
+          {phase === AppPhase.DASHBOARD && lessonData && (
+            <div className="mb-6 flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-500/30 dark:bg-blue-500/10">
+              <BookOpen className="h-5 w-5 flex-shrink-0 text-blue-700 dark:text-blue-300" aria-hidden="true" />
+              <p className="min-w-0 flex-1 text-sm text-slate-700 dark:text-slate-200">
+                <span className="font-semibold">Bài đang học dở:</span>{' '}
+                <span className="truncate">{lessonSettings?.topic || 'Bài học hiện tại'}</span>
+              </p>
+              <button
+                type="button"
+                onClick={() => setPhase(lastLessonPhase)}
+                className="inline-flex min-h-touch flex-shrink-0 items-center gap-1 rounded-lg bg-blue-600 px-3 text-sm font-semibold text-white hover:bg-blue-700"
+              >
+                Tiếp tục
+                <ChevronRight className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
           )}
@@ -1272,45 +1294,51 @@ function App() {
         renderContent()
       )}
 
-      {/* Desktop footer — hidden on mobile */}
+      {/* Desktop footer — the mobile tab bar takes the bottom edge below 768px */}
       {showHeader && (
-        <footer className="hidden sm:block py-6 text-center text-slate-400 text-xs sm:text-sm">
-          <p>© 2024 VocabMaster. Powered by Gemini API.</p>
+        <footer className="hidden md:block py-6 text-center text-slate-500 dark:text-slate-400 text-xs sm:text-sm">
+          <p>© {new Date().getFullYear()} VocabMaster · Nội dung tạo bởi Gemini</p>
         </footer>
       )}
 
-      {/* Mobile bottom nav — only when lesson is active */}
-      {showHeader && lessonData && currentStepIdx >= 0 && (
-        <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-[0_-2px_10px_rgba(0,0,0,0.08)] z-50 lg:hidden">
-          <div className="flex items-stretch justify-around px-1 py-2">
+      {/* Mobile app tab bar */}
+      {showAppTabBar && (
+        <AppNavMobile
+          phase={phase}
+          analyticsSection={analyticsSection}
+          dueCount={dueCount}
+          onNavigate={navigateTo}
+        />
+      )}
+
+      {/* Mobile lesson step bar — replaces the tab bar inside a lesson */}
+      {showLessonBar && (
+        <nav
+          aria-label="Các bước bài học"
+          className="pb-safe fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-white/95 backdrop-blur shadow-[0_-2px_10px_rgba(0,0,0,0.08)] dark:border-slate-700 dark:bg-slate-900/95 lg:hidden"
+        >
+          <div className="mx-auto flex max-w-lg items-stretch justify-around px-1 py-1">
             {lessonSteps.map((step, idx) => {
               const isActive = step.id === phase;
               const isPassed = currentStepIdx > idx;
-              const icons = [
-                <BookOpen className="w-5 h-5" />,
-                <BookOpen className="w-5 h-5" />,
-                <Headphones className="w-5 h-5" />,
-                <HelpCircle className="w-5 h-5" />,
-                <PenTool className="w-5 h-5" />,
-              ];
+              const Icon = step.icon;
 
               return (
                 <button
                   key={step.id}
-                  onClick={() => step.id === AppPhase.DASHBOARD ? navigateWithConfirm(step.id) : setPhase(step.id)}
-                  className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl flex-1 transition-all ${isActive
-                    ? 'bg-blue-50 text-blue-600'
-                    : isPassed
-                      ? 'text-green-600'
-                      : 'text-slate-400'
-                    }`}
+                  type="button"
+                  onClick={() => goToStep(step.id)}
+                  aria-current={isActive ? 'step' : undefined}
+                  className={`flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1 text-[11px] font-semibold leading-tight transition-colors ${
+                    isActive
+                      ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
+                      : isPassed
+                        ? 'text-emerald-700 dark:text-emerald-300'
+                        : 'text-slate-600 dark:text-slate-400'
+                  }`}
                 >
-                  {icons[idx]}
-                  <span className={`text-[11px] font-semibold leading-tight ${isActive ? 'text-blue-600' : isPassed ? 'text-green-600' : 'text-slate-400'
-                    }`}>
-                    {step.label}
-                  </span>
-                  {isActive && <div className="w-1 h-1 rounded-full bg-blue-600 mt-0.5" />}
+                  <Icon className="w-5 h-5" aria-hidden="true" />
+                  <span>{step.label}</span>
                 </button>
               );
             })}
@@ -1331,13 +1359,13 @@ function App() {
                 Hệ thống phát hiện bạn có một bài học chưa hoàn thành trước đó:
               </p>
               <div className="mt-3 p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl text-left border border-slate-100 dark:border-slate-800">
-                <div className="text-xs text-slate-400 dark:text-slate-500">Chủ đề:</div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">Chủ đề:</div>
                 <div className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate">{recoveredDraft.lessonSettings?.topic || 'General'}</div>
                 <div className="flex justify-between items-center mt-1.5 pt-1.5 border-t border-slate-200/60 dark:border-slate-800">
                   <span className="text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded font-bold">
                     Cấp độ: {recoveredDraft.lessonSettings?.level || 'B1'}
                   </span>
-                  <span className="text-xs text-slate-400 dark:text-slate-500">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
                     {recoveredDraft.timestamp ? new Date(recoveredDraft.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
                   </span>
                 </div>
@@ -1364,13 +1392,13 @@ function App() {
       {/* Save Lesson Modal */}
       {showSaveModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-5">
+          <div role="dialog" aria-modal="true" aria-labelledby="save-lesson-title" className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-5 border border-slate-100 dark:border-slate-700">
             <div className="text-center">
-              <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <BookOpen className="w-7 h-7 text-blue-600" />
+              <div className="w-14 h-14 bg-blue-100 dark:bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                <BookOpen className="w-7 h-7 text-blue-600 dark:text-blue-300" />
               </div>
-              <h3 className="text-lg font-bold text-slate-900">Lưu bài học này?</h3>
-              <p className="text-sm text-slate-500 mt-1">
+              <h3 id="save-lesson-title" className="text-lg font-bold text-slate-900 dark:text-white">Lưu bài học này?</h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
                 Bạn có muốn lưu bài học hiện tại vào lịch sử không?
               </p>
             </div>
@@ -1378,7 +1406,7 @@ function App() {
               <button
                 disabled={isSaving}
                 onClick={handleModalYes}
-                className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-blue-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSaving ? (
                   <>
@@ -1392,14 +1420,14 @@ function App() {
               <button
                 disabled={isSaving}
                 onClick={handleModalNo}
-                className="w-full py-3 bg-slate-100 text-slate-700 font-semibold rounded-xl hover:bg-slate-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-3 bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200 font-semibold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Không lưu
               </button>
               <button
                 disabled={isSaving}
                 onClick={handleModalContinue}
-                className="w-full py-2.5 text-blue-600 font-semibold rounded-xl hover:bg-blue-50 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full min-h-touch py-2.5 text-blue-700 dark:text-blue-300 font-semibold rounded-xl hover:bg-blue-50 dark:hover:bg-blue-500/15 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 ← Học tiếp
               </button>
@@ -1413,6 +1441,8 @@ function App() {
         visible={!!toast}
         message={toast?.message ?? ''}
         type={toast?.type ?? 'success'}
+        action={toast?.action}
+        durationMs={toast?.durationMs}
         onClose={() => setToast(null)}
       />
 

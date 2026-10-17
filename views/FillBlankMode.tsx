@@ -256,7 +256,7 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
                                 </div>
                             </div>
                             <p className="text-base font-semibold text-slate-700 dark:text-slate-200">Đang lưu bài học của bạn...</p>
-                            <p className="text-xs text-slate-400">Vui lòng đợi trong giây lát ✨</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Vui lòng đợi trong giây lát ✨</p>
                         </div>
                     )}
 
@@ -309,7 +309,7 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
 
             {/* Word Bank */}
             <div className="bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm p-4 rounded-2xl border border-slate-200 dark:border-slate-700">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 block">Word Bank</label>
+                <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 block">Ngân hàng từ</label>
                 <div className="flex flex-wrap gap-2">
                     {cards.map((card) => {
                         const isCorrect = results.get(card.id) === true;
@@ -336,7 +336,7 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                         <span className="px-3 py-1 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 text-xs font-bold rounded-full">
-                            Fill in the Blank
+                            Điền vào chỗ trống
                         </span>
                         {current.partOfSpeech && (
                             <span className="px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 text-xs font-bold rounded-full">
@@ -346,7 +346,7 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
                     </div>
                     {/* Attempts counter */}
                     {attempts > 0 && status !== 'correct' && status !== 'exhausted' && (
-                        <span className="text-xs font-medium text-slate-400 dark:text-slate-500">
+                        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
                             Lần thử: {attempts}/{MAX_ATTEMPTS}
                         </span>
                     )}
@@ -360,7 +360,7 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
                             setShowHint(!showHint);
                             setHintUsed(true);
                         }}
-                        className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 dark:text-slate-500 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
                     >
                         {showHint ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                         {showHint ? 'Ẩn gợi ý' : 'Xem gợi ý'}
@@ -374,7 +374,7 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
 
                 {/* Sentence with blank (or definition prompt as fallback) */}
                 {current.kind === 'definition' && (
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
                         Từ nào khớp với định nghĩa này?
                     </p>
                 )}

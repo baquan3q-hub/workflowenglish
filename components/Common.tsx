@@ -1,5 +1,5 @@
 import React from 'react';
-import { Loader2, CheckCircle, Info, X } from 'lucide-react';
+import { Loader2, CheckCircle, Info, X, AlertTriangle } from 'lucide-react';
 
 // --- Button ---
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -15,13 +15,13 @@ export const Button: React.FC<ButtonProps> = ({
   disabled, 
   ...props 
 }) => {
-  const baseStyle = "inline-flex items-center justify-center rounded-lg px-4 py-2 font-medium transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
+  const baseStyle = "inline-flex min-h-touch items-center justify-center rounded-lg px-4 py-2 font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed";
   
   const variants = {
-    primary: "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 shadow-sm",
-    secondary: "bg-emerald-500 text-white hover:bg-emerald-600 focus:ring-emerald-400 shadow-sm",
-    outline: "border-2 border-slate-200 bg-transparent hover:bg-slate-50 text-slate-700 focus:ring-slate-300",
-    ghost: "bg-transparent hover:bg-slate-100 text-slate-600",
+    primary: "bg-blue-600 text-white hover:bg-blue-700 focus-visible:ring-blue-500 shadow-sm",
+    secondary: "bg-emerald-700 text-white hover:bg-emerald-800 focus-visible:ring-emerald-500 shadow-sm",
+    outline: "border-2 border-slate-200 bg-transparent hover:bg-slate-50 text-slate-700 focus-visible:ring-slate-400 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800",
+    ghost: "bg-transparent hover:bg-slate-100 text-slate-600 focus-visible:ring-slate-400 dark:text-slate-300 dark:hover:bg-slate-800",
   };
 
   return (
@@ -90,57 +90,91 @@ export const ProgressBar: React.FC<{ progress: number }> = ({ progress }) => {
 
 // --- Toast ---
 /**
- * Lightweight top-center toast for celebrating events like reaching the
- * daily review goal. Auto-dismisses after `durationMs` (default 3s) and
- * cleans up its timer if the component unmounts or `visible` flips early.
+ * Top-center notification. Auto-dismisses after `durationMs` (default 3s,
+ * 5s when it carries an action) and cleans up its timer if the component
+ * unmounts or `visible` flips early.
  *
- * Positioning: fixed, top-center, z-index 100 — sits above the sticky
- * header (z-50) and the bottom-nav (z-50). Uses the `anim-toast-in`
- * keyframe defined in index.html for a subtle slide-down + fade entrance.
+ * `action` adds one button, e.g. "Hoàn tác" after a reversible change.
+ * Clicking it runs the action and closes the toast.
+ *
+ * Positioning: fixed, top-center, z-index 100 — above the sticky header
+ * (z-50) and the bottom navigation (z-50). Uses the `anim-toast-in`
+ * keyframe defined in index.html.
  */
+export type ToastType = 'success' | 'info' | 'error';
+
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 export interface ToastProps {
   message: string;
-  type?: 'success' | 'info';
+  type?: ToastType;
   visible: boolean;
   onClose: () => void;
-  /** Auto-dismiss duration in ms. Defaults to 3000. */
+  /** Auto-dismiss duration in ms. Defaults to 3000, or 5000 with an action. */
   durationMs?: number;
+  action?: ToastAction;
 }
+
+const TOAST_PALETTE: Record<ToastType, string> = {
+  success: 'bg-emerald-700 text-white',
+  info: 'bg-slate-800 text-white dark:bg-slate-700',
+  error: 'bg-rose-700 text-white',
+};
+
+const TOAST_ICON: Record<ToastType, React.FC<{ className?: string }>> = {
+  success: CheckCircle,
+  info: Info,
+  error: AlertTriangle,
+};
 
 export const Toast: React.FC<ToastProps> = ({
   message,
   type = 'success',
   visible,
   onClose,
-  durationMs = 3000,
+  durationMs,
+  action,
 }) => {
+  const duration = durationMs ?? (action ? 5000 : 3000);
   React.useEffect(() => {
     if (!visible) return;
-    const timer = window.setTimeout(onClose, durationMs);
+    const timer = window.setTimeout(onClose, duration);
     return () => window.clearTimeout(timer);
-  }, [visible, durationMs, onClose]);
+  }, [visible, duration, onClose, message]);
 
   if (!visible) return null;
 
-  const palette =
-    type === 'success'
-      ? 'bg-emerald-500 text-white'
-      : 'bg-blue-500 text-white';
-  const Icon = type === 'success' ? CheckCircle : Info;
+  const Icon = TOAST_ICON[type];
 
   return (
     <div
-      role="status"
-      aria-live="polite"
-      className={`anim-toast-in fixed top-4 left-1/2 flex items-center gap-3 rounded-xl px-4 py-3 shadow-lg ${palette}`}
+      role={type === 'error' ? 'alert' : 'status'}
+      aria-live={type === 'error' ? 'assertive' : 'polite'}
+      className={`anim-toast-in fixed top-4 left-1/2 flex max-w-[calc(100vw-2rem)] items-center gap-3 rounded-xl py-2 pl-4 pr-2 shadow-lg ${TOAST_PALETTE[type]}`}
       style={{ zIndex: 100, transform: 'translateX(-50%)' }}
     >
       <Icon className="h-5 w-5 flex-shrink-0" />
-      <span className="text-sm font-medium pr-1">{message}</span>
+      <span className="py-1 text-sm font-medium">{message}</span>
+      {action && (
+        <button
+          type="button"
+          onClick={() => {
+            action.onClick();
+            onClose();
+          }}
+          className="min-h-touch flex-shrink-0 rounded-lg px-3 text-sm font-bold underline-offset-2 hover:bg-white/15 hover:underline"
+        >
+          {action.label}
+        </button>
+      )}
       <button
+        type="button"
         onClick={onClose}
-        aria-label="Close notification"
-        className="ml-1 rounded p-0.5 opacity-80 hover:opacity-100 hover:bg-white/15 transition-colors"
+        aria-label="Đóng thông báo"
+        className="inline-flex min-h-touch min-w-touch flex-shrink-0 items-center justify-center rounded-lg opacity-80 transition-colors hover:bg-white/15 hover:opacity-100"
       >
         <X className="h-4 w-4" />
       </button>

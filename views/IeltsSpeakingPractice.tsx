@@ -470,7 +470,7 @@ export default function IeltsSpeakingPractice({ question, onSubmit, onBack, isGr
                 </p>
               ) : (
                 <div className="py-3 text-center">
-                  <p className="text-xs text-slate-400 dark:text-slate-500">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     Transcript hiển thị ở đây (Có thể chỉnh sửa thoải mái trước khi gửi).
                   </p>
                   <button
@@ -511,7 +511,7 @@ export default function IeltsSpeakingPractice({ question, onSubmit, onBack, isGr
             <details className="group border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden bg-slate-50/50 dark:bg-slate-900/30">
               <summary className="px-4 py-2.5 text-xs font-bold text-slate-650 dark:text-slate-400 cursor-pointer hover:bg-slate-100/50 list-none flex justify-between items-center">
                 <span>📋 Xem câu trả lời đã ghi âm ({Object.keys(answersAccumulator).length})</span>
-                <span className="text-[10px] text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 group-open:rotate-180 transition-transform">▼</span>
               </summary>
               <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 space-y-3">
                 {Object.entries(answersAccumulator).map(([qText, data], index) => (

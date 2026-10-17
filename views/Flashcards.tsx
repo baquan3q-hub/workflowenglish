@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Volume2, ChevronLeft, ChevronRight, Settings2, StopCircle } from 'lucide-react';
 import { FlashcardData, MasteryLevel, ConfidenceRating, WordMasteryRecord } from '../types';
 import { Button, Badge } from '../components/Common';
-import { MasteryBadge } from '../components/MasteryBadge';
+import { StatusBadge } from '../components/ui/StatusBadge';
 import {
   bulkEnsureWordsWithMetadata,
   getWordMastery,
@@ -21,19 +21,6 @@ interface FlashcardsProps {
   onMasteryMapChange?: (map: Record<string, WordMasteryRecord | null>) => void;
   onShowToast?: (message: string, type?: 'success' | 'info') => void;
 }
-
-// 4-button rating config (matches ReviewSession styling)
-const RATING_BUTTONS: {
-  rating: ConfidenceRating;
-  label: string;
-  color: string;
-  hoverColor: string;
-}[] = [
-  { rating: 0, label: 'Lại', color: 'bg-red-500', hoverColor: 'hover:bg-red-600' },
-  { rating: 1, label: 'Khó', color: 'bg-orange-500', hoverColor: 'hover:bg-orange-600' },
-  { rating: 2, label: 'Tốt', color: 'bg-blue-500', hoverColor: 'hover:bg-blue-600' },
-  { rating: 3, label: 'Dễ', color: 'bg-emerald-500', hoverColor: 'hover:bg-emerald-600' },
-];
 
 const Flashcards: React.FC<FlashcardsProps> = ({
   cards,
@@ -408,14 +395,14 @@ const Flashcards: React.FC<FlashcardsProps> = ({
       {/* Header row */}
       <div className="flex w-full justify-between items-end">
         <div className="space-y-1">
-          <h2 className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-white">Smart Flashcards</h2>
-          <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm">Chạm để lật thẻ<span className="hidden sm:inline"> · Space lật · ←/→ đánh giá</span></p>
+          <h2 className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-white">Thẻ từ vựng</h2>
+          <p className="text-slate-600 dark:text-slate-400 text-xs sm:text-sm">Chạm để lật thẻ<span className="hidden sm:inline"> · phím cách để lật · ←/→ đánh giá</span></p>
         </div>
 
         {/* Speed Control */}
-        <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
-          <Settings2 className="w-3.5 h-3.5 text-slate-400" />
-          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 hidden sm:inline">Speed:</span>
+        <label className="flex min-h-touch items-center gap-1.5 bg-white dark:bg-slate-800 px-2 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
+          <Settings2 className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" aria-hidden="true" />
+          <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 sr-only sm:not-sr-only">Tốc độ đọc:</span>
           <select
             value={playbackSpeed}
             onChange={(e) => setPlaybackSpeed(parseFloat(e.target.value))}
@@ -425,7 +412,7 @@ const Flashcards: React.FC<FlashcardsProps> = ({
             <option value={1.0}>1.0x</option>
             <option value={1.25}>1.25x</option>
           </select>
-        </div>
+        </label>
       </div>
 
       {/* Flashcard */}
@@ -478,10 +465,10 @@ const Flashcards: React.FC<FlashcardsProps> = ({
             {/* Mastery badge — top-right corner */}
             {masteryLoaded && (
               <div className="absolute top-3 right-3">
-                <MasteryBadge level={currentLevel} size="md" />
+                <StatusBadge level={currentLevel} variant="dot" size="md" />
               </div>
             )}
-            <span className="text-xs font-bold tracking-widest text-blue-400 uppercase mb-2">Word</span>
+            <span className="text-xs font-bold tracking-widest text-blue-700 dark:text-blue-300 uppercase mb-2">Từ vựng</span>
             <h3 className="text-3xl sm:text-5xl font-bold text-slate-800 dark:text-white mb-4 text-center">{currentCard.word}</h3>
             
             {/* English Definition for Guessing */}
@@ -493,7 +480,7 @@ const Flashcards: React.FC<FlashcardsProps> = ({
                   setIsFlipped(!isFlipped);
                 }}
               >
-                <p className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5">
+                <p className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
                   Đoán nghĩa tiếng Việt qua định nghĩa:
                 </p>
                 <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 italic font-medium leading-relaxed">
@@ -502,7 +489,7 @@ const Flashcards: React.FC<FlashcardsProps> = ({
               </div>
             )}
 
-            <p className="text-slate-400 dark:text-slate-500 font-serif italic text-xs sm:text-sm mt-2">Tap card to see Vietnamese meaning</p>
+            <p className="text-slate-500 dark:text-slate-400 font-serif italic text-xs sm:text-sm mt-2">Chạm vào thẻ để xem nghĩa tiếng Việt</p>
           </div>
 
           {/* BACK */}
@@ -515,19 +502,20 @@ const Flashcards: React.FC<FlashcardsProps> = ({
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">{currentCard.word}</h3>
                   <Badge color="blue">{currentCard.partOfSpeech}</Badge>
-                  {masteryLoaded && <MasteryBadge level={currentLevel} size="md" />}
+                  {masteryLoaded && <StatusBadge level={currentLevel} />}
                 </div>
                 <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-mono text-sm">
                   <span>{formatIpa(currentCard.ipa)}</span>
                   <button
                     onClick={(e) => handlePlayAudio(currentCard.word, e)}
-                    className={`p-1.5 rounded-full transition-colors ${isTextPlaying(currentCard.word) ? 'bg-red-100 dark:bg-red-900/30 text-red-600' : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-blue-500'}`}
+                    aria-label={isTextPlaying(currentCard.word) ? 'Dừng phát âm' : `Nghe phát âm ${currentCard.word}`}
+                    className={`inline-flex min-h-touch min-w-touch items-center justify-center rounded-full transition-colors ${isTextPlaying(currentCard.word) ? 'bg-red-100 dark:bg-red-900/30 text-red-600' : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-300'}`}
                   >
                     {isTextPlaying(currentCard.word) ? <StopCircle className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
-              <Badge color="green">Vietnamese</Badge>
+              <Badge color="green">Tiếng Việt</Badge>
             </div>
 
             <div className="space-y-3 text-left flex-1">
@@ -536,17 +524,18 @@ const Flashcards: React.FC<FlashcardsProps> = ({
               </div>
 
               <div className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-                <p className="text-sm text-slate-500 dark:text-slate-400 font-semibold mb-1">Definition</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400 font-semibold mb-1">Định nghĩa</p>
                 <p className="text-slate-700 dark:text-slate-300 italic">{currentCard.definitionEnglish}</p>
               </div>
 
               <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">
                 <div className="flex justify-between items-center mb-1">
-                  <p className="text-sm text-blue-500 dark:text-blue-400 font-semibold">Example</p>
+                  <p className="text-sm text-blue-700 dark:text-blue-300 font-semibold">Ví dụ</p>
                   <button
                     onClick={(e) => handlePlayAudio(currentCard.exampleSentence, e)}
-                    className={`transition-colors ${isTextPlaying(currentCard.exampleSentence) ? 'text-red-500' : 'text-blue-400 hover:text-blue-600'}`}
-                    title="Listen to sentence"
+                    className={`inline-flex min-h-touch min-w-touch -my-2 -mr-2 items-center justify-center rounded-full transition-colors ${isTextPlaying(currentCard.exampleSentence) ? 'text-red-600' : 'text-blue-600 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200'}`}
+                    title="Nghe câu ví dụ"
+                    aria-label={isTextPlaying(currentCard.exampleSentence) ? 'Dừng câu ví dụ' : 'Nghe câu ví dụ'}
                   >
                     {isTextPlaying(currentCard.exampleSentence) ? <StopCircle className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
                   </button>
@@ -559,7 +548,7 @@ const Flashcards: React.FC<FlashcardsProps> = ({
 
               {currentCard.collocations && currentCard.collocations.length > 0 && (
                 <div className="p-3 bg-violet-50 dark:bg-violet-900/20 rounded-lg border border-violet-100 dark:border-violet-800">
-                  <p className="text-sm text-violet-500 dark:text-violet-400 font-semibold mb-1.5">Collocations</p>
+                  <p className="text-sm text-violet-700 dark:text-violet-300 font-semibold mb-1.5">Cụm từ hay đi kèm</p>
                   <div className="flex flex-wrap gap-1.5">
                     {currentCard.collocations.map((c) => (
                       <span key={c} className="text-xs sm:text-sm px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-violet-100 dark:border-violet-800 text-slate-700 dark:text-slate-200">
@@ -572,7 +561,7 @@ const Flashcards: React.FC<FlashcardsProps> = ({
 
               {currentCard.memoryTip && (
                 <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-100 dark:border-amber-800">
-                  <p className="text-sm text-amber-600 dark:text-amber-400 font-semibold mb-1">💡 Mẹo nhớ &amp; lỗi hay gặp</p>
+                  <p className="text-sm text-amber-800 dark:text-amber-300 font-semibold mb-1">💡 Mẹo nhớ &amp; lỗi hay gặp</p>
                   <p className="text-slate-700 dark:text-slate-300 text-sm">{currentCard.memoryTip}</p>
                 </div>
               )}
@@ -585,25 +574,25 @@ const Flashcards: React.FC<FlashcardsProps> = ({
           <>
             {/* Right Swipe Overlay (Remembered) */}
             <div 
-              className="absolute inset-0 bg-emerald-500/20 dark:bg-emerald-500/30 rounded-2xl sm:rounded-3xl border-4 border-emerald-500 flex flex-col items-center justify-center pointer-events-none transition-opacity duration-150 z-50"
+              className="absolute inset-0 bg-rate-good/20 rounded-2xl sm:rounded-3xl border-4 border-rate-good flex flex-col items-center justify-center pointer-events-none transition-opacity duration-150 z-50"
               style={{
                 opacity: dragOffset > 0 ? Math.min(dragOffset / 80, 1) : flyOutDirection === 'right' ? 1 : 0
               }}
             >
-              <div className="bg-emerald-500 text-white font-bold text-xl sm:text-2xl px-6 py-3 rounded-2xl shadow-lg transform rotate-[-12deg] flex items-center gap-2">
-                <span>✅</span> ĐÃ NHỚ
+              <div className="bg-rate-good-solid text-white font-bold text-xl sm:text-2xl px-6 py-3 rounded-2xl shadow-lg transform rotate-[-12deg] flex items-center gap-2">
+                <span aria-hidden="true">✓</span> ĐÃ NHỚ
               </div>
             </div>
 
             {/* Left Swipe Overlay (Forgot) */}
             <div 
-              className="absolute inset-0 bg-orange-500/20 dark:bg-orange-500/30 rounded-2xl sm:rounded-3xl border-4 border-orange-500 flex flex-col items-center justify-center pointer-events-none transition-opacity duration-150 z-50"
+              className="absolute inset-0 bg-rate-again/20 rounded-2xl sm:rounded-3xl border-4 border-rate-again flex flex-col items-center justify-center pointer-events-none transition-opacity duration-150 z-50"
               style={{
                 opacity: dragOffset < 0 ? Math.min(-dragOffset / 80, 1) : flyOutDirection === 'left' ? 1 : 0
               }}
             >
-              <div className="bg-orange-500 text-white font-bold text-xl sm:text-2xl px-6 py-3 rounded-2xl shadow-lg transform rotate-[12deg] flex items-center gap-2">
-                <span>↻</span> CHƯA NHỚ
+              <div className="bg-rate-again-solid text-white font-bold text-xl sm:text-2xl px-6 py-3 rounded-2xl shadow-lg transform rotate-[12deg] flex items-center gap-2">
+                <span aria-hidden="true">↻</span> CHƯA NHỚ
               </div>
             </div>
           </>
@@ -616,25 +605,30 @@ const Flashcards: React.FC<FlashcardsProps> = ({
           className="w-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-3 sm:p-4"
           onClick={(e) => e.stopPropagation()}
         >
-          <p className="text-center text-sm font-medium text-slate-500 dark:text-slate-400 mb-3">
+          <p className="text-center text-sm font-medium text-slate-600 dark:text-slate-400 mb-3">
             Bạn nhớ từ này không?
           </p>
-          <div className="grid grid-cols-2 gap-3">
+          {/* Same colours as "Tốt" / "Lại" in the review session: these two buttons rate 2 and 0. */}
+          <div className="grid grid-cols-2 gap-3" role="group" aria-label="Tự đánh giá mức độ nhớ">
             <button
+              type="button"
               onClick={(e) => handleRating(2 as ConfidenceRating, e)}
               disabled={savingRating}
-              className="flex items-center justify-center gap-2 py-3 px-4 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed text-sm sm:text-base active:scale-95"
+              aria-keyshortcuts="ArrowRight"
+              className="flex min-h-touch items-center justify-center gap-2 py-3 px-4 bg-rate-good-solid hover:bg-rate-good-solid/90 text-white font-bold rounded-xl shadow-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed text-sm sm:text-base active:scale-95"
             >
-              <span>✓</span> Đã nhớ
-              <kbd className="hidden sm:inline text-[10px] font-semibold bg-white/25 rounded px-1.5 py-0.5">→</kbd>
+              <span aria-hidden="true">✓</span> Đã nhớ
+              <kbd className="hidden sm:inline text-[10px] font-semibold bg-white/25 rounded px-1.5 py-0.5" aria-hidden="true">→</kbd>
             </button>
             <button
+              type="button"
               onClick={(e) => handleRating(0 as ConfidenceRating, e)}
               disabled={savingRating}
-              className="flex items-center justify-center gap-2 py-3 px-4 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl shadow-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed text-sm sm:text-base active:scale-95"
+              aria-keyshortcuts="ArrowLeft"
+              className="flex min-h-touch items-center justify-center gap-2 py-3 px-4 bg-rate-again-solid hover:bg-rate-again-solid/90 text-white font-bold rounded-xl shadow-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed text-sm sm:text-base active:scale-95"
             >
-              <span>↻</span> Cần ôn lại
-              <kbd className="hidden sm:inline text-[10px] font-semibold bg-white/25 rounded px-1.5 py-0.5">←</kbd>
+              <span aria-hidden="true">↻</span> Cần ôn lại
+              <kbd className="hidden sm:inline text-[10px] font-semibold bg-white/25 rounded px-1.5 py-0.5" aria-hidden="true">←</kbd>
             </button>
           </div>
         </div>
@@ -643,20 +637,20 @@ const Flashcards: React.FC<FlashcardsProps> = ({
       {/* Controls */}
       <div className="flex items-center gap-4 w-full justify-between">
         <Button variant="ghost" onClick={handlePrev} disabled={currentIndex === 0}>
-          <ChevronLeft className="w-5 h-5 mr-1" /> Prev
+          <ChevronLeft className="w-5 h-5 mr-1" /> Trước
         </Button>
 
-        <span className="text-slate-400 dark:text-slate-500 font-medium font-mono">
+        <span className="text-slate-500 dark:text-slate-400 font-medium font-mono" aria-live="polite">
           {currentIndex + 1} / {cards.length}
         </span>
 
         {isLastCard ? (
           <Button variant="secondary" onClick={() => { cleanupAudio(); onNextPhase(); }}>
-            Start Reading <ChevronRight className="w-5 h-5 ml-1" />
+            Sang phần đọc truyện <ChevronRight className="w-5 h-5 ml-1" />
           </Button>
         ) : (
           <Button variant="outline" onClick={handleNext}>
-            Next <ChevronRight className="w-5 h-5 ml-1" />
+            Tiếp <ChevronRight className="w-5 h-5 ml-1" />
           </Button>
         )}
       </div>

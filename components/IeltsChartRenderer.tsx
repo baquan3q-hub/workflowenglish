@@ -34,7 +34,7 @@ export default function IeltsChartRenderer({ data }: Props) {
       return renderMap(title, extraInfo);
     default:
       return (
-        <div className="p-4 border border-dashed rounded-xl text-center text-slate-400">
+        <div className="p-4 border border-dashed rounded-xl text-center text-slate-500 dark:text-slate-400">
           Biểu đồ không xác định
         </div>
       );

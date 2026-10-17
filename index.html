@@ -1,22 +1,60 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
 
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Work-FlowEnglish - AI English Learning</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Work-FlowEnglish · Học từ vựng tiếng Anh với AI</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['Inter', 'sans-serif'],
+    // Design tokens. Colours are CSS variables (see :root / .dark below) so one
+    // class such as `bg-srs-mastered/15` or `text-rate-again-fg` works in both
+    // themes. JS-side mapping from levels/ratings to classes: components/ui/srsTheme.ts
+    (function () {
+      const v = (name) => `rgb(var(--${name}) / <alpha-value>)`;
+      const tone = (name, withSolid) => Object.assign(
+        { DEFAULT: v(name), fg: v(`${name}-fg`) },
+        withSolid ? { solid: v(`${name}-solid`) } : {},
+      );
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            },
+            colors: {
+              srs: {
+                new: tone('srs-new'),
+                learning: tone('srs-learning'),
+                reviewing: tone('srs-reviewing'),
+                mastered: tone('srs-mastered'),
+                lapsed: tone('srs-lapsed'),
+                suspended: tone('srs-suspended'),
+              },
+              rate: {
+                again: tone('rate-again', true),
+                hard: tone('rate-hard', true),
+                good: tone('rate-good', true),
+                easy: tone('rate-easy', true),
+              },
+            },
+            fontSize: {
+              'display': ['1.875rem', { lineHeight: '2.25rem', fontWeight: '700' }],
+              'title': ['1.25rem', { lineHeight: '1.75rem', fontWeight: '700' }],
+              'heading': ['1rem', { lineHeight: '1.5rem', fontWeight: '600' }],
+              'caption': ['0.75rem', { lineHeight: '1rem' }],
+            },
+            boxShadow: {
+              'card': '0 1px 2px 0 rgb(15 23 42 / 0.06), 0 1px 3px 0 rgb(15 23 42 / 0.08)',
+              'raised': '0 10px 25px -5px rgb(15 23 42 / 0.12), 0 4px 10px -6px rgb(15 23 42 / 0.10)',
+            },
+            minHeight: { 'touch': '44px' },
+            minWidth: { 'touch': '44px' },
           }
         }
-      }
-    }
+      };
+    })();
   </script>
   <link rel="icon" type="image/png" href="/avatarandlogo.png" />
   
@@ -35,9 +73,109 @@
   <meta name="theme-color" content="#ffffff">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
+    /* ─── Design tokens: RGB triplets, consumed via tailwind.config above ───
+       DEFAULT = vivid tone for dots, bars, borders and tinted backgrounds.
+       fg      = text on a light (or, in .dark, dark) surface; meets WCAG AA.
+       solid   = button background under white text; meets WCAG AA. */
+    :root {
+      --srs-new: 100 116 139;          --srs-new-fg: 51 65 85;
+      --srs-learning: 245 158 11;      --srs-learning-fg: 180 83 9;
+      --srs-reviewing: 59 130 246;     --srs-reviewing-fg: 29 78 216;
+      --srs-mastered: 16 185 129;      --srs-mastered-fg: 4 120 87;
+      --srs-lapsed: 244 63 94;         --srs-lapsed-fg: 190 18 60;
+      --srs-suspended: 113 113 122;    --srs-suspended-fg: 63 63 70;
+
+      --rate-again: 239 68 68;   --rate-again-fg: 185 28 28;   --rate-again-solid: 220 38 38;
+      --rate-hard: 249 115 22;   --rate-hard-fg: 194 65 12;    --rate-hard-solid: 194 65 12;
+      --rate-good: 59 130 246;   --rate-good-fg: 29 78 216;    --rate-good-solid: 37 99 235;
+      --rate-easy: 16 185 129;   --rate-easy-fg: 4 120 87;     --rate-easy-solid: 4 120 87;
+    }
+
+    .dark {
+      --srs-new: 148 163 184;          --srs-new-fg: 203 213 225;
+      --srs-learning: 251 191 36;      --srs-learning-fg: 252 211 77;
+      --srs-reviewing: 96 165 250;     --srs-reviewing-fg: 147 197 253;
+      --srs-mastered: 52 211 153;      --srs-mastered-fg: 110 231 183;
+      --srs-lapsed: 251 113 133;       --srs-lapsed-fg: 253 164 175;
+      --srs-suspended: 161 161 170;    --srs-suspended-fg: 212 212 216;
+
+      --rate-again: 248 113 113; --rate-again-fg: 252 165 165;
+      --rate-hard: 251 146 60;   --rate-hard-fg: 253 186 116;
+      --rate-good: 96 165 250;   --rate-good-fg: 147 197 253;
+      --rate-easy: 52 211 153;   --rate-easy-fg: 110 231 183;
+    }
+
     body {
       font-family: 'Inter', sans-serif;
       background-color: #f8fafc;
+    }
+
+    .dark body {
+      background-color: #0f172a;
+    }
+
+    /* Keyboard focus is always visible; mouse clicks don't draw a ring. */
+    :focus-visible {
+      outline: 2px solid rgb(59 130 246);
+      outline-offset: 2px;
+    }
+
+    /* Respect the OS "reduce motion" setting: no card flips, fly-outs or
+       looping animations, state changes happen instantly. */
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+
+    /* Bottom sheet / side panel entrance (components/ui/Sheet.tsx) */
+    @keyframes sheetUp {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+
+    @keyframes sheetLeft {
+      from { transform: translateX(100%); }
+      to { transform: translateX(0); }
+    }
+
+    .anim-sheet-up {
+      animation: sheetUp 0.25s ease-out;
+    }
+
+    @media (min-width: 768px) {
+      .anim-sheet-up {
+        animation: sheetLeft 0.25s ease-out;
+      }
+    }
+
+    /* Skeleton shimmer (components/ui/Skeleton.tsx) */
+    @keyframes skeletonPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.55; }
+    }
+
+    .anim-skeleton {
+      animation: skeletonPulse 1.6s ease-in-out infinite;
+    }
+
+    /* Hide scrollbars on horizontally scrolling chip rows */
+    .scrollbar-none {
+      scrollbar-width: none;
+    }
+
+    .scrollbar-none::-webkit-scrollbar {
+      display: none;
+    }
+
+    /* Safe-area padding for the fixed bottom navigation on notched phones */
+    .pb-safe {
+      padding-bottom: env(safe-area-inset-bottom, 0px);
     }
 
     /* Flip Card Utilities */

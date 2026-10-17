@@ -166,7 +166,7 @@ export default function IeltsSpeakingHub({ userId, onSelectQuestion, onStartMock
 
       {/* Filters */}
       <div className="flex items-center gap-2 flex-wrap">
-        <Filter className="w-4 h-4 text-slate-400" />
+        <Filter className="w-4 h-4 text-slate-500 dark:text-slate-400" />
         <FilterBar
           filters={filters}
           onChange={(key, value) => setFilters(prev => ({ ...prev, [key]: value }))}

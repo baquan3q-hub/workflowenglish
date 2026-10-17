@@ -17,6 +17,9 @@ import {
   type WordMasteryRecord,
 } from '../types';
 import { Button, ProgressBar } from '../components/Common';
+import { RatingButtons } from '../components/ui/RatingButtons';
+import { RATING_META, getLevelMeta } from '../components/ui/srsTheme';
+import { ErrorState, LoadingRegion, Skeleton } from '../components/ui/States';
 import { formatIntervalDisplay } from '../services/srsService';
 import {
   getDueWordCount,
@@ -67,39 +70,6 @@ const RELEARN_GAP = 3;
 
 /** A word is shown at most this many times in one session. */
 const MAX_APPEARANCES = 3;
-
-interface RatingButtonConfig {
-  rating: ConfidenceRating;
-  label: string;
-  className: string;
-}
-
-const RATING_BUTTONS: RatingButtonConfig[] = [
-  {
-    rating: 0,
-    label: 'Lại',
-    className:
-      'bg-red-500 hover:bg-red-600 focus:ring-red-400 text-white shadow-sm',
-  },
-  {
-    rating: 1,
-    label: 'Khó',
-    className:
-      'bg-orange-500 hover:bg-orange-600 focus:ring-orange-400 text-white shadow-sm',
-  },
-  {
-    rating: 2,
-    label: 'Tốt',
-    className:
-      'bg-blue-500 hover:bg-blue-600 focus:ring-blue-400 text-white shadow-sm',
-  },
-  {
-    rating: 3,
-    label: 'Dễ',
-    className:
-      'bg-emerald-500 hover:bg-emerald-600 focus:ring-emerald-400 text-white shadow-sm',
-  },
-];
 
 /**
  * Words the learner has already met several times are reviewed by typing
@@ -270,7 +240,7 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
   const predictedIntervals = useMemo(() => {
     if (!currentCard) return null;
     const now = new Date();
-    return RATING_BUTTONS.map((btn) => {
+    return RATING_META.map((btn) => {
       const u = computeReviewUpdate(currentCard, btn.rating, now, () => 0.5);
       if (!u.scheduleChanged) return 'giữ lịch';
       if (btn.rating === 0) return 'học lại';
@@ -387,20 +357,19 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
   // --- Render: loading -----------------------------------------------------
   if (loading) {
     return (
-      <div className="max-w-2xl mx-auto flex flex-col items-center justify-center py-20">
-        <Loader2 className="w-10 h-10 text-blue-500 animate-spin mb-4" />
-        <p className="text-slate-500 dark:text-slate-400">
-          Đang tải danh sách ôn tập…
-        </p>
-      </div>
+      <LoadingRegion label="Đang tải danh sách ôn tập…" className="max-w-2xl mx-auto flex flex-col gap-4 sm:gap-6">
+        <Skeleton className="h-8 w-40 mx-auto" />
+        <Skeleton className="h-2 w-full" />
+        <Skeleton className="h-72 w-full rounded-3xl" />
+      </LoadingRegion>
     );
   }
 
   // --- Render: error -------------------------------------------------------
   if (error && dueWords.length === 0) {
     return (
-      <div className="max-w-2xl mx-auto flex flex-col items-center justify-center py-20 gap-4">
-        <p className="text-red-600 dark:text-red-400 text-center">{error}</p>
+      <div className="max-w-2xl mx-auto flex flex-col items-center justify-center py-12 gap-4">
+        <ErrorState title="Không tải được danh sách ôn tập" message={error} onRetry={() => setDueWords(null)} className="w-full" />
         <Button variant="outline" onClick={onBack}>
           <ArrowLeft className="w-4 h-4 mr-2" /> Quay lại Dashboard
         </Button>
@@ -512,8 +481,9 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <button
+          type="button"
           onClick={onBack}
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
+          className="inline-flex min-h-touch items-center gap-1.5 rounded-lg pr-2 text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" /> Quay lại
         </button>
@@ -598,7 +568,7 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
                       Kiểm tra
                     </Button>
                     {!hintShown && (
-                      <Button type="button" variant="ghost" onClick={() => setHintShown(true)} title="Gợi ý chữ cái đầu (tối đa 'Khó')">
+                      <Button type="button" variant="ghost" onClick={() => setHintShown(true)} title="Gợi ý chữ cái đầu (tối đa 'Khó')" aria-label="Gợi ý chữ cái đầu">
                         <Lightbulb className="w-4 h-4" />
                       </Button>
                     )}
@@ -610,8 +580,8 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
               </div>
             ) : (
               <>
-                <span className="text-xs font-bold tracking-widest text-blue-400 uppercase mb-3">
-                  Word
+                <span className="text-xs font-bold tracking-widest text-blue-700 dark:text-blue-300 uppercase mb-3">
+                  Từ vựng
                 </span>
                 <h3 className="text-3xl sm:text-5xl font-bold text-slate-800 dark:text-white mb-3 text-center break-words">
                   {currentCard?.word}
@@ -626,15 +596,16 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
                         e.stopPropagation();
                         speakText(currentCard.word);
                       }}
-                      className="p-1.5 rounded-full text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-700"
+                      className="inline-flex min-h-touch min-w-touch items-center justify-center rounded-full text-blue-600 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-slate-700"
                       title="Nghe phát âm"
+                      aria-label={`Nghe phát âm ${currentCard.word}`}
                     >
                       <Volume2 className="w-4 h-4" />
                     </button>
                   )}
                 </div>
-                <p className="text-slate-400 dark:text-slate-500 text-xs mt-4">
-                  Chạm để lật<span className="hidden sm:inline"> · Space</span>
+                <p className="text-slate-500 dark:text-slate-400 text-xs mt-4">
+                  Chạm để lật<span className="hidden sm:inline"> · phím cách</span>
                 </p>
               </>
             )}
@@ -698,8 +669,9 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
                           e.stopPropagation();
                           speakText(currentCard.word);
                         }}
-                        className="p-1 rounded-full text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-700"
+                        className="inline-flex min-h-touch min-w-touch items-center justify-center rounded-full text-blue-600 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-slate-700"
                         title="Nghe phát âm"
+                        aria-label={`Nghe phát âm ${currentCard.word}`}
                       >
                         <Volume2 className="w-4 h-4" />
                       </button>
@@ -708,7 +680,7 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
                       <p className="text-slate-500 dark:text-slate-400 font-mono text-sm">{formatIpa(currentCard.ipa)}</p>
                     )}
                   </div>
-                  <span className="text-xs text-slate-400 dark:text-slate-500">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
                     Ôn lần {currentCard.repetition_count}
                   </span>
                 </div>
@@ -722,14 +694,14 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
 
                   {currentCard.definition_en && (
                     <div className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-                      <p className="text-sm text-slate-500 dark:text-slate-400 font-semibold mb-1">Definition</p>
+                      <p className="text-sm text-slate-600 dark:text-slate-400 font-semibold mb-1">Định nghĩa</p>
                       <p className="text-slate-700 dark:text-slate-300 italic text-sm">{currentCard.definition_en}</p>
                     </div>
                   )}
 
                   {currentCard.example_sentence && (
                     <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">
-                      <p className="text-sm text-blue-500 dark:text-blue-400 font-semibold mb-1">Example</p>
+                      <p className="text-sm text-blue-700 dark:text-blue-300 font-semibold mb-1">Ví dụ</p>
                       <p className="text-slate-800 dark:text-slate-200 text-sm leading-relaxed">
                         "{currentCard.example_sentence}"
                       </p>
@@ -743,8 +715,8 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
             ) : (
               /* Fallback minimal layout for legacy rows without metadata */
               <div className="flex flex-col items-center justify-center text-center flex-1">
-                <span className="text-xs font-bold tracking-widest text-emerald-500 uppercase mb-3">
-                  Recall
+                <span className="text-xs font-bold tracking-widest text-emerald-700 dark:text-emerald-300 uppercase mb-3">
+                  Nhớ lại
                 </span>
                 <h3 className="text-2xl sm:text-3xl font-bold text-slate-800 dark:text-white mb-4 break-words">
                   {currentCard?.word}
@@ -755,9 +727,9 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
                     của mình bên dưới.
                   </p>
                   {currentCard && (
-                    <p className="text-xs text-slate-400 dark:text-slate-500">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
                       Đã ôn {currentCard.repetition_count} lần · Cấp độ:{' '}
-                      {MasteryLevel[currentCard.mastery_level] ?? 'NEW'}
+                      {getLevelMeta(currentCard.mastery_level).label}
                     </p>
                   )}
                 </div>
@@ -769,31 +741,17 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
 
       {/* Rating buttons — appear once the learner has answered */}
       {answered && (
-        <div className="grid grid-cols-4 gap-2 sm:gap-3">
-          {RATING_BUTTONS.map((btn, i) => {
-            const locked = btn.rating > maxRating;
-            const suggested = suggestedRating === btn.rating;
-            return (
-              <button
-                key={btn.rating}
-                onClick={() => handleRate(btn.rating)}
-                disabled={submitting || locked}
-                title={locked ? 'Không khả dụng với kết quả vừa rồi' : undefined}
-                className={`flex flex-col items-center justify-center gap-1 rounded-xl px-2 py-3 sm:py-4 font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-30 disabled:cursor-not-allowed ${btn.className} ${suggested ? 'ring-2 ring-offset-2 ring-slate-400 dark:ring-offset-slate-900' : ''}`}
-              >
-                <span className="text-base sm:text-lg">{btn.label}</span>
-                <span className="text-[10px] sm:text-xs font-medium opacity-90">
-                  {predictedIntervals?.[i] ?? '—'}
-                </span>
-                <kbd className="hidden sm:block text-[10px] opacity-70">{i + 1}</kbd>
-              </button>
-            );
-          })}
-        </div>
+        <RatingButtons
+          onRate={(r) => void handleRate(r)}
+          disabled={submitting}
+          maxRating={maxRating}
+          suggested={suggestedRating}
+          hints={predictedIntervals ?? undefined}
+        />
       )}
 
       {/* Helper row */}
-      <div className="flex items-center justify-center gap-2 text-xs text-slate-400 dark:text-slate-500">
+      <div className="flex items-center justify-center gap-2 text-xs text-slate-500 dark:text-slate-400">
         {submitting ? (
           <>
             <Loader2 className="w-3 h-3 animate-spin" /> Đang lưu…

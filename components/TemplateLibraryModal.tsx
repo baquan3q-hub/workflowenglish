@@ -57,7 +57,7 @@ const TemplateLibraryModal: React.FC<TemplateLibraryModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -103,7 +103,7 @@ const TemplateLibraryModal: React.FC<TemplateLibraryModalProps> = ({
                   <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-medium">
                     {template.topic}
                   </span>
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400">
                     {template.words.length} từ
                   </span>
                 </div>
@@ -118,7 +118,7 @@ const TemplateLibraryModal: React.FC<TemplateLibraryModalProps> = ({
                     </span>
                   ))}
                   {template.words.length > template.samplePreview.length && (
-                    <span className="text-xs text-slate-400 dark:text-slate-500 self-center">
+                    <span className="text-xs text-slate-500 dark:text-slate-400 self-center">
                       +{template.words.length - template.samplePreview.length}
                     </span>
                   )}
