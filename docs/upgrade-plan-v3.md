@@ -391,6 +391,9 @@ thay vì sửa hai lần.
 
 ## 7. Thứ tự thực hiện và cách kiểm chứng
 
+> **Đã thay bằng [roadmap-v3.md](roadmap-v3.md)** (2026-10-17): 8 phase, nền móng UI làm đầu tiên,
+> thiết kế làm thẳng trong code, số từ mỗi phiên ôn do người dùng chọn. Thứ tự bên dưới chỉ để tham khảo.
+
 ```
 Đợt 1:  [0 Nền tảng] → [1 Sổ từ SRS + danh sách] → [2 Ghi chữ: gõ / viết tay / ghi chú]
 Đợt 2:  [3a Edge Function ai-proxy] → [3b Luyện mẫu câu] → [4 Thống kê]
