@@ -159,6 +159,74 @@ export async function saveIeltsAttempt(input: {
   }
 }
 
+/** What a Listening attempt keeps in `details`, enough to grade it again. */
+export interface ListeningAttemptDetails {
+  testId: string;
+  sectionIds: string[];
+  mode: 'exam' | 'practice';
+  answers: Record<number, string>;
+  score: number;
+  total: number;
+}
+
+export function isListeningDetails(d: unknown): d is ListeningAttemptDetails {
+  const o = d as Partial<ListeningAttemptDetails> | null | undefined;
+  return !!o && typeof o.testId === 'string' && Array.isArray(o.sectionIds) && !!o.answers && typeof o.answers === 'object';
+}
+
+/**
+ * Save a Listening attempt (graded on the device, no AI feedback). Needs
+ * migration 009 for the 'listening' skill and the `details` column.
+ */
+export async function saveListeningAttempt(input: {
+  userId: string;
+  title: string;
+  topic: string;
+  taskOrPart: string;
+  band: number;
+  durationSeconds?: number;
+  byPart: Record<string, number>;
+  details: ListeningAttemptDetails;
+}): Promise<IeltsAttempt | null> {
+  try {
+    const { count } = await withTimeout(Promise.resolve(supabase
+      .from(TABLE)
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', input.userId)
+      .eq('question_prompt', input.title)));
+
+    const { data, error } = await withTimeout(Promise.resolve(supabase
+      .from(TABLE)
+      .insert({
+        user_id: input.userId,
+        skill: 'listening',
+        task_or_part: input.taskOrPart,
+        question_type: input.details.mode,
+        topic: input.topic,
+        question_prompt: input.title,
+        answer_text: '',
+        duration_seconds: input.durationSeconds != null ? Math.round(input.durationSeconds) : null,
+        word_count: null,
+        estimated_band: normalizeBand(input.band) ?? null,
+        criterion_scores: input.byPart,
+        ai_feedback: null,
+        attempt_number: (count ?? 0) + 1,
+        details: input.details,
+      })
+      .select()
+      .single()));
+
+    if (error) {
+      console.warn('[IELTS Attempts] listening save failed (could be missing migration 009):', error);
+      return null;
+    }
+    return rowToAttempt(data as IeltsAttemptRow);
+  } catch (err) {
+    console.error('[IELTS Attempts] listening save failed:', err);
+    return null;
+  }
+}
+
 /** Most recent attempts for one skill, newest first. */
 export async function getIeltsAttempts(
   userId: string,

@@ -30,7 +30,7 @@ interface SkillDef {
 }
 
 const SKILLS: readonly SkillDef[] = [
-  { skill: 'listening', title: 'Listening', hint: '4 part, 40 câu, chấm tự động', icon: Headphones },
+  { skill: 'listening', title: 'Listening', hint: '4 part, 40 câu, chấm tự động', icon: Headphones, phase: AppPhase.IELTS_LISTENING_HUB },
   { skill: 'writing', title: 'Writing', hint: 'Task 1, Task 2, AI chấm 4 tiêu chí', icon: PenTool, phase: AppPhase.IELTS_WRITING_HUB },
   { skill: 'speaking', title: 'Speaking', hint: 'Part 1, 2, 3 và thi thử', icon: Mic, phase: AppPhase.IELTS_SPEAKING_HUB },
 ];
@@ -89,7 +89,7 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary }: Props)
     }
     setLoadFailed(false);
     try {
-      const lists = await Promise.all((['writing', 'speaking'] as const).map((s) => getIeltsAttempts(userId, s, 10)));
+      const lists = await Promise.all((['listening', 'writing', 'speaking'] as const).map((s) => getIeltsAttempts(userId, s, 10)));
       setAttempts(lists.flat());
     } catch (err) {
       console.warn('[IELTS Home] attempts failed:', err);
@@ -138,7 +138,7 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary }: Props)
             )}
             <p className="mt-2 text-caption text-slate-500 dark:text-slate-400">
               {skillBands.length === 0
-                ? 'Làm một bài Writing hoặc Speaking để có band ước tính.'
+                ? 'Làm một bài Listening, Writing hoặc Speaking để có band ước tính.'
                 : `Ước tính từ ${skillBands.length} kỹ năng đã luyện, mỗi kỹ năng lấy 3 bài gần nhất.`}
             </p>
           </div>

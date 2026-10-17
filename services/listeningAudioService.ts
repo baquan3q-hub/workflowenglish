@@ -10,6 +10,8 @@ import { invokeAi } from './aiClient';
 import {
   LISTENING_AUDIO_FOLDER,
   listeningAudioKey,
+  voiceKey,
+  type ListeningAudioRequest,
   type ListeningStyle,
   type ListeningVoice,
 } from '../supabase/functions/ai-proxy/ops/listening.ts';
@@ -17,11 +19,9 @@ import {
 export { LISTENING_VOICES, LISTENING_STYLES } from '../supabase/functions/ai-proxy/ops/listening.ts';
 export type { ListeningStyle, ListeningVoice };
 
-export interface AudioSegment {
+/** One clip: a single voice, or two `speakers` with "Name: line" text. */
+export interface AudioSegment extends ListeningAudioRequest {
   id: string;
-  text: string;
-  voice: ListeningVoice;
-  style: ListeningStyle;
 }
 
 export type AudioUrls = Record<string, string>;
@@ -34,8 +34,8 @@ export function publicAudioUrl(key: string): string {
 }
 
 /** The key the server will use; text is trimmed the same way. */
-export function segmentKey(seg: Pick<AudioSegment, 'voice' | 'style' | 'text'>): Promise<string> {
-  return listeningAudioKey(seg.voice, seg.style, seg.text.trim());
+export function segmentKey(seg: ListeningAudioRequest): Promise<string> {
+  return listeningAudioKey(voiceKey(seg), seg.style, seg.text.trim());
 }
 
 async function exists(url: string, signal?: AbortSignal): Promise<boolean> {
@@ -58,7 +58,9 @@ export async function segmentAudioUrl(seg: AudioSegment, signal?: AbortSignal): 
   if (!(await exists(url, signal))) {
     const res = await invokeAi<{ url: string }>(
       'listeningAudio',
-      { text: seg.text.trim(), voice: seg.voice, style: seg.style },
+      seg.speakers?.length
+        ? { text: seg.text.trim(), style: seg.style, speakers: seg.speakers }
+        : { text: seg.text.trim(), style: seg.style, voice: seg.voice },
       { signal, timeoutMs: 120_000 },
     );
     if (!res?.url) throw new Error('listeningAudio returned no url');

@@ -9,6 +9,8 @@ const PART_LABELS: Record<string, string> = {
   part_1: 'Part 1',
   part_2: 'Part 2',
   part_3: 'Part 3',
+  part_4: 'Part 4',
+  full_test: 'Cả đề',
 };
 
 const COLLAPSED_COUNT = 5;
@@ -30,14 +32,18 @@ interface Props {
   userId: string;
   skill: IeltsSkill;
   onOpenAttempt: (attempt: IeltsAttempt) => void;
+  /** Which rows reopen; by default those with saved AI feedback. */
+  canOpen?: (attempt: IeltsAttempt) => boolean;
 }
+
+const hasFeedback = (a: IeltsAttempt) => !!a.aiFeedback;
 
 /**
  * Collapsible "Lịch sử luyện tập" panel for the IELTS hubs: summary stats
  * (attempts, average / best band, recent trend) plus a list of past
  * attempts that reopen their saved AI feedback.
  */
-export default function IeltsAttemptHistory({ userId, skill, onOpenAttempt }: Props) {
+export default function IeltsAttemptHistory({ userId, skill, onOpenAttempt, canOpen = hasFeedback }: Props) {
   const [attempts, setAttempts] = useState<IeltsAttempt[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -65,7 +71,12 @@ export default function IeltsAttemptHistory({ userId, skill, onOpenAttempt }: Pr
   const trend = bands.length >= 2 ? bands[0] - bands[bands.length - 1] : null;
 
   const visible = showAll ? attempts || [] : (attempts || []).slice(0, COLLAPSED_COUNT);
-  const accent = skill === 'writing' ? 'text-blue-600 dark:text-blue-400' : 'text-rose-600 dark:text-rose-400';
+  const accent =
+    skill === 'writing'
+      ? 'text-blue-600 dark:text-blue-400'
+      : skill === 'speaking'
+        ? 'text-rose-600 dark:text-rose-400'
+        : 'text-emerald-600 dark:text-emerald-400';
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
@@ -136,8 +147,8 @@ export default function IeltsAttemptHistory({ userId, skill, onOpenAttempt }: Pr
                 {visible.map(a => (
                   <li key={a.id}>
                     <button
-                      onClick={() => a.aiFeedback && onOpenAttempt(a)}
-                      disabled={!a.aiFeedback}
+                      onClick={() => canOpen(a) && onOpenAttempt(a)}
+                      disabled={!canOpen(a)}
                       className="w-full flex items-center gap-3 py-2.5 text-left group disabled:cursor-default"
                     >
                       <span className={`shrink-0 w-11 text-center text-sm font-black rounded-lg py-1 ${bandColor(a.estimatedBand)}`}>
@@ -152,7 +163,7 @@ export default function IeltsAttemptHistory({ userId, skill, onOpenAttempt }: Pr
                         </div>
                         <p className="text-xs text-slate-700 dark:text-slate-200 truncate">{a.questionPrompt}</p>
                       </div>
-                      {a.aiFeedback && (
+                      {canOpen(a) && (
                         <ArrowRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-500 shrink-0" />
                       )}
                     </button>

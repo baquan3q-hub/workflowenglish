@@ -35,9 +35,14 @@ import IeltsWritingFeedback from './views/IeltsWritingFeedback';
 import IeltsSpeakingHub from './views/IeltsSpeakingHub';
 import IeltsSpeakingPractice from './views/IeltsSpeakingPractice';
 import IeltsSpeakingFeedback from './views/IeltsSpeakingFeedback';
+import IeltsListeningHub from './views/IeltsListeningHub';
+import IeltsListeningPractice from './views/IeltsListeningPractice';
+import IeltsListeningResult from './views/IeltsListeningResult';
 import { gradeWritingTask } from './services/ieltsWritingService';
 import { gradeSpeakingAnswer } from './services/ieltsSpeakingService';
-import { saveIeltsAttempt, resolveAttemptQuestion } from './services/ieltsAttemptService';
+import { saveIeltsAttempt, saveListeningAttempt, resolveAttemptQuestion, isListeningDetails } from './services/ieltsAttemptService';
+import { getListeningTest, type ListeningAnswers } from './data/ielts/listening';
+import { attemptLabels, scoreSections, sessionSections, type ListeningMode } from './services/listeningLogic';
 import { speakingPart1Questions } from './data/ieltsSpeakingQuestions';
 import { Toast, type ToastAction, type ToastType } from './components/Common';
 import { Loader2, LogOut, History, BookOpen, Save, Sun, Moon } from 'lucide-react';
@@ -142,6 +147,14 @@ function App() {
   const [isSpeakingMockTest, setIsSpeakingMockTest] = useState(false);
   /** Lesson to open in Thư viện IELTS; undefined shows the list. */
   const [ieltsLibraryLessonId, setIeltsLibraryLessonId] = useState<string | undefined>(undefined);
+  /** Listening session: which test and parts, and the answers once submitted. `run` restarts the sheet on retry. */
+  const [ieltsListening, setIeltsListening] = useState<{
+    testId: string;
+    sectionIds: string[];
+    mode: ListeningMode;
+    answers: ListeningAnswers;
+    run: number;
+  } | null>(null);
 
   // Synchronous mirror of currentRecordId so queued saves always update the
   // row created by an earlier save instead of inserting a duplicate.
@@ -872,7 +885,41 @@ function App() {
     setPhase(AppPhase.IELTS_LIBRARY);
   };
 
+  const startIeltsListening = (testId: string, sectionIds: string[], mode: ListeningMode) => {
+    setIeltsListening(prev => ({ testId, sectionIds, mode, answers: {}, run: (prev?.run ?? 0) + 1 }));
+    setPhase(AppPhase.IELTS_LISTENING_PRACTICE);
+  };
+
+  const submitIeltsListening = (answers: ListeningAnswers, durationSeconds: number) => {
+    const session = ieltsListening;
+    const test = session && getListeningTest(session.testId);
+    if (!session || !test) return;
+    setIeltsListening({ ...session, answers });
+    setPhase(AppPhase.IELTS_LISTENING_RESULT);
+    if (!currentUser) return;
+    const sections = sessionSections(test, session.sectionIds);
+    const score = scoreSections(sections, answers);
+    const labels = attemptLabels(test, sections);
+    void saveListeningAttempt({
+      userId: currentUser.id,
+      ...labels,
+      band: score.band,
+      durationSeconds,
+      byPart: Object.fromEntries(score.byPart.map(p => [`Part ${p.part}`, p.score])),
+      details: { testId: test.id, sectionIds: session.sectionIds, mode: session.mode, answers, score: score.score, total: score.total },
+    }).then(saved => {
+      if (!saved) showToast('Chưa lưu được bài vào lịch sử luyện tập.', 'info');
+    });
+  };
+
   const openIeltsAttempt = (attempt: IeltsAttempt) => {
+    if (attempt.skill === 'listening') {
+      const d = attempt.details;
+      if (!isListeningDetails(d) || !getListeningTest(d.testId)) return;
+      setIeltsListening({ testId: d.testId, sectionIds: d.sectionIds, mode: d.mode, answers: d.answers, run: 0 });
+      setPhase(AppPhase.IELTS_LISTENING_RESULT);
+      return;
+    }
     if (!attempt.aiFeedback) return;
     setSelectedIeltsQuestion(resolveAttemptQuestion(attempt));
     setIeltsFeedbackData(attempt.aiFeedback);
@@ -1098,6 +1145,48 @@ function App() {
 
       case AppPhase.IELTS_LIBRARY:
         return <IeltsLibrary initialLessonId={ieltsLibraryLessonId} onBack={() => setPhase(AppPhase.IELTS_HOME)} />;
+
+      // ─── IELTS Listening ──────────────────────────────
+      case AppPhase.IELTS_LISTENING_HUB:
+        return (
+          <IeltsListeningHub
+            userId={currentUser?.id ?? ''}
+            onStart={startIeltsListening}
+            onOpenAttempt={openIeltsAttempt}
+            onBack={() => setPhase(AppPhase.IELTS_HOME)}
+          />
+        );
+
+      case AppPhase.IELTS_LISTENING_PRACTICE: {
+        const test = ieltsListening && getListeningTest(ieltsListening.testId);
+        if (!ieltsListening || !test) return null;
+        return (
+          <IeltsListeningPractice
+            key={`${test.id}:${ieltsListening.sectionIds.join('+')}:${ieltsListening.mode}:${ieltsListening.run}`}
+            userId={currentUser?.id ?? ''}
+            test={test}
+            sectionIds={ieltsListening.sectionIds}
+            mode={ieltsListening.mode}
+            onSubmit={submitIeltsListening}
+            onExit={() => setPhase(AppPhase.IELTS_LISTENING_HUB)}
+          />
+        );
+      }
+
+      case AppPhase.IELTS_LISTENING_RESULT: {
+        const test = ieltsListening && getListeningTest(ieltsListening.testId);
+        if (!ieltsListening || !test) return null;
+        return (
+          <IeltsListeningResult
+            test={test}
+            sectionIds={ieltsListening.sectionIds}
+            mode={ieltsListening.mode}
+            answers={ieltsListening.answers}
+            onRetry={() => startIeltsListening(test.id, ieltsListening.sectionIds, ieltsListening.mode)}
+            onBack={() => setPhase(AppPhase.IELTS_LISTENING_HUB)}
+          />
+        );
+      }
 
       // ─── IELTS Writing ──────────────────────────────
       case AppPhase.IELTS_WRITING_HUB:

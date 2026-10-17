@@ -1,7 +1,10 @@
 /**
  * IELTS Listening audio: one TTS clip per script segment, saved as a WAV in
- * the public `ielts-audio` bucket. The file name is a hash of voice, style
+ * the public `ielts-audio` bucket. The file name is a hash of voice(s), style
  * and text, so a segment is generated once and shared by every learner.
+ *
+ * A segment is either one voice reading plain text, or a two-person dialogue
+ * (Gemini multi-speaker TTS) whose text has one "Name: line" per turn.
  *
  * services/listeningAudioService.ts computes the same key to check the
  * bucket before calling this op; keep `listeningAudioKey` in step with it.
@@ -25,6 +28,19 @@ const STYLE_KEYS = Object.keys(LISTENING_STYLES) as ListeningStyle[];
 export const LISTENING_TEXT_MAX = 1500;
 export const LISTENING_AUDIO_FOLDER = 'listening';
 
+export interface DialogueSpeaker {
+  name: string;
+  voice: ListeningVoice;
+}
+
+/** What a client asks for: one `voice`, or two `speakers` for a dialogue. */
+export interface ListeningAudioRequest {
+  text: string;
+  style: ListeningStyle;
+  voice?: ListeningVoice;
+  speakers?: DialogueSpeaker[];
+}
+
 const toHex = (buf: ArrayBuffer) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 
 /** sha256 of `v1|voice|style|text`, hex. */
@@ -33,14 +49,32 @@ export async function listeningAudioKey(voice: string, style: string, text: stri
   return toHex(await crypto.subtle.digest('SHA-256', bytes));
 }
 
-function parsePayload(payload: unknown): { text: string; voice: ListeningVoice; style: ListeningStyle } {
+/** The voice part of the cache key: "Kore", or "Anna=Kore,Tom=Puck" for a dialogue. */
+export function voiceKey(req: Pick<ListeningAudioRequest, 'voice' | 'speakers'>): string {
+  return req.speakers?.length ? req.speakers.map((s) => `${s.name}=${s.voice}`).join(',') : (req.voice ?? '');
+}
+
+const isVoice = (v: unknown): v is ListeningVoice => typeof v === 'string' && (LISTENING_VOICES as readonly string[]).includes(v);
+export const SPEAKER_NAME = /^[A-Z][A-Za-z]{0,19}$/;
+
+function parsePayload(payload: unknown): ListeningAudioRequest {
   const o = asObject(payload);
   const text = str(o, 'text', { max: LISTENING_TEXT_MAX }).trim();
   if (!text) throw new BadRequest('text is required');
-  if (typeof o.voice !== 'string' || !(LISTENING_VOICES as readonly string[]).includes(o.voice)) {
-    throw new BadRequest('voice is not supported');
+  const style = oneOf(o, 'style', STYLE_KEYS, 'uk');
+  if (o.speakers !== undefined && o.speakers !== null) {
+    if (!Array.isArray(o.speakers) || o.speakers.length !== 2) throw new BadRequest('speakers must list exactly 2 people');
+    const speakers = o.speakers.map((sp, i) => {
+      const s = asObject(sp, `speakers[${i}]`);
+      if (typeof s.name !== 'string' || !SPEAKER_NAME.test(s.name)) throw new BadRequest('speaker name is not valid');
+      if (!isVoice(s.voice)) throw new BadRequest('voice is not supported');
+      return { name: s.name, voice: s.voice };
+    });
+    if (speakers[0].name === speakers[1].name) throw new BadRequest('speaker names must differ');
+    return { text, style, speakers };
   }
-  return { text, voice: o.voice as ListeningVoice, style: oneOf(o, 'style', STYLE_KEYS, 'uk') };
+  if (!isVoice(o.voice)) throw new BadRequest('voice is not supported');
+  return { text, style, voice: o.voice };
 }
 
 /** Wraps 16-bit mono PCM in a WAV header. */
@@ -72,26 +106,42 @@ export function base64ToBytes(b64: string): Uint8Array {
   return bytes;
 }
 
+const voiceConfig = (voiceName: string) => ({ prebuiltVoiceConfig: { voiceName } });
+
 export const listeningAudio: OpSpec = {
   hourlyLimit: 80,
   models: ['gemini-2.5-flash-preview-tts'],
   timeoutMs: 90_000,
   kind: 'audio',
   build(payload) {
-    const { text, voice, style } = parsePayload(payload);
+    const { text, voice, style, speakers } = parsePayload(payload);
+    const intro = LISTENING_STYLES[style];
+    if (speakers) {
+      return {
+        contents: userText(`${intro}\nTTS the following conversation between ${speakers[0].name} and ${speakers[1].name}:\n${text}`),
+        generationConfig: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            multiSpeakerVoiceConfig: {
+              speakerVoiceConfigs: speakers.map((s) => ({ speaker: s.name, voiceConfig: voiceConfig(s.voice) })),
+            },
+          },
+        },
+      };
+    }
     return {
-      contents: userText(`${LISTENING_STYLES[style]}\n\n${text}`),
+      contents: userText(`${intro}\n\n${text}`),
       generationConfig: {
         responseModalities: ['AUDIO'],
-        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
+        speechConfig: { voiceConfig: voiceConfig(voice!) },
       },
     };
   },
   storage: {
     bucket: 'ielts-audio',
     async path(payload) {
-      const { text, voice, style } = parsePayload(payload);
-      return `${LISTENING_AUDIO_FOLDER}/${await listeningAudioKey(voice, style, text)}.wav`;
+      const req = parsePayload(payload);
+      return `${LISTENING_AUDIO_FOLDER}/${await listeningAudioKey(voiceKey(req), req.style, req.text)}.wav`;
     },
     encode(data) {
       if (typeof data !== 'string') throw new Error('expected base64 audio');
