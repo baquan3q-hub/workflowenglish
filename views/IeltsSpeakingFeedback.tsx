@@ -43,15 +43,15 @@ export default function IeltsSpeakingFeedback({ question, userTranscript, feedba
           label=""
         />
         <p className="text-xs text-slate-500 dark:text-slate-400 italic">
-          ⚠️ Đây là điểm ước lượng bởi AI, không phải điểm IELTS chính thức
+          Đây là điểm ước lượng bởi AI, không phải điểm IELTS chính thức
         </p>
       </div>
 
       {/* Criterion Scores */}
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5 space-y-4">
-        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">📊 Điểm theo tiêu chí</h3>
+        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">Điểm theo tiêu chí</h3>
         {feedback.criterionScores.map((c, i) => (
-          <CriterionScoreBar key={i} criterion={c} />
+          <CriterionScoreBar key={i} criterion={c} skill="speaking" />
         ))}
       </div>
 
@@ -94,12 +94,12 @@ export default function IeltsSpeakingFeedback({ question, userTranscript, feedba
         <div className="bg-violet-50 dark:bg-violet-900/10 rounded-xl border border-violet-200 dark:border-violet-800/40 p-4 sm:p-5 space-y-3">
           <h4 className="text-sm font-bold text-violet-700 dark:text-violet-300 flex items-center gap-2">
             <Volume2 className="w-4 h-4" />
-            🎯 Luyện phát âm
+            Luyện phát âm
           </h4>
           <ul className="space-y-2">
             {feedback.pronunciationNotes.map((note, i) => (
               <li key={i} className="flex items-start gap-2 text-xs text-violet-700 dark:text-violet-300 leading-relaxed">
-                <span className="text-violet-400 mt-0.5">🔊</span>
+                <Volume2 aria-hidden="true" className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-violet-400" />
                 {note}
               </li>
             ))}
@@ -116,7 +116,7 @@ export default function IeltsSpeakingFeedback({ question, userTranscript, feedba
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-rose-500" />
             <span className="text-sm font-bold text-rose-700 dark:text-rose-300">
-              ✨ Câu trả lời cải thiện (Target Band {question.targetBand})
+              Câu trả lời cải thiện (Target Band {question.targetBand})
             </span>
           </div>
           {showImproved ? <ChevronUp className="w-4 h-4 text-slate-500 dark:text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-500 dark:text-slate-400" />}
@@ -133,7 +133,7 @@ export default function IeltsSpeakingFeedback({ question, userTranscript, feedba
       {/* Follow-up Drill */}
       {feedback.followUpDrill && (
         <div className="bg-sky-50 dark:bg-sky-900/10 rounded-xl border border-sky-200 dark:border-sky-800/40 p-4">
-          <h4 className="text-sm font-bold text-sky-700 dark:text-sky-300 mb-2">🎯 Bài luyện tiếp theo</h4>
+          <h4 className="text-sm font-bold text-sky-700 dark:text-sky-300 mb-2">Bài luyện tiếp theo</h4>
           <p className="text-xs text-sky-600 dark:text-sky-400 leading-relaxed">{feedback.followUpDrill}</p>
         </div>
       )}

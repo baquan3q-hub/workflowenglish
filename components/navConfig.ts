@@ -20,6 +20,8 @@ export const LESSON_PHASES: readonly AppPhase[] = [
 ];
 
 const IELTS_PHASES: readonly AppPhase[] = [
+  AppPhase.IELTS_HOME,
+  AppPhase.IELTS_LIBRARY,
   AppPhase.IELTS_WRITING_HUB,
   AppPhase.IELTS_WRITING_PRACTICE,
   AppPhase.IELTS_WRITING_FEEDBACK,

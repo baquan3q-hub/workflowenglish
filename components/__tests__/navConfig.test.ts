@@ -10,6 +10,8 @@ describe('navConfig', () => {
     expect(activeNavTab(AppPhase.ANALYTICS)).toBe('stats');
     expect(activeNavTab(AppPhase.VOCAB_LIBRARY)).toBe('vocab');
     expect(activeNavTab(AppPhase.IELTS_SPEAKING_FEEDBACK)).toBe('ielts');
+    expect(activeNavTab(AppPhase.IELTS_HOME)).toBe('ielts');
+    expect(activeNavTab(AppPhase.IELTS_LIBRARY)).toBe('ielts');
     expect(activeNavTab(AppPhase.HISTORY)).toBeNull();
   });
 

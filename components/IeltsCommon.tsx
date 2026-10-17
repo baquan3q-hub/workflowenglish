@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { IeltsAiFeedback, IeltsCriterionScore, IeltsFramework, IeltsQuestion, IeltsSentenceCorrection } from '../types';
-import { Star, ChevronDown, ChevronUp, CheckCircle2, AlertTriangle, ArrowRight, Clock, BookOpen, Target, Mic, Square, Volume2, Lightbulb, TrendingUp } from 'lucide-react';
+import { Star, ChevronDown, ChevronUp, CheckCircle2, AlertTriangle, ArrowRight, Clock, BookOpen, Target, Mic, Square, Volume2, Lightbulb, TrendingUp, X, Check, ChevronRight } from 'lucide-react';
+import { descriptorBand, findDescriptor, type DescriptorSkill } from '../data/ielts/bandDescriptors';
 
 // ─── Band Score Display ──────────────────────────────────────────
 
@@ -37,7 +38,9 @@ export function BandScoreDisplay({ score, targetBand, label }: { score: number; 
 
 // ─── Criterion Score Bar ──────────────────────────────────────────
 
-export function CriterionScoreBar({ criterion }: { criterion: IeltsCriterionScore }) {
+export function CriterionScoreBar({ criterion, skill }: { criterion: IeltsCriterionScore; skill?: DescriptorSkill }) {
+  const descriptor = skill ? findDescriptor(skill, criterion.name) : undefined;
+  const band = descriptorBand(criterion.score);
   const percentage = Math.min(100, (criterion.score / 9) * 100);
   const getBarColor = (s: number) => {
     if (s >= 7.0) return 'bg-emerald-500';
@@ -64,6 +67,15 @@ export function CriterionScoreBar({ criterion }: { criterion: IeltsCriterionScor
         />
       </div>
       <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{criterion.comment}</p>
+      {descriptor && criterion.score < 9 && (
+        <p className="flex gap-1.5 rounded-lg bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+          <TrendingUp className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-slate-500 dark:text-slate-400" aria-hidden="true" />
+          <span>
+            <span className="font-semibold">Để lên band {band + 1}:</span>{' '}
+            {descriptor.toNext[band]}
+          </span>
+        </p>
+      )}
     </div>
   );
 }
@@ -111,7 +123,7 @@ export function FrameworkCard({ framework, isCompact }: { framework: IeltsFramew
 
           {framework.sample && (
             <div className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
-              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">📝 Ví dụ</p>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Ví dụ</p>
               <pre className="text-xs text-slate-600 dark:text-slate-300 whitespace-pre-wrap font-sans leading-relaxed">{framework.sample}</pre>
             </div>
           )}
@@ -317,14 +329,14 @@ export function SentenceCorrectionList({ corrections }: { corrections: IeltsSent
       {corrections.map((c, i) => (
         <div key={i} className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 space-y-1.5">
           <div className="flex items-start gap-2">
-            <span className="text-red-500 text-xs mt-0.5">✗</span>
+            <X aria-hidden="true" className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-red-500" />
             <p className="text-xs text-red-600 dark:text-red-400 line-through leading-relaxed">{c.original}</p>
           </div>
           <div className="flex items-start gap-2">
-            <span className="text-green-500 text-xs mt-0.5">✓</span>
+            <Check aria-hidden="true" className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-green-500" />
             <p className="text-xs text-green-600 dark:text-green-400 font-medium leading-relaxed">{c.corrected}</p>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 pl-5 italic">💡 {c.explanation}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 pl-5 italic">{c.explanation}</p>
         </div>
       ))}
     </div>
@@ -352,7 +364,7 @@ export function FeedbackList({
         {items.map((item, i) => (
           <li key={i} className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
             <span className={`mt-0.5 flex-shrink-0 ${isStrength ? 'text-emerald-500' : 'text-amber-500'}`}>
-              {isStrength ? '✓' : '▸'}
+              {isStrength ? <Check className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
             </span>
             {item}
           </li>

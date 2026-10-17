@@ -30,6 +30,8 @@ interface IeltsAttemptRow {
   criterion_scores: Record<string, number> | null;
   ai_feedback: IeltsAiFeedback | null;
   attempt_number: number | null;
+  /** Added by migration 009; absent before it runs. */
+  details?: Record<string, unknown> | null;
   created_at: string;
 }
 
@@ -72,6 +74,7 @@ function rowToAttempt(row: IeltsAttemptRow): IeltsAttempt {
     criterionScores: row.criterion_scores ?? undefined,
     aiFeedback: row.ai_feedback ?? undefined,
     attemptNumber: row.attempt_number ?? 1,
+    details: row.details ?? undefined,
     createdAt: row.created_at,
   };
 }
@@ -111,6 +114,8 @@ export async function saveIeltsAttempt(input: {
   answerText: string;
   durationSeconds?: number;
   feedback: IeltsAiFeedback;
+  /** Only sent when given, so saves keep working before migration 009. */
+  details?: Record<string, unknown>;
 }): Promise<IeltsAttempt | null> {
   try {
     const { count, error: countError } = await withTimeout(Promise.resolve(supabase
@@ -134,6 +139,7 @@ export async function saveIeltsAttempt(input: {
       criterion_scores: criterionScoresToMap(input.feedback),
       ai_feedback: input.feedback,
       attempt_number: (count ?? 0) + 1,
+      ...(input.details ? { details: input.details } : {}),
     };
 
     const { data, error } = await withTimeout(Promise.resolve(supabase

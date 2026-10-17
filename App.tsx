@@ -27,6 +27,8 @@ import LessonSummary from './views/LessonSummary';
 import SentencePractice from './views/SentencePractice';
 import { LessonStepper } from './components/LessonStepper';
 import { lessonStepStates } from './services/lessonSummaryLogic';
+import IeltsHome from './views/IeltsHome';
+import IeltsLibrary from './views/IeltsLibrary';
 import IeltsWritingHub from './views/IeltsWritingHub';
 import IeltsWritingPractice from './views/IeltsWritingPractice';
 import IeltsWritingFeedback from './views/IeltsWritingFeedback';
@@ -138,6 +140,8 @@ function App() {
   const [ieltsSpeakingAudioBase64, setIeltsSpeakingAudioBase64] = useState<string>('');
   const [ieltsSpeakingAudioMime, setIeltsSpeakingAudioMime] = useState<string>('audio/webm');
   const [isSpeakingMockTest, setIsSpeakingMockTest] = useState(false);
+  /** Lesson to open in Thư viện IELTS; undefined shows the list. */
+  const [ieltsLibraryLessonId, setIeltsLibraryLessonId] = useState<string | undefined>(undefined);
 
   // Synchronous mirror of currentRecordId so queued saves always update the
   // row created by an earlier save instead of inserting a duplicate.
@@ -863,6 +867,11 @@ function App() {
     });
   };
 
+  const openIeltsLibrary = (lessonId?: string) => {
+    setIeltsLibraryLessonId(lessonId);
+    setPhase(AppPhase.IELTS_LIBRARY);
+  };
+
   const openIeltsAttempt = (attempt: IeltsAttempt) => {
     if (!attempt.aiFeedback) return;
     setSelectedIeltsQuestion(resolveAttemptQuestion(attempt));
@@ -1076,6 +1085,19 @@ function App() {
             }}
           />
         ) : null;
+
+      // ─── IELTS Home & Library ──────────────────────────────
+      case AppPhase.IELTS_HOME:
+        return (
+          <IeltsHome
+            userId={currentUser?.id ?? ''}
+            onOpenPhase={setPhase}
+            onOpenLibrary={openIeltsLibrary}
+          />
+        );
+
+      case AppPhase.IELTS_LIBRARY:
+        return <IeltsLibrary initialLessonId={ieltsLibraryLessonId} onBack={() => setPhase(AppPhase.IELTS_HOME)} />;
 
       // ─── IELTS Writing ──────────────────────────────
       case AppPhase.IELTS_WRITING_HUB:

@@ -14,6 +14,9 @@ export enum AppPhase {
   REVIEW_SESSION = 'REVIEW_SESSION',
   ANALYTICS = 'ANALYTICS',
   VOCAB_LIBRARY = 'VOCAB_LIBRARY',
+  /** IELTS overview: skills, target band, entry to the library. */
+  IELTS_HOME = 'IELTS_HOME',
+  IELTS_LIBRARY = 'IELTS_LIBRARY',
   IELTS_WRITING_HUB = 'IELTS_WRITING_HUB',
   IELTS_WRITING_PRACTICE = 'IELTS_WRITING_PRACTICE',
   IELTS_WRITING_FEEDBACK = 'IELTS_WRITING_FEEDBACK',
@@ -24,7 +27,7 @@ export enum AppPhase {
 
 // ─── IELTS Module Types ────────────────────────────────────────────
 
-export type IeltsSkill = 'writing' | 'speaking';
+export type IeltsSkill = 'listening' | 'writing' | 'speaking';
 export type IeltsWritingTask = 'task_1' | 'task_2';
 export type IeltsSpeakingPart = 'part_1' | 'part_2' | 'part_3';
 export type IeltsEssayType = 'opinion' | 'discussion' | 'advantages_disadvantages' | 'problem_solution' | 'cause_effect' | 'two_part';
@@ -91,6 +94,8 @@ export interface IeltsAttempt {
   criterionScores?: Record<string, number>;
   aiFeedback?: IeltsAiFeedback;
   attemptNumber?: number;
+  /** Skill-specific extras (listening answers, fluency metrics); migration 009. */
+  details?: Record<string, unknown>;
   createdAt?: string;
 }
 

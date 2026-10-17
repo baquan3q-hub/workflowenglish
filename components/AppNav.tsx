@@ -6,8 +6,8 @@
  * App decides how (e.g. asking to save a lesson in progress first).
  */
 
-import React, { useEffect, useRef, useState } from 'react';
-import { BarChart3, BookMarked, GraduationCap, Home, Mic, PenTool, RotateCcw } from 'lucide-react';
+import React from 'react';
+import { BarChart3, BookMarked, GraduationCap, Home, RotateCcw } from 'lucide-react';
 import { activeNavTab, dueBadgeText, type AnalyticsSection, type NavTabId } from './navConfig';
 import { AppPhase } from '../types';
 
@@ -35,73 +35,8 @@ const TABS: readonly TabDef[] = [
   { id: 'review', label: 'Ôn tập', icon: RotateCcw, request: { phase: AppPhase.REVIEW_SESSION } },
   { id: 'vocab', label: 'Sổ từ', icon: BookMarked, request: { phase: AppPhase.VOCAB_LIBRARY } },
   { id: 'stats', label: 'Thống kê', icon: BarChart3, request: { phase: AppPhase.ANALYTICS, analyticsSection: 'overview' } },
-  { id: 'ielts', label: 'IELTS', icon: GraduationCap },
+  { id: 'ielts', label: 'IELTS', icon: GraduationCap, request: { phase: AppPhase.IELTS_HOME } },
 ];
-
-const IELTS_ITEMS: readonly { label: string; hint: string; icon: React.FC<{ className?: string }>; phase: AppPhase }[] = [
-  { label: 'IELTS Writing', hint: 'Luyện viết Task 1, Task 2', icon: PenTool, phase: AppPhase.IELTS_WRITING_HUB },
-  { label: 'IELTS Speaking', hint: 'Luyện nói Part 1, 2, 3', icon: Mic, phase: AppPhase.IELTS_SPEAKING_HUB },
-];
-
-/** Small popover listing the two IELTS hubs. Closes on outside click and Esc. */
-const IeltsMenu: React.FC<{
-  open: boolean;
-  onClose: () => void;
-  onPick: (phase: AppPhase) => void;
-  placement: 'above' | 'below';
-}> = ({ open, onClose, onPick, placement }) => {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    ref.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
-    const onDown = (e: PointerEvent) => {
-      const trigger = (e.target as HTMLElement).closest('[data-ielts-trigger]');
-      if (!ref.current?.contains(e.target as Node) && !trigger) onClose();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('pointerdown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open, onClose]);
-
-  if (!open) return null;
-
-  return (
-    <div
-      ref={ref}
-      role="menu"
-      aria-label="Chọn kỹ năng IELTS"
-      className={`absolute right-0 z-[60] w-60 rounded-xl border border-slate-200 bg-white p-1.5 shadow-raised dark:border-slate-700 dark:bg-slate-800 ${
-        placement === 'above' ? 'bottom-full mb-2' : 'top-full mt-2'
-      }`}
-    >
-      {IELTS_ITEMS.map(({ label, hint, icon: Icon, phase }) => (
-        <button
-          key={phase}
-          type="button"
-          role="menuitem"
-          onClick={() => {
-            onClose();
-            onPick(phase);
-          }}
-          className="flex min-h-touch w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-700"
-        >
-          <Icon className="h-5 w-5 flex-shrink-0 text-blue-600 dark:text-blue-400" />
-          <span>
-            <span className="block text-sm font-semibold text-slate-800 dark:text-slate-100">{label}</span>
-            <span className="block text-xs text-slate-600 dark:text-slate-400">{hint}</span>
-          </span>
-        </button>
-      ))}
-    </div>
-  );
-};
 
 const DueBadge: React.FC<{ count: number | null; className?: string }> = ({ count, className = '' }) => {
   const text = dueBadgeText(count);
@@ -129,7 +64,6 @@ export const AppNavDesktop: React.FC<AppNavProps & { compact?: boolean }> = ({
   onNavigate,
   compact = false,
 }) => {
-  const [ieltsOpen, setIeltsOpen] = useState(false);
   const active = activeNavTab(phase);
 
   return (
@@ -147,32 +81,6 @@ export const AppNavDesktop: React.FC<AppNavProps & { compact?: boolean }> = ({
             ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
             : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white'
         }`;
-
-        if (tab.id === 'ielts') {
-          return (
-            <div key={tab.id} className="relative">
-              <button
-                type="button"
-                data-ielts-trigger
-                aria-haspopup="menu"
-                aria-expanded={ieltsOpen}
-                aria-current={isActive ? 'page' : undefined}
-                title={tab.label}
-                onClick={() => setIeltsOpen((v) => !v)}
-                className={base}
-              >
-                <Icon className="h-4 w-4" />
-                <span className={labelClass}>{tab.label}</span>
-              </button>
-              <IeltsMenu
-                open={ieltsOpen}
-                onClose={() => setIeltsOpen(false)}
-                onPick={(p) => onNavigate({ phase: p })}
-                placement="below"
-              />
-            </div>
-          );
-        }
 
         return (
           <button
@@ -201,7 +109,6 @@ export const AppNavDesktop: React.FC<AppNavProps & { compact?: boolean }> = ({
 
 /** Fixed bottom tab bar (< 768px). */
 export const AppNavMobile: React.FC<AppNavProps> = ({ phase, analyticsSection, dueCount, onNavigate }) => {
-  const [ieltsOpen, setIeltsOpen] = useState(false);
   const active = activeNavTab(phase);
 
   return (
@@ -213,17 +120,13 @@ export const AppNavMobile: React.FC<AppNavProps> = ({ phase, analyticsSection, d
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const isActive = tab.id === active;
-          const isIelts = tab.id === 'ielts';
           return (
             <button
               key={tab.id}
               type="button"
-              data-ielts-trigger={isIelts ? '' : undefined}
-              aria-haspopup={isIelts ? 'menu' : undefined}
-              aria-expanded={isIelts ? ieltsOpen : undefined}
               aria-current={isActive ? 'page' : undefined}
               aria-label={tabAriaLabel(tab, dueCount)}
-              onClick={() => (isIelts ? setIeltsOpen((v) => !v) : tab.request && onNavigate(tab.request))}
+              onClick={() => tab.request && onNavigate(tab.request)}
               className={`flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 px-1 pt-1.5 pb-1 text-[11px] font-semibold transition-colors ${
                 isActive ? 'text-blue-700 dark:text-blue-300' : 'text-slate-600 dark:text-slate-400'
               }`}
@@ -242,12 +145,6 @@ export const AppNavMobile: React.FC<AppNavProps> = ({ phase, analyticsSection, d
             </button>
           );
         })}
-        <IeltsMenu
-          open={ieltsOpen}
-          onClose={() => setIeltsOpen(false)}
-          onPick={(p) => onNavigate({ phase: p })}
-          placement="above"
-        />
       </div>
     </nav>
   );

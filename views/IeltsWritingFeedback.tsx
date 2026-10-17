@@ -43,15 +43,15 @@ export default function IeltsWritingFeedback({ question, userAnswer, feedback, o
           label=""
         />
         <p className="text-xs text-slate-500 dark:text-slate-400 italic">
-          ⚠️ Đây là điểm ước lượng bởi AI, không phải điểm IELTS chính thức
+          Đây là điểm ước lượng bởi AI, không phải điểm IELTS chính thức
         </p>
       </div>
 
       {/* Criterion Scores */}
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5 space-y-4">
-        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">📊 Điểm theo tiêu chí</h3>
+        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">Điểm theo tiêu chí</h3>
         {feedback.criterionScores.map((c, i) => (
-          <CriterionScoreBar key={i} criterion={c} />
+          <CriterionScoreBar key={i} criterion={c} skill="writing" />
         ))}
       </div>
 
@@ -98,7 +98,7 @@ export default function IeltsWritingFeedback({ question, userAnswer, feedback, o
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-indigo-500" />
             <span className="text-sm font-bold text-indigo-700 dark:text-indigo-300">
-              ✨ Bài viết cải thiện (Target Band {question.targetBand})
+              Bài viết cải thiện (Target Band {question.targetBand})
             </span>
           </div>
           {showImproved ? <ChevronUp className="w-4 h-4 text-slate-500 dark:text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-500 dark:text-slate-400" />}

@@ -18,13 +18,25 @@ export interface UserPreferences {
   reviewMode: ReviewMode;
   /** Lesson flashcards: type the word before the card can be flipped. */
   requireTypingBeforeFlip: boolean;
+  /** IELTS overall band the learner is aiming for (4.0–9.0, step 0.5). */
+  ieltsTargetBand: number | null;
+  /** IELTS exam date, YYYY-MM-DD. */
+  ieltsExamDate: string | null;
 }
 
 export const DEFAULT_PREFERENCES: Readonly<UserPreferences> = Object.freeze({
   reviewSessionSize: 20,
   reviewMode: 'auto',
   requireTypingBeforeFlip: false,
+  ieltsTargetBand: null,
+  ieltsExamDate: null,
 });
+
+export const IELTS_TARGET_BANDS = [4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9] as const;
+
+const isTargetBand = (v: unknown): v is number => (IELTS_TARGET_BANDS as readonly unknown[]).includes(v);
+const isIsoDate = (v: unknown): v is string =>
+  typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(new Date(v).getTime());
 
 const KEY_PREFIX = 'vocabmaster-prefs:';
 const prefsKey = (userId: string) => `${KEY_PREFIX}${userId}`;
@@ -45,6 +57,8 @@ export function sanitizePreferences(raw: unknown): UserPreferences {
       typeof src.requireTypingBeforeFlip === 'boolean'
         ? src.requireTypingBeforeFlip
         : DEFAULT_PREFERENCES.requireTypingBeforeFlip,
+    ieltsTargetBand: isTargetBand(src.ieltsTargetBand) ? src.ieltsTargetBand : null,
+    ieltsExamDate: isIsoDate(src.ieltsExamDate) ? src.ieltsExamDate : null,
   };
 }
 

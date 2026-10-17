@@ -70,6 +70,15 @@ describe('preferencesService', () => {
     expect(setPreferences('u1', { reviewSessionSize: 30 }).reviewSessionSize).toBe(30);
   });
 
+  it('keeps a valid IELTS goal and drops an invalid one', () => {
+    setPreferences('u1', { ieltsTargetBand: 6.5, ieltsExamDate: '2026-12-05' });
+    expect(getPreferences('u1')).toMatchObject({ ieltsTargetBand: 6.5, ieltsExamDate: '2026-12-05' });
+    expect(sanitizePreferences({ ieltsTargetBand: 6.3, ieltsExamDate: '05/12/2026' })).toMatchObject({
+      ieltsTargetBand: null,
+      ieltsExamDate: null,
+    });
+  });
+
   it('ignores an empty user id', () => {
     expect(setPreferences('', { reviewSessionSize: 50 }).reviewSessionSize).toBe(50);
     expect(Object.keys(store)).toHaveLength(0);
