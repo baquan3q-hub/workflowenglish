@@ -7,7 +7,7 @@ interface StatusBadgeProps {
   /** Show "Tạm ẩn" instead of the level. */
   suspended?: boolean;
   /** `dot`: coloured dot only (label in tooltip / screen reader). `pill`: dot + label. */
-  variant?: 'dot' | 'pill';
+  variant?: 'dot' | 'pill' | 'label';
   size?: 'sm' | 'md';
   className?: string;
 }
@@ -24,6 +24,15 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
   className = '',
 }) => {
   const meta = getLevelMeta(level, suspended);
+
+  if (variant === 'label') {
+    return (
+      <span className={`inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-medium text-slate-600 dark:text-slate-400 ${className}`}>
+        <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />
+        {meta.label}
+      </span>
+    );
+  }
 
   if (variant === 'dot') {
     return (

@@ -102,6 +102,10 @@ export interface RatingMeta {
   soft: string;
   /** Ring used to mark the suggested rating. */
   ring: string;
+  /** Quiet button: coloured label, tint on hover. Pair with a neutral surface and border. */
+  quiet: string;
+  /** Solid colour alone, for dots and bars. */
+  dot: string;
 }
 
 export const RATING_META: readonly RatingMeta[] = [
@@ -112,6 +116,8 @@ export const RATING_META: readonly RatingMeta[] = [
     solid: 'bg-rate-again-solid hover:bg-rate-again-solid/90 text-white',
     soft: 'bg-rate-again/10 text-rate-again-fg border-rate-again/30',
     ring: 'ring-rate-again',
+    quiet: 'text-rate-again-fg hover:border-rate-again/50 hover:bg-rate-again/5',
+    dot: 'bg-rate-again',
   },
   {
     rating: 1,
@@ -120,6 +126,8 @@ export const RATING_META: readonly RatingMeta[] = [
     solid: 'bg-rate-hard-solid hover:bg-rate-hard-solid/90 text-white',
     soft: 'bg-rate-hard/10 text-rate-hard-fg border-rate-hard/30',
     ring: 'ring-rate-hard',
+    quiet: 'text-rate-hard-fg hover:border-rate-hard/50 hover:bg-rate-hard/5',
+    dot: 'bg-rate-hard',
   },
   {
     rating: 2,
@@ -128,6 +136,8 @@ export const RATING_META: readonly RatingMeta[] = [
     solid: 'bg-rate-good-solid hover:bg-rate-good-solid/90 text-white',
     soft: 'bg-rate-good/10 text-rate-good-fg border-rate-good/30',
     ring: 'ring-rate-good',
+    quiet: 'text-rate-good-fg hover:border-rate-good/50 hover:bg-rate-good/5',
+    dot: 'bg-rate-good',
   },
   {
     rating: 3,
@@ -136,6 +146,8 @@ export const RATING_META: readonly RatingMeta[] = [
     solid: 'bg-rate-easy-solid hover:bg-rate-easy-solid/90 text-white',
     soft: 'bg-rate-easy/10 text-rate-easy-fg border-rate-easy/30',
     ring: 'ring-rate-easy',
+    quiet: 'text-rate-easy-fg hover:border-rate-easy/50 hover:bg-rate-easy/5',
+    dot: 'bg-rate-easy',
   },
 ];
 

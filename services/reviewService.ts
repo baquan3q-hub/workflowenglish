@@ -194,6 +194,7 @@ export interface ApplyRatingInput {
   creditGoal?: boolean;
   /** See `computeRatingUpdate` (default true). */
   countAnswer?: boolean;
+  /** Pass it when the rating may be undone: `undoRating` finds the log row by it. */
   now?: Date;
 }
 
@@ -248,4 +249,61 @@ export async function applyRating(input: ApplyRatingInput): Promise<ApplyRatingR
     : Promise.resolve(null);
 
   return { record, update, goal };
+}
+
+// --- undoRating ------------------------------------------------------------
+
+/** SRS columns restored by an undo (the same set a rating writes). */
+export const SRS_STATE_FIELDS = [
+  'mastery_level',
+  'easiness_factor',
+  'interval_days',
+  'repetition_count',
+  'next_review_date',
+  'last_reviewed_at',
+  'correct_count',
+  'incorrect_count',
+] as const;
+
+/** Pick the SRS state from a row, for an undo snapshot. Pure. */
+export function srsSnapshot(record: RatingBaseline): RatingUpdate['patch'] {
+  const out = {} as Record<string, unknown>;
+  for (const field of SRS_STATE_FIELDS) out[field] = (record as Record<string, unknown>)[field] ?? null;
+  return out as RatingUpdate['patch'];
+}
+
+export interface UndoRatingInput {
+  userId: string;
+  word: string;
+  /** The row as it was before the rating (the value passed as `current`). */
+  snapshot: RatingBaseline;
+  /** `now` of the rating being undone; identifies its review_logs row. */
+  reviewedAt: Date;
+}
+
+/**
+ * Revert a rating applied with `applyRating`: write the previous SRS state
+ * back and delete the log row it added. The daily-goal counter is not
+ * decremented (it only ever counts up for the day).
+ */
+export async function undoRating(input: UndoRatingInput): Promise<WordMasteryRecord> {
+  const record = await upsertWordMastery({
+    user_id: input.userId,
+    word: input.word,
+    ...srsSnapshot(input.snapshot),
+  });
+  if (!reviewLogsUnavailable) {
+    try {
+      const { error } = await withTimeout(Promise.resolve(supabase
+        .from(LOG_TABLE)
+        .delete()
+        .eq('user_id', input.userId)
+        .eq('word', normalizeWord(input.word))
+        .eq('reviewed_at', input.reviewedAt.toISOString())));
+      if (error) console.warn('[ReviewLogs] undo delete failed:', error);
+    } catch (err) {
+      console.warn('[ReviewLogs] undo delete failed:', err);
+    }
+  }
+  return record;
 }

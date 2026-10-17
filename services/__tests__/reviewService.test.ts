@@ -9,12 +9,22 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import fc from 'fast-check';
 
 const insertMock = vi.fn();
+const deleteEqMock = vi.fn();
 const upsertWordMasteryMock = vi.fn();
 const recordWordReviewMock = vi.fn();
 const getWordMasteryMock = vi.fn();
 
 vi.mock('../supabaseClient', () => ({
-  supabase: { from: () => ({ insert: insertMock }) },
+  supabase: {
+    from: () => ({
+      insert: insertMock,
+      // delete().eq().eq().eq() resolves on the last call
+      delete: () => {
+        const chain = { eq: (...args: unknown[]) => { deleteEqMock(...args); return deleteEqMock.mock.calls.length % 3 === 0 ? Promise.resolve({ error: null }) : chain; } };
+        return chain;
+      },
+    }),
+  },
   withTimeout: (p: Promise<unknown>) => p,
 }));
 
@@ -37,6 +47,8 @@ import {
   logReviewEvent,
   resetReviewLogAvailability,
   sanitizeDuration,
+  srsSnapshot,
+  undoRating,
   MAX_TRACKED_DURATION_MS,
   type RatingBaseline,
 } from '../reviewService';
@@ -304,5 +316,37 @@ describe('applyRating', () => {
       applyRating({ userId: 'u1', word: 'a', current: null, rating: 2, source: 'review' }),
     ).rejects.toThrow('db down');
     expect(insertMock).not.toHaveBeenCalled();
+  });
+});
+
+// --- undoRating ------------------------------------------------------------
+
+describe('undoRating', () => {
+  beforeEach(() => {
+    upsertWordMasteryMock.mockReset();
+    deleteEqMock.mockReset();
+    resetReviewLogAvailability();
+  });
+
+  it('writes the snapshot back and deletes the log row of that rating', async () => {
+    const snapshot = { ...DEFAULT_REVIEWABLE_STATE, mastery_level: MasteryLevel.REVIEWING, interval_days: 6 };
+    upsertWordMasteryMock.mockImplementation(async (r: object) => ({ id: 'm1', ...r }));
+    const reviewedAt = new Date('2026-10-17T10:00:00.123Z');
+    await undoRating({ userId: 'u1', word: ' Apple', snapshot, reviewedAt });
+
+    expect(upsertWordMasteryMock).toHaveBeenCalledWith({ user_id: 'u1', word: ' Apple', ...srsSnapshot(snapshot) });
+    expect(deleteEqMock.mock.calls).toEqual([
+      ['user_id', 'u1'],
+      ['word', 'apple'],
+      ['reviewed_at', reviewedAt.toISOString()],
+    ]);
+  });
+
+  it('snapshots only SRS columns, never metadata', () => {
+    const snap = srsSnapshot({ ...DEFAULT_REVIEWABLE_STATE, meaning_vi: 'táo' } as RatingBaseline);
+    expect(Object.keys(snap).sort()).toEqual([
+      'correct_count', 'easiness_factor', 'incorrect_count', 'interval_days',
+      'last_reviewed_at', 'mastery_level', 'next_review_date', 'repetition_count',
+    ]);
   });
 });

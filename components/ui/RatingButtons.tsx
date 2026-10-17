@@ -18,8 +18,10 @@ interface RatingButtonsProps {
 
 /**
  * The four SRS rating buttons (Lại · Khó · Tốt · Dễ), shared by the lesson
- * flashcards and the review session. Keyboard handling stays with the
- * screen, which knows when a rating is allowed.
+ * flashcards and the review session. Quiet by default: a neutral surface
+ * with the label in its rating colour; the suggested rating gets a tint and
+ * a ring. Keyboard handling stays with the screen, which knows when a
+ * rating is allowed.
  */
 export const RatingButtons: React.FC<RatingButtonsProps> = ({
   onRate,
@@ -30,7 +32,7 @@ export const RatingButtons: React.FC<RatingButtonsProps> = ({
   showKeys = true,
   className = '',
 }) => (
-  <div role="group" aria-label="Tự đánh giá mức độ nhớ" className={`grid grid-cols-4 gap-2 sm:gap-3 ${className}`}>
+  <div role="group" aria-label="Tự đánh giá mức độ nhớ" className={`grid grid-cols-4 gap-2 ${className}`}>
     {RATING_META.map((meta) => {
       const locked = meta.rating > maxRating;
       const isSuggested = suggested === meta.rating;
@@ -47,14 +49,20 @@ export const RatingButtons: React.FC<RatingButtonsProps> = ({
           aria-keyshortcuts={showKeys ? meta.key : undefined}
           aria-label={hint ? `${meta.label}, ${hint}` : meta.label}
           title={locked ? 'Không khả dụng với kết quả vừa rồi' : undefined}
-          className={`flex min-h-touch flex-col items-center justify-center gap-0.5 rounded-xl px-2 py-3 font-semibold shadow-sm transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 disabled:active:scale-100 sm:py-4 ${meta.solid} ${isSuggested ? `ring-2 ring-offset-2 ring-offset-white dark:ring-offset-slate-900 ${meta.ring}` : ''}`}
+          className={`group relative flex min-h-[64px] flex-col items-center justify-center gap-0.5 rounded-xl border bg-white px-2 py-2.5 transition-colors active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-white disabled:active:scale-100 dark:bg-slate-900 dark:disabled:hover:bg-slate-900 ${meta.quiet} ${
+            isSuggested
+              ? `border-transparent ring-2 ${meta.ring}`
+              : 'border-slate-200 dark:border-slate-700'
+          }`}
         >
-          <span className="text-base sm:text-lg">{meta.label}</span>
+          <span className="text-[15px] font-semibold">{meta.label}</span>
           {hints && (
-            <span className="text-[11px] font-medium opacity-90 sm:text-xs">{hint ?? '—'}</span>
+            <span className="text-xs font-medium tabular-nums text-slate-500 dark:text-slate-400">{hint ?? '—'}</span>
           )}
           {showKeys && (
-            <kbd className="hidden rounded bg-white/20 px-1.5 text-[10px] font-semibold sm:block">{meta.key}</kbd>
+            <kbd className="absolute right-1.5 top-1 hidden font-sans text-[10px] font-medium text-slate-400 dark:text-slate-500 sm:block">
+              {meta.key}
+            </kbd>
           )}
         </button>
       );
