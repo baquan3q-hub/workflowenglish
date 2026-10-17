@@ -8,13 +8,14 @@ import {
   FileText,
   Flame,
   LayoutGrid,
+  PenLine,
   Plus,
   RefreshCw,
   Repeat,
   Sparkles,
   X,
 } from 'lucide-react';
-import { DifficultyLevel, UserGoals, UserSettings, VocabularyTemplate, WordRecommendation } from '../types';
+import { DifficultyLevel, SentenceItem, UserGoals, UserSettings, VocabularyTemplate, WordRecommendation } from '../types';
 import { getDueWordCount } from '../services/masteryService';
 import { getOrCreateUserGoals, updateDailyGoal } from '../services/goalService';
 import { supabase } from '../services/supabaseClient';
@@ -27,6 +28,7 @@ import {
   getMasteredWordsList,
 } from '../services/recommendationService';
 import { aiErrorMessage } from '../services/aiClient';
+import { getWrongSentences } from '../services/sentenceService';
 import { getLessonLists, getLibraryWords } from '../services/vocabLibraryService';
 import { listProgress, matchesStatus, type LessonList, type LibraryWord } from '../services/vocabLibraryLogic';
 import { countInputWords, lessonMinutes, pickPrimaryAction } from '../services/dashboardLogic';
@@ -44,6 +46,8 @@ interface DashboardProps {
   onContinueLesson?: () => void;
   /** Open a lesson's words in Sổ từ. */
   onOpenLesson?: (lessonListId: string) => void;
+  /** Practise sentences answered "Cần sửa" earlier. */
+  onPracticeSentences?: (items: SentenceItem[]) => void;
 }
 
 /** Sent to the AI as the lesson context; the label is what the learner sees. */
@@ -148,10 +152,12 @@ const Dashboard: React.FC<DashboardProps> = ({
   activeLesson = null,
   onContinueLesson,
   onOpenLesson,
+  onPracticeSentences,
 }) => {
   const [inputText, setInputText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [dueCount, setDueCount] = useState<number | null>(null);
+  const [wrongSentences, setWrongSentences] = useState<SentenceItem[]>([]);
   const [userGoals, setUserGoals] = useState<UserGoals | null>(null);
   const [isUpdatingGoal, setIsUpdatingGoal] = useState(false);
   const [settings, setSettings] = useState<UserSettings>({ level: DifficultyLevel.B1, topic: TOPICS[0].value });
@@ -178,6 +184,11 @@ const Dashboard: React.FC<DashboardProps> = ({
         console.error('Failed to load due word count:', err);
         if (!cancelled) setDueCount(0);
       });
+
+    // Empty until migration 008 is applied; the dashboard just skips it then.
+    getWrongSentences(userId)
+      .then((items) => !cancelled && setWrongSentences(items))
+      .catch((err) => console.warn('Could not load wrong sentences:', err?.message ?? err));
 
     getOrCreateUserGoals(userId)
       .then((goals) => !cancelled && setUserGoals(goals))
@@ -322,7 +333,11 @@ const Dashboard: React.FC<DashboardProps> = ({
     if (inputText.trim()) onGenerate(inputText, settings);
   };
 
-  const action = pickPrimaryAction({ activeLesson, dueCount, wrongSentences: 0 });
+  const action = pickPrimaryAction({
+    activeLesson,
+    dueCount,
+    wrongSentences: onPracticeSentences ? wrongSentences.length : 0,
+  });
   const wordCount = countInputWords(inputText);
   const minutes = lessonMinutes(wordCount);
   const now = useMemo(() => new Date(), [recent]);
@@ -336,6 +351,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const runPrimary = () => {
     if (action.kind === 'continue') onContinueLesson?.();
     else if (action.kind === 'review') onStartReview();
+    else if (action.kind === 'sentences') onPracticeSentences?.(wrongSentences);
     else inputRef.current?.focus();
   };
 
@@ -354,10 +370,12 @@ const Dashboard: React.FC<DashboardProps> = ({
               <button type="button" onClick={runPrimary} className={`${primaryBtn} mt-4 w-full sm:w-auto`}>
                 {action.kind === 'continue' ? (
                   <BookOpen className="h-4 w-4" aria-hidden="true" />
+                ) : action.kind === 'sentences' ? (
+                  <PenLine className="h-4 w-4" aria-hidden="true" />
                 ) : (
                   <Repeat className="h-4 w-4" aria-hidden="true" />
                 )}
-                {action.kind === 'continue' ? 'Tiếp tục' : 'Bắt đầu ôn'}
+                {action.kind === 'continue' ? 'Tiếp tục' : action.kind === 'sentences' ? 'Luyện câu' : 'Bắt đầu ôn'}
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </button>
             )}

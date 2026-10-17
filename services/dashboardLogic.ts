@@ -8,7 +8,7 @@ export interface DashboardState {
   activeLesson: { topic: string } | null;
   /** Words due now; null while loading. */
   dueCount: number | null;
-  /** Sentences answered wrong and not practised again (Luyện câu, later). */
+  /** Sentences answered "Cần sửa" and not written correctly since. */
   wrongSentences: number;
 }
 

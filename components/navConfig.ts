@@ -16,6 +16,7 @@ export const LESSON_PHASES: readonly AppPhase[] = [
   AppPhase.STORY,
   AppPhase.QUIZ,
   AppPhase.FILL_BLANK,
+  AppPhase.SENTENCE_PRACTICE,
 ];
 
 const IELTS_PHASES: readonly AppPhase[] = [
@@ -37,6 +38,7 @@ const NO_TAB_BAR_PHASES: readonly AppPhase[] = [
   AppPhase.AUTH,
   ...LESSON_PHASES,
   AppPhase.REVIEW_SESSION,
+  AppPhase.SENTENCE_DRILL,
   AppPhase.IELTS_WRITING_PRACTICE,
   AppPhase.IELTS_SPEAKING_PRACTICE,
 ];
@@ -51,7 +53,8 @@ export function isIeltsPhase(phase: AppPhase): boolean {
 
 /** The tab to highlight for a screen; `null` for screens outside the tabs (history). */
 export function activeNavTab(phase: AppPhase): NavTabId | null {
-  if (phase === AppPhase.DASHBOARD || isLessonPhase(phase) || phase === AppPhase.LESSON_SUMMARY) return 'learn';
+  if (phase === AppPhase.DASHBOARD || isLessonPhase(phase) || phase === AppPhase.LESSON_SUMMARY || phase === AppPhase.SENTENCE_DRILL)
+    return 'learn';
   if (phase === AppPhase.REVIEW_SESSION) return 'review';
   if (phase === AppPhase.VOCAB_LIBRARY) return 'vocab';
   if (phase === AppPhase.ANALYTICS) return 'stats';

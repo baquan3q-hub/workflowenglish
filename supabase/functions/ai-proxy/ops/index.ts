@@ -1,6 +1,7 @@
 import { asObject, str, userText, type OpSpec } from '../lib.ts';
 import { gradeIeltsSpeaking, gradeIeltsWriting, ieltsChat, transcribeAudio } from './ielts.ts';
 import { generateLesson, generateRemedialLesson, recommendWords } from './lesson.ts';
+import { generateSentences, gradeSentence } from './sentences.ts';
 
 /** Story narration: 24 kHz mono 16-bit PCM, returned as base64. */
 const tts: OpSpec = {
@@ -25,6 +26,8 @@ export const OPS: Record<string, OpSpec> = {
   generateLesson,
   generateRemedialLesson,
   recommendWords,
+  generateSentences,
+  gradeSentence,
   gradeIeltsWriting,
   gradeIeltsSpeaking,
   transcribeAudio,

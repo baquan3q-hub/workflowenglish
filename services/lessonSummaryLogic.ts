@@ -1,7 +1,7 @@
 /**
  * Lesson flow (pure): which steps are done, and the end-of-lesson summary.
- * Step state comes from data the lesson already has (rated cards, quiz and
- * fill-blank results), so going back to a step never loses a score.
+ * Step state comes from data the lesson already has (rated cards, quiz,
+ * fill-blank and sentence results), so going back to a step never loses a score.
  */
 
 import { AppPhase, MasteryLevel, type LessonProgress, type StepResult, type WordMasteryRecord } from '../types';
@@ -17,12 +17,12 @@ export interface LessonStep {
   status: StepStatus;
 }
 
-// Luyện câu joins after Thẻ từ… Điền từ once Phase 5 ships.
 export const LESSON_STEPS: ReadonlyArray<{ phase: AppPhase; label: string }> = [
   { phase: AppPhase.FLASHCARDS, label: 'Thẻ từ' },
   { phase: AppPhase.STORY, label: 'Truyện' },
   { phase: AppPhase.QUIZ, label: 'Trắc nghiệm' },
   { phase: AppPhase.FILL_BLANK, label: 'Điền từ' },
+  { phase: AppPhase.SENTENCE_PRACTICE, label: 'Luyện câu' },
 ];
 
 /**
@@ -34,7 +34,7 @@ export function lessonStepStates(
   flashcardsRated: boolean,
   progress: LessonProgress | undefined,
 ): LessonStep[] {
-  const own = [flashcardsRated, false, !!progress?.quiz, !!progress?.fillBlank];
+  const own = [flashcardsRated, false, !!progress?.quiz, !!progress?.fillBlank, !!progress?.sentences];
   const finished = phase === AppPhase.LESSON_SUMMARY || !!progress?.completedAt;
   return LESSON_STEPS.map((step, i) => {
     const done = finished || own.slice(i).some(Boolean);
@@ -54,6 +54,7 @@ export interface LessonSummary {
   needReview: string[];
   quiz: StepResult | null;
   fillBlank: StepResult | null;
+  sentences: StepResult | null;
   /** Up to 3 words missed most in this lesson. */
   mistakes: Array<{ word: string; misses: number; meaning: string | null }>;
   /** Earliest upcoming review day: 0 = today, 1 = tomorrow. */
@@ -73,7 +74,11 @@ export function summarizeLesson(
   const byWord = new Map(records.filter((r) => inLesson.has(r.word)).map((r) => [r.word, r]));
 
   const misses = new Map<string, number>();
-  for (const w of [...(progress?.quiz?.wrong ?? []), ...(progress?.fillBlank?.wrong ?? [])]) {
+  for (const w of [
+    ...(progress?.quiz?.wrong ?? []),
+    ...(progress?.fillBlank?.wrong ?? []),
+    ...(progress?.sentences?.wrong ?? []),
+  ]) {
     const key = normalizeWord(w);
     if (inLesson.has(key)) misses.set(key, (misses.get(key) ?? 0) + 1);
   }
@@ -103,6 +108,7 @@ export function summarizeLesson(
     needReview,
     quiz: progress?.quiz ?? null,
     fillBlank: progress?.fillBlank ?? null,
+    sentences: progress?.sentences ?? null,
     mistakes,
     nextReview: first === undefined ? null : { days: first, count: buckets.get(first)! },
   };

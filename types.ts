@@ -6,6 +6,9 @@ export enum AppPhase {
   STORY = 'STORY',
   QUIZ = 'QUIZ',
   FILL_BLANK = 'FILL_BLANK',
+  SENTENCE_PRACTICE = 'SENTENCE_PRACTICE',
+  /** Wrong sentences from earlier lessons, practised outside a lesson. */
+  SENTENCE_DRILL = 'SENTENCE_DRILL',
   LESSON_SUMMARY = 'LESSON_SUMMARY',
   HISTORY = 'HISTORY',
   REVIEW_SESSION = 'REVIEW_SESSION',
@@ -168,7 +171,55 @@ export interface StepResult {
 export interface LessonProgress {
   quiz?: StepResult;
   fillBlank?: StepResult;
+  /** Luyện câu: score counts sentences not marked "Cần sửa"; wrong lists their target words. */
+  sentences?: StepResult;
   completedAt?: string;
+}
+
+// ─── Sentence practice (Luyện câu) ───────────────────────────────
+
+export interface SentenceItem {
+  id: string;
+  promptVi: string;
+  /** Lesson words the answer must use (dictionary form). */
+  targetWords: string[];
+  /** 1–3 correct translations; an exact match is graded locally. */
+  references: string[];
+}
+
+export type SentenceVerdict = 'correct' | 'acceptable' | 'incorrect';
+
+export type SentenceErrorCategory =
+  | 'tense'
+  | 'article'
+  | 'preposition'
+  | 'word_choice'
+  | 'word_order'
+  | 'spelling'
+  | 'grammar'
+  | 'meaning'
+  | 'other';
+
+export interface SentenceError {
+  original: string;
+  corrected: string;
+  category: SentenceErrorCategory;
+  explanationVi: string;
+}
+
+export interface SentenceGrade {
+  verdict: SentenceVerdict;
+  score: number | null;
+  /** Minimal correction; changed words wrapped in **…**. */
+  corrected: string;
+  usedTargetWords: boolean;
+  errors: SentenceError[];
+  explanationVi: string;
+  /** A natural model answer. */
+  natural: string;
+  /** 'local' or the model name. */
+  gradedBy: string;
+  latencyMs: number;
 }
 
 export interface GeneratedLesson {
@@ -176,6 +227,8 @@ export interface GeneratedLesson {
   story: StoryData;
   quiz: QuizQuestion[];
   progress?: LessonProgress;
+  /** Made in the background after the lesson is created; absent on older lessons. */
+  sentencePractice?: SentenceItem[];
 }
 
 export interface UserSettings {

@@ -18,7 +18,7 @@ describe('lessonStepStates', () => {
   const status = (...args: Parameters<typeof lessonStepStates>) => lessonStepStates(...args).map((s) => s.status);
 
   it('marks the open step current and later steps todo at the start', () => {
-    expect(status(AppPhase.FLASHCARDS, false, undefined)).toEqual(['current', 'todo', 'todo', 'todo']);
+    expect(status(AppPhase.FLASHCARDS, false, undefined)).toEqual(['current', 'todo', 'todo', 'todo', 'todo']);
   });
 
   it('derives done steps from data, including Truyện once the quiz has a score', () => {
@@ -27,16 +27,22 @@ describe('lessonStepStates', () => {
       'done',
       'done',
       'current',
+      'todo',
     ]);
   });
 
   it('keeps scores when going back to an earlier step', () => {
     const progress = { quiz: { score: 4, total: 5, wrong: [] }, fillBlank: { score: 5, total: 5, wrong: [] } };
-    expect(status(AppPhase.STORY, true, progress)).toEqual(['done', 'current', 'done', 'done']);
+    expect(status(AppPhase.STORY, true, progress)).toEqual(['done', 'current', 'done', 'done', 'todo']);
   });
 
   it('shows every step done on the summary', () => {
-    expect(status(AppPhase.LESSON_SUMMARY, false, undefined)).toEqual(['done', 'done', 'done', 'done']);
+    expect(status(AppPhase.LESSON_SUMMARY, false, undefined)).toEqual(['done', 'done', 'done', 'done', 'done']);
+  });
+
+  it('marks every earlier step done once Luyện câu has a result', () => {
+    const progress = { sentences: { score: 4, total: 6, wrong: ['decide'] } };
+    expect(status(AppPhase.QUIZ, false, progress)).toEqual(['done', 'done', 'current', 'done', 'done']);
   });
 });
 
@@ -69,6 +75,18 @@ describe('summarizeLesson', () => {
       ['resilient', 1],
     ]);
     expect(s.mistakes[0].meaning).toBe('nghĩa skill');
+  });
+
+  it('counts sentence misses with the other steps', () => {
+    const s = summarizeLesson(
+      words,
+      [r('resilient'), r('allocate'), r('skill'), r('travel')],
+      { quiz: { score: 3, total: 4, wrong: ['travel'] }, sentences: { score: 1, total: 2, wrong: ['travel', 'allocate'] } },
+      NOW,
+    );
+    expect(s.sentences).toEqual({ score: 1, total: 2, wrong: ['travel', 'allocate'] });
+    expect(s.needReview).toEqual(['allocate', 'travel']);
+    expect(s.mistakes[0]).toMatchObject({ word: 'travel', misses: 2 });
   });
 
   it('finds the earliest review day, skipping new and suspended words', () => {

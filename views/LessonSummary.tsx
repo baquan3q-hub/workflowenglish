@@ -61,6 +61,7 @@ const LessonSummary: React.FC<LessonSummaryProps> = ({ lesson, userId, topic, on
     { label: 'Đã nhớ', value: loading ? null : `${summary.remembered}/${summary.total}` },
     { label: 'Trắc nghiệm', value: scoreText(summary.quiz) },
     { label: 'Điền từ', value: scoreText(summary.fillBlank) },
+    { label: 'Luyện câu', value: scoreText(summary.sentences) },
   ];
 
   return (
@@ -75,9 +76,9 @@ const LessonSummary: React.FC<LessonSummaryProps> = ({ lesson, userId, topic, on
         </div>
       </header>
 
-      <dl className={`${panel} grid grid-cols-3 divide-x divide-slate-200 dark:divide-slate-800`}>
+      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-slate-200 bg-slate-200 dark:border-slate-800 dark:bg-slate-800 sm:grid-cols-4">
         {stats.map((s) => (
-          <div key={s.label} className="px-3 py-4 text-center">
+          <div key={s.label} className="bg-white px-3 py-4 text-center dark:bg-slate-900">
             <dt className="text-caption text-slate-500 dark:text-slate-400">{s.label}</dt>
             <dd className="mt-1 text-title font-semibold tabular-nums text-slate-900 dark:text-white">
               {s.value ?? <Skeleton className="mx-auto h-6 w-12" />}

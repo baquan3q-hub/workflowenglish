@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AppPhase, DifficultyLevel, GeneratedLesson, LessonProgress, UserSettings, FlashcardData, IeltsQuestion, IeltsAiFeedback, IeltsAttempt, IeltsSkill } from './types';
+import { AppPhase, DifficultyLevel, GeneratedLesson, LessonProgress, SentenceItem, StepResult, UserSettings, FlashcardData, IeltsQuestion, IeltsAiFeedback, IeltsAttempt, IeltsSkill } from './types';
 import { generateLessonContent } from './services/geminiService';
 import { aiErrorMessage } from './services/aiClient';
+import { generateSentences } from './services/sentenceService';
 import { supabase, getProfile, signOut, saveLearningRecord, getLearningRecordFull, LearningRecord, saveLessonAudio, withTimeout, getCachedSession, resumeAuthRefresh, pauseAuthRefresh } from './services/supabaseClient';
 import {
   checkLevelSuggestion,
@@ -23,6 +24,7 @@ import ReviewSession from './views/ReviewSession';
 import AnalyticsDashboard from './views/AnalyticsDashboard';
 import VocabLibrary from './views/VocabLibrary';
 import LessonSummary from './views/LessonSummary';
+import SentencePractice from './views/SentencePractice';
 import { LessonStepper } from './components/LessonStepper';
 import { lessonStepStates } from './services/lessonSummaryLogic';
 import IeltsWritingHub from './views/IeltsWritingHub';
@@ -70,6 +72,9 @@ function App() {
   const [phase, setPhase] = useState<AppPhase>(AppPhase.LANDING);
   const [lessonData, setLessonData] = useState<GeneratedLesson | null>(null);
   const [lessonSettings, setLessonSettings] = useState<UserSettings | null>(null);
+  const [sentencesGenerating, setSentencesGenerating] = useState(false);
+  // Luyện lại câu sai from the dashboard, outside any lesson.
+  const [sentenceDrill, setSentenceDrill] = useState<SentenceItem[]>([]);
   const [lessonWords, setLessonWords] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
@@ -185,6 +190,7 @@ function App() {
         AppPhase.STORY,
         AppPhase.QUIZ,
         AppPhase.FILL_BLANK,
+        AppPhase.SENTENCE_PRACTICE,
       ].includes(phase);
 
       if (isOutOfLesson && hadLessonRef.current) {
@@ -501,6 +507,9 @@ function App() {
       setLessonData(data);
       setCurrentRecordId(null);
       setPhase(AppPhase.FLASHCARDS);
+      // Luyện câu is the last step, so its sentences are made while the
+      // learner works through the cards; the next save stores them.
+      void loadSentences(data.flashcards, settings, false);
     } catch (err) {
       console.error(err);
       showToast(aiErrorMessage(err), 'error', {
@@ -509,6 +518,28 @@ function App() {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  /**
+   * Make the Luyện câu sentences and attach them to the lesson, unless the
+   * learner has moved to another lesson meanwhile.
+   */
+  const loadSentences = async (cards: FlashcardData[], settings: UserSettings, persist: boolean) => {
+    setSentencesGenerating(true);
+    try {
+      const items = await generateSentences(cards, settings.level, settings.topic || 'General');
+      const current = lessonDataRef.current;
+      if (!current || current.flashcards !== cards) return;
+      const next = { ...current, sentencePractice: items };
+      lessonDataRef.current = next;
+      setLessonData(next);
+      if (persist) void persistLesson({ data: next }).catch((err) => console.error('Failed to save sentences:', err));
+    } catch (err) {
+      console.error('[Sentence] generation failed:', err);
+      if (persist) showToast(`Chưa tạo được câu luyện. ${aiErrorMessage(err)}`, 'error');
+    } finally {
+      setSentencesGenerating(false);
     }
   };
 
@@ -617,9 +648,19 @@ function App() {
     }
   };
 
-  /** First pass of Điền từ done: record it, save, and show the lesson summary. */
+  /** First pass of Điền từ done: record it, save, and move on to Luyện câu. */
   const handleFillBlankComplete = (score: number, total: number, wrong: string[]) => {
-    const data = withProgress({ fillBlank: { score, total, wrong }, completedAt: new Date().toISOString() });
+    const data = withProgress({ fillBlank: { score, total, wrong } });
+    if (!data) return;
+    setPhase(AppPhase.SENTENCE_PRACTICE);
+    void persistLesson({ data }).catch((err) => console.error('Failed to save fill-blank result:', err));
+  };
+
+  /** Luyện câu done (or skipped): the lesson is finished; save and show the summary. */
+  const handleSentencesComplete = (result: StepResult) => {
+    const patch: LessonProgress = { completedAt: new Date().toISOString() };
+    if (result.total > 0) patch.sentences = result;
+    const data = withProgress(patch);
     if (!data) return;
     setPhase(AppPhase.LESSON_SUMMARY);
     void persistLesson({ data }).catch((err) => {
@@ -857,6 +898,10 @@ function App() {
               setLibraryLessonId(id);
               setPhase(AppPhase.VOCAB_LIBRARY);
             }}
+            onPracticeSentences={(items) => {
+              setSentenceDrill(items);
+              setPhase(AppPhase.SENTENCE_DRILL);
+            }}
           />
         );
 
@@ -981,7 +1026,36 @@ function App() {
             cards={lessonData.flashcards}
             userId={currentUser?.id}
             onComplete={handleFillBlankComplete}
-            onFinish={() => setPhase(AppPhase.LESSON_SUMMARY)}
+            onFinish={() => setPhase(AppPhase.SENTENCE_PRACTICE)}
+          />
+        ) : null;
+
+      case AppPhase.SENTENCE_PRACTICE:
+        return lessonData && currentUser ? (
+          <SentencePractice
+            key={lessonData.sentencePractice?.[0]?.id ?? 'none'}
+            items={lessonData.sentencePractice}
+            level={lessonSettings?.level ?? DifficultyLevel.B1}
+            userId={currentUser.id}
+            lessonRecordId={currentRecordId}
+            generating={sentencesGenerating}
+            onGenerate={lessonSettings ? () => void loadSentences(lessonData.flashcards, lessonSettings, true) : undefined}
+            onComplete={handleSentencesComplete}
+            completeLabel="Xem tổng kết"
+          />
+        ) : null;
+
+      case AppPhase.SENTENCE_DRILL:
+        return currentUser ? (
+          <SentencePractice
+            items={sentenceDrill}
+            level={lessonSettings?.level ?? DifficultyLevel.B1}
+            userId={currentUser.id}
+            lessonRecordId={null}
+            onComplete={() => setPhase(AppPhase.DASHBOARD)}
+            completeLabel="Về trang chủ"
+            title="Luyện lại câu sai"
+            subtitle="Các câu bạn viết sai trong 30 ngày qua."
           />
         ) : null;
 
