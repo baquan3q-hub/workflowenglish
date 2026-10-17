@@ -358,6 +358,8 @@ const lessonSchema: Schema = {
           definitionEnglish: { type: Type.STRING },
           exampleSentence: { type: Type.STRING },
           exampleSentenceVietnamese: { type: Type.STRING },
+          collocations: { type: Type.ARRAY, items: { type: Type.STRING } },
+          memoryTip: { type: Type.STRING },
         },
         required: ["id", "word", "ipa", "partOfSpeech", "meaningVietnamese", "definitionEnglish", "exampleSentence", "exampleSentenceVietnamese"],
       },
@@ -390,6 +392,26 @@ const lessonSchema: Schema = {
   required: ["flashcards", "story", "quiz"],
 };
 
+/**
+ * Defensive clean-up of model output: guarantees every quiz question has a
+ * correct answer among its options (otherwise the question is unanswerable)
+ * and drops duplicate options.
+ */
+function sanitizeLesson(lesson: GeneratedLesson): GeneratedLesson {
+  const quiz = (lesson.quiz ?? []).map((q) => {
+    const options = Array.from(new Set((q.options ?? []).map((o) => o.trim()).filter(Boolean)));
+    const correct = (q.correctAnswer ?? '').trim();
+    if (correct && !options.includes(correct)) options.push(correct);
+    return { ...q, options, correctAnswer: correct };
+  });
+  const flashcards = (lesson.flashcards ?? []).map((c) => ({
+    ...c,
+    collocations: Array.isArray(c.collocations) ? c.collocations.filter(Boolean).slice(0, 4) : undefined,
+    memoryTip: c.memoryTip?.trim() || undefined,
+  }));
+  return { ...lesson, flashcards, quiz };
+}
+
 export const generateLessonContent = async (
   inputWords: string,
   level: DifficultyLevel,
@@ -419,6 +441,16 @@ export const generateLessonContent = async (
     Input Vocabulary:
     "${inputWords}"
 
+    FLASHCARD REQUIREMENTS:
+    - 'exampleSentence' MUST contain the vocabulary word itself (an inflected form such as plural or past tense is fine), so it can be used for fill-in-the-blank practice.
+    - 'collocations': 2-4 short, high-frequency collocations or chunks using the word (e.g. "make a decision", "decide on sth").
+    - 'memoryTip': ONE short Vietnamese sentence (max 25 words) with a memory hook OR a common mistake Vietnamese learners make with this word (confusable words, wrong preposition, pronunciation trap).
+
+    QUIZ OPTION REQUIREMENTS:
+    - Exactly 4 options, all distinct, all in Vietnamese, similar length and the same part of speech, so the answer cannot be guessed from form.
+    - Distractors should be plausible (meanings of related or easily confused words), not absurd.
+    - 'correctAnswer' must be copied EXACTLY from one of the options.
+
     Requirements:
     - Vietnamese translations must be natural and accurate.
     - Example sentences must match the ${level} complexity.
@@ -447,7 +479,7 @@ export const generateLessonContent = async (
       if (!text) throw new Error("No response from AI");
 
       const data = JSON.parse(text) as GeneratedLesson;
-      return data;
+      return sanitizeLesson(data);
     } catch (error: any) {
       lastError = error;
       const status = error?.status || error?.message?.match(/(\d{3})/)?.[1];

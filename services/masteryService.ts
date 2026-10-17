@@ -182,21 +182,44 @@ export async function upsertWordMastery(
  * Words whose `next_review_date` has arrived or passed, ordered by the
  * oldest due first (so the most-overdue words surface first in a session).
  * Excludes NEW words (see `isWordDue`).
+ * Pass `limit` to cap the session size so a backlog never arrives at once.
  */
 export async function getDueWords(
   userId: string,
+  limit?: number,
 ): Promise<WordMasteryRecord[]> {
   const nowIso = new Date().toISOString();
-  const { data, error } = await withTimeout(Promise.resolve(supabase
+  let query = supabase
     .from(TABLE)
     .select('*')
     .eq('user_id', userId)
     .neq('mastery_level', MasteryLevel.NEW)
     .lte('next_review_date', nowIso)
-    .order('next_review_date', { ascending: true })));
+    .order('next_review_date', { ascending: true });
+  if (limit && limit > 0) query = query.limit(limit);
+  const { data, error } = await withTimeout(Promise.resolve(query));
 
   if (error) throw error;
   return (data ?? []) as WordMasteryRecord[];
+}
+
+/**
+ * When the learner's next not-yet-due word becomes due (ISO string), or
+ * `null` if nothing is scheduled. Used for the "all caught up" message.
+ */
+export async function getNextDueAt(userId: string): Promise<string | null> {
+  const nowIso = new Date().toISOString();
+  const { data, error } = await withTimeout(Promise.resolve(supabase
+    .from(TABLE)
+    .select('next_review_date')
+    .eq('user_id', userId)
+    .gt('next_review_date', nowIso)
+    .order('next_review_date', { ascending: true })
+    .limit(1)));
+
+  if (error) throw error;
+  const row = (data ?? [])[0] as { next_review_date?: string } | undefined;
+  return row?.next_review_date ?? null;
 }
 
 /**
@@ -279,6 +302,9 @@ export async function getWordMasteryStats(
  * defaults if none exists yet (e.g. user encountered the word in a quiz
  * without having reviewed it as a flashcard first).
  *
+ * Pass `countIncorrect: false` when the caller already counted the miss
+ * (e.g. via `recordReview`) and only the context should be appended.
+ *
  * Note: there is a small read-modify-write race here. Quiz answers happen
  * one at a time per user, so in practice this is fine; if we ever need
  * stronger guarantees we can move the append into a Postgres function.
@@ -287,7 +313,9 @@ export async function recordQuizIncorrect(
   userId: string,
   word: string,
   context: IncorrectContext,
+  options: { countIncorrect?: boolean } = {},
 ): Promise<void> {
+  const { countIncorrect = true } = options;
   const normalized = normalizeWord(word);
   const existing = await getWordMastery(userId, normalized);
 
@@ -302,7 +330,7 @@ export async function recordQuizIncorrect(
   } = {
     user_id: userId,
     word: normalized,
-    incorrect_count: (existing?.incorrect_count ?? 0) + 1,
+    incorrect_count: (existing?.incorrect_count ?? 0) + (countIncorrect ? 1 : 0),
     incorrect_contexts: nextContexts,
   };
 

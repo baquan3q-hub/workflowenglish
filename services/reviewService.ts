@@ -1,28 +1,27 @@
 /**
  * Review Service — the single place where a rating is applied to a word.
  *
- * Every rating path (lesson flashcards, SRS review session, quiz lapses and,
- * later, spelling / handwriting / sentence practice) goes through
- * `applyRating`, which:
- *   1. computes the next SM-2 state and mastery level (pure:
- *      `computeRatingUpdate`),
+ * Every rating path (lesson flashcards, SRS review session, quiz,
+ * fill-in-the-blank and, later, handwriting / sentence practice) goes
+ * through `applyRating`, which:
+ *   1. computes the next SRS state (pure: `computeRatingUpdate`, built on
+ *      `reviewLogic.computeReviewUpdate` — SM-2, same-session guard,
+ *      interval fuzz),
  *   2. upserts the `word_mastery` row,
  *   3. appends a `review_logs` row (best-effort, see `logReviewEvent`),
  *   4. optionally credits the user's daily goal.
  *
- * Before this module the SM-2 → transition → upsert sequence was copied in
- * Flashcards.tsx and ReviewSession.tsx, and QuizMode had a partial third
- * copy that forgot to move `next_review_date`.
+ * It replaces `vocabReviewService.recordReview`, which did steps 1–2 only.
  */
 
 import { supabase, withTimeout } from './supabaseClient';
-import { calculateSRS, DEFAULT_EASINESS_FACTOR } from './srsService';
 import {
-  determineMasteryTransition,
+  getWordMastery,
   normalizeWord,
   upsertWordMastery,
   SUCCESSFUL_RATING_THRESHOLD,
 } from './masteryService';
+import { computeReviewUpdate, type ReviewableState } from './reviewLogic';
 import { recordWordReview } from './goalService';
 import {
   MasteryLevel,
@@ -38,26 +37,11 @@ const LOG_TABLE = 'review_logs';
 /** Thinking times above this are treated as "user walked away" and not stored. */
 export const MAX_TRACKED_DURATION_MS = 10 * 60 * 1000;
 
-/** The SRS fields a rating reads from an existing word_mastery row. */
-export type RatingBaseline = Pick<
-  WordMasteryRecord,
-  | 'mastery_level'
-  | 'easiness_factor'
-  | 'interval_days'
-  | 'repetition_count'
-  | 'correct_count'
-  | 'incorrect_count'
->;
-
-/** SRS state of a word that has never been reviewed. */
-export const NEW_WORD_BASELINE: RatingBaseline = {
-  mastery_level: MasteryLevel.NEW,
-  easiness_factor: DEFAULT_EASINESS_FACTOR,
-  interval_days: 0,
-  repetition_count: 0,
-  correct_count: 0,
-  incorrect_count: 0,
-};
+/**
+ * The fields a rating reads from an existing word_mastery row. Includes
+ * `last_reviewed_at` / `next_review_date` for reviewLogic's same-session guard.
+ */
+export type RatingBaseline = ReviewableState;
 
 export interface RatingUpdate {
   /** Columns to write to `word_mastery` (SRS state only, never metadata). */
@@ -76,59 +60,51 @@ export interface RatingUpdate {
   levelAfter: MasteryLevel;
   intervalBefore: number;
   intervalAfter: number;
+  /** False when the same-session guard kept the previous schedule. */
+  scheduleChanged: boolean;
+}
+
+export interface ComputeRatingOptions {
+  /**
+   * When false, correct/incorrect counters are left as-is (the caller
+   * already counted the answer). Default true.
+   */
+  countAnswer?: boolean;
+  /** Random source for interval fuzz, in [0, 1). Default Math.random. */
+  rand?: () => number;
 }
 
 // --- Pure helpers ----------------------------------------------------------
 
 /**
- * Compute the new SRS state for `rating`. Pure: no I/O, `now` injectable.
- *
- * @param countAnswer  when false, correct/incorrect counters are left as-is
- *                     (used when the caller already counted the answer, e.g.
- *                     `recordQuizIncorrect`).
+ * Compute the new SRS state for `rating`. Pure: no I/O, `now` and `rand`
+ * injectable. Scheduling (SM-2, mastery transition, same-session guard,
+ * interval fuzz) is `reviewLogic.computeReviewUpdate`; this adds the
+ * before/after summary that review_logs records.
  */
 export function computeRatingUpdate(
   baseline: RatingBaseline | null | undefined,
   rating: ConfidenceRating,
   now: Date = new Date(),
-  countAnswer: boolean = true,
+  options: ComputeRatingOptions = {},
 ): RatingUpdate {
-  const base = baseline ?? NEW_WORD_BASELINE;
-  const srs = calculateSRS(
-    {
-      easinessFactor: base.easiness_factor ?? DEFAULT_EASINESS_FACTOR,
-      intervalDays: base.interval_days ?? 0,
-      repetitionCount: base.repetition_count ?? 0,
-    },
-    rating,
-    now,
-  );
-  const levelBefore = base.mastery_level ?? MasteryLevel.NEW;
-  const levelAfter = determineMasteryTransition(
-    levelBefore,
-    rating,
-    srs.repetitionCount,
-    srs.intervalDays,
-  );
-  const successful = rating >= SUCCESSFUL_RATING_THRESHOLD;
-  const correct = base.correct_count ?? 0;
-  const incorrect = base.incorrect_count ?? 0;
+  const { countAnswer = true, rand = Math.random } = options;
+  const { scheduleChanged, ...next } = computeReviewUpdate(baseline, rating, now, rand);
+  const patch = countAnswer
+    ? next
+    : {
+        ...next,
+        correct_count: baseline?.correct_count ?? 0,
+        incorrect_count: baseline?.incorrect_count ?? 0,
+      };
 
   return {
-    patch: {
-      mastery_level: levelAfter,
-      easiness_factor: srs.easinessFactor,
-      interval_days: srs.intervalDays,
-      repetition_count: srs.repetitionCount,
-      next_review_date: srs.nextReviewDate.toISOString(),
-      last_reviewed_at: now.toISOString(),
-      correct_count: countAnswer && successful ? correct + 1 : correct,
-      incorrect_count: countAnswer && !successful ? incorrect + 1 : incorrect,
-    },
-    levelBefore,
-    levelAfter,
-    intervalBefore: base.interval_days ?? 0,
-    intervalAfter: srs.intervalDays,
+    patch,
+    levelBefore: baseline?.mastery_level ?? MasteryLevel.NEW,
+    levelAfter: patch.mastery_level,
+    intervalBefore: baseline?.interval_days ?? 0,
+    intervalAfter: patch.interval_days,
+    scheduleChanged,
   };
 }
 
@@ -206,8 +182,11 @@ export interface ApplyRatingResult {
 export interface ApplyRatingInput {
   userId: string;
   word: string;
-  /** Current row, or null/undefined for a word without SRS state yet. */
-  current: (RatingBaseline & { id?: string }) | null | undefined;
+  /**
+   * Current row (null for a word without SRS state yet). Omit to have it
+   * fetched; pass it when the caller already holds the row.
+   */
+  current?: (RatingBaseline & { id?: string }) | null;
   rating: ConfidenceRating;
   source: ReviewSource;
   durationMs?: number | null;
@@ -220,17 +199,17 @@ export interface ApplyRatingInput {
 
 /**
  * Apply a rating to a word: update SRS state, log the event, credit the
- * daily goal. Throws only if the `word_mastery` upsert fails; logging and
- * goal tracking failures are swallowed.
+ * daily goal. Throws only if reading or upserting `word_mastery` fails;
+ * logging and goal tracking failures are swallowed.
  */
 export async function applyRating(input: ApplyRatingInput): Promise<ApplyRatingResult> {
   const now = input.now ?? new Date();
-  const update = computeRatingUpdate(
-    input.current,
-    input.rating,
-    now,
-    input.countAnswer ?? true,
-  );
+  const current = input.current !== undefined
+    ? input.current
+    : await getWordMastery(input.userId, input.word);
+  const update = computeRatingUpdate(current, input.rating, now, {
+    countAnswer: input.countAnswer ?? true,
+  });
 
   const record = await upsertWordMastery({
     user_id: input.userId,

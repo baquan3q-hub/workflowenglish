@@ -1,28 +1,40 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { CheckCircle, XCircle, RotateCcw, Award, ArrowRight, PenTool, Save, Eye, EyeOff } from 'lucide-react';
-import { FlashcardData } from '../types';
+import { CheckCircle, XCircle, RotateCcw, Award, ArrowRight, PenTool, Save, Eye, EyeOff, SkipForward } from 'lucide-react';
+import { FlashcardData, type ConfidenceRating } from '../types';
 import { Button, ProgressBar } from '../components/Common';
+import { findWordForm, gradeTypedAnswer } from '../services/reviewLogic';
+import { applyRating } from '../services/reviewService';
 
 interface FillBlankModeProps {
     cards: FlashcardData[];
     onFinish: () => void;
     onComplete?: (score: number, total: number) => void;
     onSave?: () => Promise<void>;
+    /** When set, each first-pass result is written to the learner's SRS record. */
+    userId?: string;
 }
 
 interface BlankQuestion {
     id: string;
-    sentence: string;
+    /**
+     * 'sentence': the example sentence with the word blanked out.
+     * 'definition': fallback when the word can't be located in the
+     * sentence — the learner recalls the word from its English definition.
+     */
+    kind: 'sentence' | 'definition';
     blankedSentence: string;
+    /** Exact form expected in the blank (may be inflected, e.g. "decided"). */
     answer: string;
+    /** Dictionary form of the vocabulary word. */
     word: string;
+    partOfSpeech: string;
     hint: string;
 }
 
 /** Max wrong attempts before auto-advancing to next question */
-const MAX_ATTEMPTS = 5;
+const MAX_ATTEMPTS = 3;
 
-const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComplete, onSave }) => {
+const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComplete, onSave, userId }) => {
     const questions = useMemo(() => generateQuestions(cards), [cards]);
 
     const [currentQuestions, setCurrentQuestions] = useState<BlankQuestion[]>(questions);
@@ -36,6 +48,9 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
     const [isSaving, setIsSaving] = useState(false);
     const [saved, setSaved] = useState(false);
     const [showHint, setShowHint] = useState(false);
+    // Hint was opened at any point for the current question (affects SRS rating)
+    const [hintUsed, setHintUsed] = useState(false);
+    const [feedback, setFeedback] = useState<string | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
     const current = currentQuestions[currentIndex];
@@ -48,41 +63,76 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
     // Reset hint visibility when moving to next question
     useEffect(() => {
         setShowHint(false);
+        setHintUsed(false);
+        setFeedback(null);
         setAttempts(0);
-    }, [currentIndex]);
+    }, [currentIndex, currentQuestions]);
+
+    /**
+     * Fire-and-forget SRS write for the first pass through a question.
+     * Exact on first try without hint → Good; needed help → Hard; failed → Again.
+     */
+    const recordResult = (rating: ConfidenceRating) => {
+        if (!userId || retryMode) return;
+        void applyRating({ userId, word: current.word, rating, source: 'fill_blank', creditGoal: false }).catch((err) =>
+            console.error('[FillBlank] Failed to record review:', err),
+        );
+    };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!userAnswer.trim() || status === 'correct' || status === 'exhausted') return;
 
-        const isCorrect = userAnswer.trim().toLowerCase() === current.answer.toLowerCase();
+        const { grade, reason } = gradeTypedAnswer(userAnswer, current.answer, [current.word]);
 
-        if (isCorrect) {
+        if (grade === 'correct' || (grade === 'close' && reason === 'typo')) {
             setStatus('correct');
+            setFeedback(grade === 'close' ? `Gần đúng! Chú ý chính tả: "${current.answer}"` : null);
             if (!retryMode) {
                 setResults(prev => new Map(prev).set(current.id, true));
             }
-        } else {
-            const newAttempts = attempts + 1;
-            setAttempts(newAttempts);
-
-            if (newAttempts >= MAX_ATTEMPTS) {
-                // Exhausted all attempts — show answer and move on
-                setStatus('exhausted');
-                if (!retryMode) {
-                    setResults(prev => new Map(prev).set(current.id, false));
-                }
-            } else {
-                // Wrong but can retry — shake input and clear
-                setStatus('wrong');
-                // Reset to idle after brief feedback so user can type again
-                setTimeout(() => {
-                    setStatus('idle');
-                    setUserAnswer('');
-                    inputRef.current?.focus();
-                }, 800);
-            }
+            const clean = grade === 'correct' && attempts === 0 && !hintUsed;
+            recordResult(clean ? 2 : 1);
+            return;
         }
+
+        if (grade === 'close' && reason === 'form') {
+            // Right word, wrong form — don't burn an attempt, just nudge.
+            setFeedback('Đúng từ rồi! Hãy chia lại cho hợp ngữ pháp (thì, số nhiều, -ing…).');
+            setStatus('wrong');
+            setTimeout(() => {
+                setStatus('idle');
+                inputRef.current?.focus();
+            }, 1200);
+            return;
+        }
+
+        const newAttempts = attempts + 1;
+        setAttempts(newAttempts);
+        setFeedback(null);
+
+        if (newAttempts >= MAX_ATTEMPTS) {
+            revealAnswer();
+        } else {
+            // Wrong but can retry — shake input and clear
+            setStatus('wrong');
+            // Reset to idle after brief feedback so user can type again
+            setTimeout(() => {
+                setStatus('idle');
+                setUserAnswer('');
+                inputRef.current?.focus();
+            }, 800);
+        }
+    };
+
+    /** Give up on the current question: show the answer and count it wrong. */
+    const revealAnswer = () => {
+        setStatus('exhausted');
+        setFeedback(null);
+        if (!retryMode) {
+            setResults(prev => new Map(prev).set(current.id, false));
+        }
+        recordResult(0);
     };
 
     const handleNext = () => {
@@ -288,9 +338,11 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
                         <span className="px-3 py-1 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 text-xs font-bold rounded-full">
                             Fill in the Blank
                         </span>
-                        <span className="px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 text-xs font-bold rounded-full">
-                            {current.word}
-                        </span>
+                        {current.partOfSpeech && (
+                            <span className="px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 text-xs font-bold rounded-full">
+                                {current.partOfSpeech}
+                            </span>
+                        )}
                     </div>
                     {/* Attempts counter */}
                     {attempts > 0 && status !== 'correct' && status !== 'exhausted' && (
@@ -304,7 +356,10 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
                 <div className="mb-4">
                     <button
                         type="button"
-                        onClick={() => setShowHint(!showHint)}
+                        onClick={() => {
+                            setShowHint(!showHint);
+                            setHintUsed(true);
+                        }}
                         className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 dark:text-slate-500 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
                     >
                         {showHint ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -317,9 +372,22 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
                     )}
                 </div>
 
-                {/* Sentence with blank */}
+                {/* Sentence with blank (or definition prompt as fallback) */}
+                {current.kind === 'definition' && (
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                        Từ nào khớp với định nghĩa này?
+                    </p>
+                )}
                 <p className="text-lg sm:text-xl font-medium text-slate-800 dark:text-slate-200 leading-relaxed mb-6">
-                    {renderBlankedSentence(current.blankedSentence, status, current.answer, userAnswer)}
+                    {current.kind === 'definition' ? (
+                        <>
+                            <span className="italic">“{current.blankedSentence}”</span>
+                            <br />
+                            {renderBlankedSentence('→ ___', status, current.answer, userAnswer)}
+                        </>
+                    ) : (
+                        renderBlankedSentence(current.blankedSentence, status, current.answer, userAnswer)
+                    )}
                 </p>
 
                 {/* Input Form */}
@@ -353,9 +421,14 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
                     </div>
 
                     {status === 'idle' && (
-                        <Button type="submit" disabled={!userAnswer.trim()} className="w-full py-3">
-                            Kiểm tra
-                        </Button>
+                        <div className="flex gap-2">
+                            <Button type="submit" disabled={!userAnswer.trim()} className="flex-1 py-3">
+                                Kiểm tra
+                            </Button>
+                            <Button type="button" variant="ghost" onClick={revealAnswer} className="py-3" title="Bỏ qua và xem đáp án">
+                                <SkipForward className="w-4 h-4 mr-1" /> Xem đáp án
+                            </Button>
+                        </div>
                     )}
                 </form>
             </div>
@@ -370,6 +443,9 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
                             </div>
                             <div>
                                 <p className="font-bold text-green-800 dark:text-green-200">Chính xác! 🎉</p>
+                                {feedback && (
+                                    <p className="text-xs text-green-700 dark:text-green-300">{feedback}</p>
+                                )}
                                 {attempts > 0 && (
                                     <p className="text-xs text-green-600 dark:text-green-400">Sau {attempts + 1} lần thử</p>
                                 )}
@@ -385,9 +461,11 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
                     <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 p-4 rounded-xl flex items-center gap-3">
                         <XCircle className="w-6 h-6 text-orange-500 flex-shrink-0" />
                         <div>
-                            <p className="font-bold text-orange-800 dark:text-orange-200">Chưa đúng — thử lại!</p>
+                            <p className="font-bold text-orange-800 dark:text-orange-200">
+                                {feedback ? 'Sắp đúng rồi!' : 'Chưa đúng — thử lại!'}
+                            </p>
                             <p className="text-sm text-orange-600 dark:text-orange-400">
-                                Còn {MAX_ATTEMPTS - attempts} lần thử. Hãy nhớ lại nghĩa của từ.
+                                {feedback ?? `Còn ${MAX_ATTEMPTS - attempts} lần thử. Hãy nhớ lại nghĩa của từ.`}
                             </p>
                         </div>
                     </div>
@@ -398,7 +476,9 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
                         <div className="flex items-center gap-3">
                             <XCircle className="w-6 h-6 text-red-500 flex-shrink-0" />
                             <div>
-                                <p className="font-bold text-red-800 dark:text-red-200">Hết lượt thử!</p>
+                                <p className="font-bold text-red-800 dark:text-red-200">
+                                    {attempts >= MAX_ATTEMPTS ? 'Hết lượt thử!' : 'Đáp án'}
+                                </p>
                                 <p className="text-sm text-red-600 dark:text-red-400">
                                     Đáp án đúng: <span className="font-bold">{current.answer}</span>
                                 </p>
@@ -421,24 +501,48 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
 
 function generateQuestions(cards: FlashcardData[]): BlankQuestion[] {
     return cards.map(card => {
-        const sentence = card.exampleSentence;
+        const sentence = card.exampleSentence || '';
         const word = card.word;
-        const regex = new RegExp(`\\b${escapeRegex(word)}\\b`, 'i');
-        const blankedSentence = sentence.replace(regex, '___');
-
-        return {
+        const base = {
             id: card.id,
-            sentence,
-            blankedSentence,
-            answer: word,
             word,
+            partOfSpeech: card.partOfSpeech || '',
             hint: card.meaningVietnamese,
+        };
+
+        // Locate the word even when inflected ("decide" → "decided") so the
+        // blank never silently disappears and leaks the answer.
+        const match = findWordForm(sentence, word);
+        if (match) {
+            return {
+                ...base,
+                kind: 'sentence' as const,
+                blankedSentence:
+                    sentence.slice(0, match.index) + '___' + sentence.slice(match.index + match.form.length),
+                answer: match.form,
+            };
+        }
+
+        // Fallback: recall from the English definition, with any occurrence
+        // of the word itself masked out.
+        const definition = card.definitionEnglish || card.meaningVietnamese;
+        return {
+            ...base,
+            kind: 'definition' as const,
+            blankedSentence: maskWord(definition, word),
+            answer: word.trim(),
         };
     });
 }
 
-function escapeRegex(str: string): string {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function maskWord(text: string, word: string): string {
+    let out = text;
+    for (let i = 0; i < 5; i++) {
+        const match = findWordForm(out, word);
+        if (!match) break;
+        out = out.slice(0, match.index) + '…' + out.slice(match.index + match.form.length);
+    }
+    return out;
 }
 
 function renderBlankedSentence(text: string, status: string, answer: string, userAnswer: string) {

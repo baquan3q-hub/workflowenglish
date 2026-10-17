@@ -1,12 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Check, X, AlertCircle, Award, RotateCcw, ListChecks, ArrowLeft, PenTool } from 'lucide-react';
-import { MasteryLevel, QuizQuestion, type IncorrectContext, type WordMasteryRecord } from '../types';
+import { FlashcardData, QuizQuestion, type IncorrectContext } from '../types';
 import { Button, ProgressBar } from '../components/Common';
-import {
-  recordQuizIncorrect,
-  getWordMastery,
-} from '../services/masteryService';
-import { applyRating, logReviewEvent } from '../services/reviewService';
+import { recordQuizIncorrect } from '../services/masteryService';
+import { applyRating } from '../services/reviewService';
+import { findWordForm, shuffle } from '../services/reviewLogic';
 
 interface QuizModeProps {
   questions: QuizQuestion[];
@@ -14,6 +12,8 @@ interface QuizModeProps {
   onComplete?: (score: number, total: number) => void;
   onNextPhase?: () => void;
   userId?: string;
+  /** Lesson flashcards — used to map each question back to its vocabulary word. */
+  cards?: FlashcardData[];
 }
 
 /**
@@ -22,36 +22,32 @@ interface QuizModeProps {
  * Falls back to the raw question if no quoted token is found.
  */
 function extractWordFromQuestion(question: string): string {
-  const match = question.match(/['"]([^'"]+)['"]/);
+  const match = question.match(/['"‘“]([^'"’”]+(?:'[a-z]+)?)['"’”]/);
   return match ? match[1] : question;
 }
 
 /**
- * Log a first-attempt quiz answer that doesn't change SRS state. Pass
- * `existing` when already fetched to skip the lookup.
+ * Find which lesson word a question is about. Prefers matching against the
+ * lesson's flashcards (robust to apostrophes like "don't" and to inflected
+ * forms); falls back to the quoted token in the question.
  */
-async function logQuizAnswer(
-  userId: string,
-  word: string,
-  rating: 0 | 2,
-  existing?: WordMasteryRecord | null,
-): Promise<void> {
-  const record = existing !== undefined ? existing : await getWordMastery(userId, word).catch(() => null);
-  await logReviewEvent({
-    user_id: userId,
-    word_mastery_id: record?.id ?? null,
-    word,
-    source: 'quiz',
-    rating,
-    level_before: record?.mastery_level ?? null,
-    level_after: record?.mastery_level ?? null,
-    interval_before: record?.interval_days ?? null,
-    interval_after: record?.interval_days ?? null,
-    duration_ms: null,
-  });
+function wordForQuestion(question: string, cards: FlashcardData[] | undefined): string {
+  if (cards && cards.length > 0) {
+    const byLength = [...cards].sort((a, b) => b.word.length - a.word.length);
+    const hit = byLength.find((c) => findWordForm(question, c.word));
+    if (hit) return hit.word;
+  }
+  return extractWordFromQuestion(question);
 }
 
-const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, onNextPhase, userId }) => {
+const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, onNextPhase, userId, cards }) => {
+  // The AI decides where the correct answer sits; shuffle once per lesson so
+  // its position carries no signal.
+  const shuffledOptions = useMemo(
+    () => questions.map((q) => shuffle(q.options)),
+    [questions],
+  );
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'correct' | 'wrong'>('idle');
@@ -77,15 +73,19 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
     }));
 
     const isFirstAttempt = !attempts[currentQuestion.id];
+    const word = wordForQuestion(currentQuestion.question, cards);
 
     if (option === currentQuestion.correctAnswer) {
       setStatus('correct');
       // Only count first-attempt correct
       if (isFirstAttempt) {
         setScore(prev => prev + 1);
-        // Log only: a recognised meaning doesn't move the SRS schedule.
+        // Recognising the meaning first time is a successful (if easy) recall.
+        // The daily goal counts flashcard/review recalls only.
         if (userId) {
-          void logQuizAnswer(userId, extractWordFromQuestion(currentQuestion.question), 2);
+          void applyRating({ userId, word, rating: 2, source: 'quiz', creditGoal: false }).catch((err) =>
+            console.error('[QuizMode] Failed to record review:', err),
+          );
         }
       }
       const audio = new Audio('https://codeskulptor-demos.commondatastorage.googleapis.com/pang/pop.mp3');
@@ -96,7 +96,6 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
       // Fire-and-forget: record incorrect answer for weakness detection
       // and trigger LAPSED transition if the word was already internalized.
       if (userId) {
-        const word = extractWordFromQuestion(currentQuestion.question);
         const context: IncorrectContext = {
           question: currentQuestion.question,
           userAnswer: option,
@@ -106,29 +105,14 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
 
         void (async () => {
           try {
-            await recordQuizIncorrect(userId, word, context);
-            if (!isFirstAttempt) return;
-
-            const existing = await getWordMastery(userId, word);
-            if (
-              existing &&
-              (existing.mastery_level === MasteryLevel.REVIEWING ||
-                existing.mastery_level === MasteryLevel.MASTERED)
-            ) {
-              // Rating 0 simulates a complete recall failure: LAPSED and due
-              // again tomorrow. recordQuizIncorrect already counted the miss.
-              await applyRating({
-                userId,
-                word,
-                current: existing,
-                rating: 0,
-                source: 'quiz',
-                countAnswer: false,
-                creditGoal: false,
-              });
-            } else {
-              await logQuizAnswer(userId, word, 0, existing);
+            // First miss on this question counts as a failed recall ("Again"),
+            // which also lapses words that were Reviewing/Mastered and moves
+            // next_review_date to tomorrow. Every miss is logged as context
+            // for weakness analysis.
+            if (isFirstAttempt) {
+              await applyRating({ userId, word, rating: 0, source: 'quiz', creditGoal: false });
             }
+            await recordQuizIncorrect(userId, word, context, { countIncorrect: false });
           } catch (err) {
             console.error('[QuizMode] Failed to record incorrect answer:', err);
           }
@@ -149,6 +133,24 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
       onComplete?.(finalScore, questions.length);
     }
   };
+
+  // Keyboard: 1–4 pick an option, Enter goes to the next question.
+  useEffect(() => {
+    if (completed) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const n = Number(e.key);
+      const options = shuffledOptions[currentIndex] ?? [];
+      if (n >= 1 && n <= options.length && status !== 'correct') {
+        handleOptionClick(options[n - 1]);
+      } else if (e.key === 'Enter' && status === 'correct') {
+        e.preventDefault();
+        handleNext();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   const handleReview = () => {
     setShowSummary(true);
@@ -242,7 +244,7 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
         </h3>
 
         <div className="space-y-3">
-          {currentQuestion.options.map((option, idx) => {
+          {(shuffledOptions[currentIndex] ?? currentQuestion.options).map((option, idx) => {
             let stateClass = "border-slate-200 hover:border-blue-400 hover:bg-slate-50";
             let icon = null;
 
@@ -267,7 +269,12 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
                 className={`w-full text-left p-4 rounded-xl border-2 transition-all flex justify-between items-center font-medium ${stateClass}`}
                 disabled={status === 'correct'}
               >
-                <span>{option}</span>
+                <span className="flex items-center gap-3">
+                  <span className="hidden sm:inline-flex w-6 h-6 items-center justify-center rounded-md bg-slate-100 text-slate-500 text-xs font-bold">
+                    {idx + 1}
+                  </span>
+                  {option}
+                </span>
                 {icon}
               </button>
             );

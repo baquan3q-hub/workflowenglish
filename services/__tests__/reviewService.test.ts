@@ -11,6 +11,7 @@ import fc from 'fast-check';
 const insertMock = vi.fn();
 const upsertWordMasteryMock = vi.fn();
 const recordWordReviewMock = vi.fn();
+const getWordMasteryMock = vi.fn();
 
 vi.mock('../supabaseClient', () => ({
   supabase: { from: () => ({ insert: insertMock }) },
@@ -19,7 +20,11 @@ vi.mock('../supabaseClient', () => ({
 
 vi.mock('../masteryService', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../masteryService')>();
-  return { ...actual, upsertWordMastery: (...args: unknown[]) => upsertWordMasteryMock(...args) };
+  return {
+    ...actual,
+    upsertWordMastery: (...args: unknown[]) => upsertWordMasteryMock(...args),
+    getWordMastery: (...args: unknown[]) => getWordMasteryMock(...args),
+  };
 });
 
 vi.mock('../goalService', () => ({
@@ -33,11 +38,10 @@ import {
   resetReviewLogAvailability,
   sanitizeDuration,
   MAX_TRACKED_DURATION_MS,
-  NEW_WORD_BASELINE,
   type RatingBaseline,
 } from '../reviewService';
-import { calculateSRS } from '../srsService';
-import { determineMasteryTransition, isWordDue } from '../masteryService';
+import { computeReviewUpdate, DEFAULT_REVIEWABLE_STATE, SAME_SESSION_WINDOW_MS } from '../reviewLogic';
+import { isWordDue } from '../masteryService';
 import { MasteryLevel, type ConfidenceRating } from '../../types';
 
 // --- Arbitraries -----------------------------------------------------------
@@ -60,13 +64,14 @@ const baselineArb: fc.Arbitrary<RatingBaseline> = fc.record({
 });
 
 const NOW = new Date('2026-10-17T08:00:00.000Z');
+const noFuzz = () => 0.5;
 
 // --- computeRatingUpdate ---------------------------------------------------
 
 describe('computeRatingUpdate', () => {
   it('treats a missing row as a brand-new word', () => {
-    expect(computeRatingUpdate(null, 2, NOW)).toEqual(
-      computeRatingUpdate(NEW_WORD_BASELINE, 2, NOW),
+    expect(computeRatingUpdate(null, 2, NOW, { rand: noFuzz })).toEqual(
+      computeRatingUpdate(DEFAULT_REVIEWABLE_STATE, 2, NOW, { rand: noFuzz }),
     );
   });
 
@@ -78,33 +83,40 @@ describe('computeRatingUpdate', () => {
     }
   });
 
-  it('matches calculateSRS and determineMasteryTransition', () => {
+  it('schedules exactly as reviewLogic.computeReviewUpdate', () => {
     fc.assert(
       fc.property(baselineArb, ratingArb, (base, rating) => {
-        const update = computeRatingUpdate(base, rating, NOW);
-        const srs = calculateSRS(
-          {
-            easinessFactor: base.easiness_factor,
-            intervalDays: base.interval_days,
-            repetitionCount: base.repetition_count,
-          },
-          rating,
-          NOW,
-        );
-        expect(update.patch.easiness_factor).toBe(srs.easinessFactor);
-        expect(update.patch.interval_days).toBe(srs.intervalDays);
-        expect(update.patch.repetition_count).toBe(srs.repetitionCount);
-        expect(update.patch.next_review_date).toBe(srs.nextReviewDate.toISOString());
-        expect(update.patch.last_reviewed_at).toBe(NOW.toISOString());
-        expect(update.levelAfter).toBe(
-          determineMasteryTransition(base.mastery_level, rating, srs.repetitionCount, srs.intervalDays),
-        );
-        expect(update.patch.mastery_level).toBe(update.levelAfter);
+        const update = computeRatingUpdate(base, rating, NOW, { rand: noFuzz });
+        const { scheduleChanged, ...expected } = computeReviewUpdate(base, rating, NOW, noFuzz);
+        expect(update.patch).toEqual(expected);
+        expect(update.scheduleChanged).toBe(scheduleChanged);
         expect(update.levelBefore).toBe(base.mastery_level);
+        expect(update.levelAfter).toBe(expected.mastery_level);
         expect(update.intervalBefore).toBe(base.interval_days);
-        expect(update.intervalAfter).toBe(srs.intervalDays);
+        expect(update.intervalAfter).toBe(expected.interval_days);
       }),
     );
+  });
+
+  it('keeps the schedule for a repeat success in the same session, but logs it', () => {
+    const scheduled = '2026-10-18T08:00:00.000Z';
+    const base: RatingBaseline = {
+      ...DEFAULT_REVIEWABLE_STATE,
+      mastery_level: MasteryLevel.LEARNING,
+      interval_days: 1,
+      repetition_count: 1,
+      last_reviewed_at: new Date(NOW.getTime() - SAME_SESSION_WINDOW_MS / 2).toISOString(),
+      next_review_date: scheduled,
+    };
+    const good = computeRatingUpdate(base, 2, NOW);
+    expect(good.scheduleChanged).toBe(false);
+    expect(good.patch.next_review_date).toBe(scheduled);
+    expect(good.levelAfter).toBe(MasteryLevel.LEARNING);
+    expect(good.patch.correct_count).toBe(1);
+
+    const again = computeRatingUpdate(base, 0, NOW);
+    expect(again.scheduleChanged).toBe(true);
+    expect(again.patch.repetition_count).toBe(0);
   });
 
   it('counts exactly one answer, correct iff rating >= 2', () => {
@@ -122,7 +134,7 @@ describe('computeRatingUpdate', () => {
   it('leaves counters untouched when countAnswer is false', () => {
     fc.assert(
       fc.property(baselineArb, ratingArb, (base, rating) => {
-        const { patch } = computeRatingUpdate(base, rating, NOW, false);
+        const { patch } = computeRatingUpdate(base, rating, NOW, { countAnswer: false });
         expect(patch.correct_count).toBe(base.correct_count);
         expect(patch.incorrect_count).toBe(base.incorrect_count);
       }),
@@ -233,6 +245,7 @@ describe('applyRating', () => {
     insertMock.mockReset().mockResolvedValue({ error: null });
     upsertWordMasteryMock.mockReset().mockImplementation(async (row) => ({ id: 'wm1', ...row }));
     recordWordReviewMock.mockReset().mockResolvedValue({ goalsUpdated: goals, goalReached: true });
+    getWordMasteryMock.mockReset().mockResolvedValue(null);
     resetReviewLogAvailability();
   });
 
@@ -240,13 +253,26 @@ describe('applyRating', () => {
     const result = await applyRating({
       userId: 'u1', word: 'apple', current: null, rating: 2, source: 'lesson_flashcard', durationMs: 4200, now: NOW,
     });
-    const expected = computeRatingUpdate(null, 2, NOW);
+    const expected = computeRatingUpdate(null, 2, NOW, { rand: noFuzz });
     expect(upsertWordMasteryMock).toHaveBeenCalledWith({ user_id: 'u1', word: 'apple', ...expected.patch });
     expect(insertMock).toHaveBeenCalledWith(expect.objectContaining({
       word_mastery_id: 'wm1', source: 'lesson_flashcard', rating: 2, duration_ms: 4200,
       level_before: MasteryLevel.NEW, level_after: MasteryLevel.LEARNING,
     }));
     await expect(result.goal).resolves.toEqual({ goalsUpdated: goals, justReached: true });
+  });
+
+  it('fetches the row only when current is omitted', async () => {
+    const existing = { ...DEFAULT_REVIEWABLE_STATE, id: 'wm9', mastery_level: MasteryLevel.MASTERED, interval_days: 40, repetition_count: 6 };
+    getWordMasteryMock.mockResolvedValue(existing);
+    const result = await applyRating({ userId: 'u1', word: 'apple', rating: 0, source: 'quiz', creditGoal: false });
+    expect(getWordMasteryMock).toHaveBeenCalledWith('u1', 'apple');
+    expect(result.update.levelBefore).toBe(MasteryLevel.MASTERED);
+    expect(result.update.levelAfter).toBe(MasteryLevel.LAPSED);
+
+    getWordMasteryMock.mockClear();
+    await applyRating({ userId: 'u1', word: 'apple', current: null, rating: 2, source: 'review' });
+    expect(getWordMasteryMock).not.toHaveBeenCalled();
   });
 
   it('only reports justReached on the review that hit the goal', async () => {

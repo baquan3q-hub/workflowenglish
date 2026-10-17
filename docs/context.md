@@ -247,3 +247,19 @@ npm run preview  # Preview production build
 - `getLearningHistory` chỉ load metadata (không load `lesson_data`) để tối ưu bandwidth
 - `getLearningRecordFull` load full record khi user click vào lesson cụ thể
 - Audio base64 được cache trong `story.audioBase64` và auto-save vào DB để tránh re-generate
+
+---
+
+## 🔁 Vocabulary Learning Logic (v3)
+
+Mọi bài tập (Flashcards, Quiz, Fill Blank, Ôn tập SRS) ghi kết quả qua **một đường duy nhất**: `services/reviewService.ts → applyRating()` (ghi `word_mastery`, ghi nhật ký `review_logs`, cộng mục tiêu ngày), dùng các hàm thuần trong `services/reviewLogic.ts` (có test ở `services/__tests__/reviewLogic.test.ts` và `reviewService.test.ts`). Mục tiêu ngày chỉ tính Flashcards trong bài và Ôn tập SRS; Quiz / Fill Blank không cộng.
+
+| Quy tắc | Mô tả |
+|---------|-------|
+| Same-session guard | Hai lần trả lời cách nhau < 12h: câu trả lời đúng **không** đẩy lịch ôn thêm lần nữa (tránh "học 1 lần mà nhảy lên 2 tuần"); trả lời sai ("Lại") luôn được áp dụng |
+| Interval fuzz | Khoảng ôn ≥ 3 ngày được lệch ngẫu nhiên ±10% để các từ học cùng ngày không dồn về cùng một ngày |
+| Tự chấm điểm | Fill Blank: đúng ngay → Tốt, cần gợi ý/thử lại/sai chính tả → Khó, bỏ cuộc → Lại. Quiz: đúng lần đầu → Tốt, sai lần đầu → Lại |
+| Chấm gần đúng | `gradeTypedAnswer`: sai 1–2 ký tự (kể cả đảo chữ) → "Gần đúng"; đúng từ nhưng sai dạng → nhắc chia lại |
+| Word forms | `findWordForm`/`wordFormsOf`: nhận dạng từ đã chia (decided, studies, took off…) cho Fill Blank và highlight trong Story |
+| Ôn tập SRS | Tối đa 30 từ/phiên (`REVIEW_BATCH_SIZE`), có nút "Ôn tiếp". Từ ở mức REVIEWING/MASTERED/LAPSED ôn bằng **gõ từ từ nghĩa tiếng Việt**; từ trả lời "Lại" quay lại sau 3 thẻ trong cùng phiên |
+| Phím tắt | Flashcards: Space lật, →/← đánh giá. Ôn tập: Space lật, 1–4 đánh giá, Enter = mức gợi ý. Quiz: 1–4 chọn đáp án, Enter câu tiếp |
