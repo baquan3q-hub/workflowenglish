@@ -26,6 +26,7 @@ import {
   getTopStudiedTopics,
   getMasteredWordsList,
 } from '../services/recommendationService';
+import { aiErrorMessage } from '../services/aiClient';
 import { getLessonLists, getLibraryWords } from '../services/vocabLibraryService';
 import { listProgress, matchesStatus, type LessonList, type LibraryWord } from '../services/vocabLibraryLogic';
 import { countInputWords, lessonMinutes, pickPrimaryAction } from '../services/dashboardLogic';
@@ -246,7 +247,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         if (recs.length > 0) cacheRecommendations(userId, recs);
       } catch (err) {
         console.error('Failed to load recommendations:', err);
-        setRecsError('Không thể tải gợi ý. Vui lòng thử lại sau.');
+        setRecsError(aiErrorMessage(err));
         setRecommendations(null);
         setFallbackTopicsActive(false);
       } finally {

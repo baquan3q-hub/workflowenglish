@@ -1,0 +1,7 @@
+# Minimal Supabase CLI config, used only to deploy Edge Functions.
+# Link the project once with: supabase link --project-ref <your-project-ref>
+project_id = "work-flowenglish"
+
+[functions.ai-proxy]
+# The gateway rejects calls without a valid user JWT; the function checks it again.
+verify_jwt = true

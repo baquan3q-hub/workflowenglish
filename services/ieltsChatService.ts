@@ -1,14 +1,12 @@
 /**
  * IELTS AI Chat Service
  * 
- * Handles streaming chat with Gemini API, supporting multimodal input
- * (text, images, audio). Maintains conversation history for context.
+ * Streaming chat with the IELTS mentor, supporting multimodal input
+ * (text, images, audio). The system prompt and history trimming live in the
+ * ai-proxy function (op ieltsChat).
  */
 
-import { GoogleGenAI } from '@google/genai';
-import { IELTS_MENTOR_SYSTEM_PROMPT } from '../data/ieltsChatKnowledge';
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+import { aiErrorMessage, streamAi } from './aiClient';
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -30,8 +28,7 @@ export interface ChatMessage {
 
 // ─── Constants ──────────────────────────────────────────────────
 
-const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
-const MAX_HISTORY_MESSAGES = 20; // Keep last 20 messages for context
+const MAX_HISTORY_MESSAGES = 20; // The server keeps the same window
 const MIN_INTERVAL_MS = 1000;    // Minimum 1s between requests
 
 // ─── Rate Limiter ───────────────────────────────────────────────
@@ -47,84 +44,18 @@ async function waitForRateLimit(): Promise<void> {
   lastRequestTime = Date.now();
 }
 
-// ─── Build Gemini contents from chat history ────────────────────
+// ─── Payload for the proxy ──────────────────────────────────────
 
-function buildGeminiContents(
-  messages: ChatMessage[],
-  newMessage: string,
-  attachments?: ChatAttachment[]
-) {
-  // Keep only the last N messages for context window
-  const recentMessages = messages.slice(-MAX_HISTORY_MESSAGES);
+const toWire = (content: string, attachments?: ChatAttachment[]) => ({
+  text: content,
+  attachments: attachments?.map((a) => ({ mimeType: a.mimeType, data: a.data })),
+});
 
-  const contents: Array<{
-    role: 'user' | 'model';
-    parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }>;
-  }> = [];
-
-  // Add conversation history
-  for (const msg of recentMessages) {
-    const parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
-
-    if (msg.content) {
-      parts.push({ text: msg.content });
-    }
-
-    // Add attachments from history
-    if (msg.attachments) {
-      for (const att of msg.attachments) {
-        parts.push({
-          inlineData: {
-            mimeType: att.mimeType,
-            data: att.data,
-          },
-        });
-      }
-    }
-
-    if (parts.length > 0) {
-      contents.push({
-        role: msg.role === 'assistant' ? 'model' : 'user',
-        parts,
-      });
-    }
-  }
-
-  // Add the new user message
-  const newParts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
-
-  if (newMessage) {
-    newParts.push({ text: newMessage });
-  }
-
-  // Add new attachments
-  if (attachments) {
-    for (const att of attachments) {
-      newParts.push({
-        inlineData: {
-          mimeType: att.mimeType,
-          data: att.data,
-        },
-      });
-
-      // Add contextual instruction for the attachment
-      if (att.type === 'image') {
-        if (!newMessage) {
-          newParts.unshift({ text: 'Hãy phân tích hình ảnh/biểu đồ này và hướng dẫn tôi viết IELTS Writing Task 1 về nó.' });
-        }
-      } else if (att.type === 'audio') {
-        if (!newMessage) {
-          newParts.unshift({ text: 'Hãy nghe audio này, transcribe nội dung, và cho tôi feedback về Speaking (grammar, vocabulary, fluency).' });
-        }
-      }
-    }
-  }
-
-  if (newParts.length > 0) {
-    contents.push({ role: 'user', parts: newParts });
-  }
-
-  return contents;
+function buildChatPayload(messages: ChatMessage[], newMessage: string, attachments?: ChatAttachment[]) {
+  return {
+    history: messages.slice(-MAX_HISTORY_MESSAGES).map((m) => ({ role: m.role, ...toWire(m.content, m.attachments) })),
+    message: toWire(newMessage, attachments),
+  };
 }
 
 // ─── Generate ID ────────────────────────────────────────────────
@@ -137,7 +68,7 @@ export function generateMessageId(): string {
 
 /**
  * Send a chat message and get streaming response.
- * Yields text chunks as they arrive from Gemini.
+ * Yields text chunks as they arrive. On failure, yields one short error line.
  */
 export async function* streamChatResponse(
   messages: ChatMessage[],
@@ -145,47 +76,14 @@ export async function* streamChatResponse(
   attachments?: ChatAttachment[]
 ): AsyncGenerator<string, void, undefined> {
   await waitForRateLimit();
+  try {
+    yield* streamAi('ieltsChat', buildChatPayload(messages, newMessage, attachments));
+  } catch (error) {
+    console.error('[IELTS Chat] failed', error);
+    yield `
 
-  const contents = buildGeminiContents(messages, newMessage, attachments);
-  let lastError: unknown = null;
-
-  for (const model of MODELS) {
-    try {
-      console.log(`[IELTS Chat] Streaming with model: ${model}`);
-
-      const response = await ai.models.generateContentStream({
-        model,
-        contents,
-        config: {
-          systemInstruction: IELTS_MENTOR_SYSTEM_PROMPT,
-          thinkingConfig: { thinkingBudget: 0 },
-        },
-      });
-
-      for await (const chunk of response) {
-        const text = chunk.text;
-        if (text) {
-          yield text;
-        }
-      }
-
-      return; // Success — exit generator
-    } catch (error: any) {
-      lastError = error;
-      const status = error?.status || error?.message?.match(/(\d{3})/)?.[1];
-      console.warn(`[IELTS Chat] Model "${model}" failed (${status}):`, error?.message || error);
-
-      // Only retry on 503 (overloaded) or 429 (rate limit)
-      if (status !== 503 && status !== '503' && status !== 429 && status !== '429') {
-        break;
-      }
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
+${aiErrorMessage(error)}`;
   }
-
-  // All models failed — yield error message
-  console.error('[IELTS Chat] All models failed', lastError);
-  yield '\n\n⚠️ Xin lỗi, tôi đang gặp sự cố kết nối. Vui lòng thử lại sau vài giây.';
 }
 
 // ─── Non-streaming fallback (for simpler use cases) ─────────────
@@ -196,40 +94,10 @@ export async function sendChatMessage(
   attachments?: ChatAttachment[]
 ): Promise<string> {
   await waitForRateLimit();
-
-  const contents = buildGeminiContents(messages, newMessage, attachments);
-  let lastError: unknown = null;
-
-  for (const model of MODELS) {
-    try {
-      console.log(`[IELTS Chat] Sending with model: ${model}`);
-
-      const response = await ai.models.generateContent({
-        model,
-        contents,
-        config: {
-          systemInstruction: IELTS_MENTOR_SYSTEM_PROMPT,
-          thinkingConfig: { thinkingBudget: 0 },
-        },
-      });
-
-      const text = response.text;
-      if (!text) throw new Error('No response from AI');
-      return text;
-    } catch (error: any) {
-      lastError = error;
-      const status = error?.status || error?.message?.match(/(\d{3})/)?.[1];
-      console.warn(`[IELTS Chat] Model "${model}" failed (${status}):`, error?.message || error);
-
-      if (status !== 503 && status !== '503' && status !== 429 && status !== '429') {
-        break;
-      }
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-  }
-
-  console.error('[IELTS Chat] All models failed', lastError);
-  throw lastError;
+  let text = '';
+  for await (const chunk of streamAi('ieltsChat', buildChatPayload(messages, newMessage, attachments))) text += chunk;
+  if (!text) throw new Error('No response from AI');
+  return text;
 }
 
 // ─── Image compression utility ─────────────────────────────────

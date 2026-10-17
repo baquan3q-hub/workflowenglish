@@ -10,8 +10,8 @@
  * and `design.md` "Phase 3: AI-Enhanced Components" for context.
  */
 
-import { GoogleGenAI, Type, type Schema } from '@google/genai';
 import { supabase } from './supabaseClient';
+import { invokeAi } from './aiClient';
 import { MasteryLevel, type WordRecommendation } from '../types';
 
 // --- Constants -------------------------------------------------------------
@@ -21,9 +21,6 @@ export const RECOMMENDATION_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 /** localStorage key prefix; full key is `${PREFIX}${userId}`. */
 const CACHE_KEY_PREFIX = 'vocabmaster_recommendations_';
-
-/** Number of recommendations the model is asked to produce. */
-const RECOMMENDATION_COUNT = 10;
 
 /**
  * Cap the number of mastered words sent to the model. Sending the full
@@ -36,32 +33,6 @@ const MAX_MASTERED_WORDS_IN_PROMPT = 50;
 const TOP_TOPIC_COUNT = 3;
 
 // --- Gemini setup ----------------------------------------------------------
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-const PRIMARY_MODEL = 'gemini-3-flash-preview';
-const FALLBACK_MODEL = 'gemini-2.5-flash';
-
-const recommendationSchema: Schema = {
-  type: Type.ARRAY,
-  items: {
-    type: Type.OBJECT,
-    properties: {
-      word: { type: Type.STRING },
-      meaningVietnamese: { type: Type.STRING },
-      cefrLevel: { type: Type.STRING },
-      topic: { type: Type.STRING },
-      relevanceReason: { type: Type.STRING },
-    },
-    required: [
-      'word',
-      'meaningVietnamese',
-      'cefrLevel',
-      'topic',
-      'relevanceReason',
-    ],
-  },
-};
 
 // --- Cache (localStorage) --------------------------------------------------
 
@@ -209,54 +180,10 @@ export async function getMasteredWordsList(userId: string): Promise<string[]> {
     .filter((w): w is string => typeof w === 'string' && w.length > 0);
 }
 
-// --- Gemini call -----------------------------------------------------------
-
-function buildPrompt(
-  topTopics: string[],
-  currentLevel: string,
-  masteredWords: string[],
-): string {
-  const topicsText = topTopics.length > 0 ? topTopics.join(', ') : 'general';
-  const wordsText = masteredWords.length > 0 ? masteredWords.join(', ') : 'none';
-
-  return `Suggest ${RECOMMENDATION_COUNT} English vocabulary words for a Vietnamese learner at ${currentLevel} level, related to topics: ${topicsText}. Exclude these already-known words: ${wordsText}. Return JSON array with: word, meaningVietnamese, cefrLevel, topic, relevanceReason (in Vietnamese).`;
-}
-
-async function callGemini(prompt: string): Promise<string> {
-  const config = {
-    responseMimeType: 'application/json',
-    responseSchema: recommendationSchema,
-    thinkingConfig: { thinkingBudget: 0 },
-  };
-
-  try {
-    const response = await ai.models.generateContent({
-      model: PRIMARY_MODEL,
-      contents: prompt,
-      config,
-    });
-    const text = response.text;
-    if (!text) throw new Error('Empty response from primary model');
-    return text;
-  } catch (primaryError) {
-    // Fall back to the stable model if the preview model is unavailable.
-    console.warn(
-      `Recommendation primary model "${PRIMARY_MODEL}" failed, falling back to "${FALLBACK_MODEL}":`,
-      primaryError,
-    );
-    const response = await ai.models.generateContent({
-      model: FALLBACK_MODEL,
-      contents: prompt,
-      config,
-    });
-    const text = response.text;
-    if (!text) throw new Error('Empty response from fallback model');
-    return text;
-  }
-}
+// --- AI call (ai-proxy op recommendWords) ---------------------------------
 
 /**
- * Generate fresh recommendations via Gemini. Does NOT touch the cache —
+ * Generate fresh recommendations via the AI proxy. Does NOT touch the cache —
  * callers are responsible for combining this with
  * `getCachedRecommendations` / `cacheRecommendations` as appropriate.
  *
@@ -270,16 +197,11 @@ export async function generateRecommendations(
   masteredWords: string[],
 ): Promise<WordRecommendation[]> {
   const limitedMastered = masteredWords.slice(0, MAX_MASTERED_WORDS_IN_PROMPT);
-  const prompt = buildPrompt(topTopics, currentLevel, limitedMastered);
-
-  const text = await callGemini(prompt);
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch (e) {
-    throw new Error(`Failed to parse recommendation JSON: ${(e as Error).message}`);
-  }
+  const parsed = await invokeAi<unknown>('recommendWords', {
+    topics: topTopics.slice(0, 3),
+    level: currentLevel,
+    exclude: limitedMastered,
+  });
 
   if (!Array.isArray(parsed)) {
     throw new Error('Recommendation response was not a JSON array');

@@ -13,14 +13,14 @@
  * The categorisation logic is intentionally lightweight (heuristics on
  * the strings already stored in `incorrect_contexts`) so it stays a
  * pure, easily testable function. The async helpers wrap Supabase /
- * Gemini / localStorage I/O.
+ * ai-proxy / localStorage I/O.
  *
  * See `.kiro/specs/personalized-learning/requirements.md` Requirement 7
  * and `design.md` "Phase 3: AI-Enhanced Components" for context.
  */
 
-import { GoogleGenAI, Type, type Schema } from '@google/genai';
 import { supabase } from './supabaseClient';
+import { invokeAi } from './aiClient';
 import { levenshtein } from './reviewLogic';
 import {
   type GeneratedLesson,
@@ -289,198 +289,45 @@ export async function getWeaknessData(
   return analyzeWeaknesses((data ?? []) as WordMasteryRecord[]);
 }
 
-// --- Targeted lesson generation (Gemini) -----------------------------------
+// --- Targeted lesson generation (ai-proxy op generateRemedialLesson) -------
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-const PRIMARY_MODEL = 'gemini-3-flash-preview';
-const FALLBACK_MODEL = 'gemini-2.5-flash';
-
-/**
- * Schema mirrors the one in `geminiService.ts` so the response is a
- * drop-in `GeneratedLesson`. Inlined here to keep this service
- * self-contained.
- */
-const lessonSchema: Schema = {
-  type: Type.OBJECT,
-  properties: {
-    flashcards: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          id: { type: Type.STRING },
-          word: { type: Type.STRING },
-          ipa: { type: Type.STRING },
-          partOfSpeech: { type: Type.STRING },
-          meaningVietnamese: { type: Type.STRING },
-          definitionEnglish: { type: Type.STRING },
-          exampleSentence: { type: Type.STRING },
-          exampleSentenceVietnamese: { type: Type.STRING },
-        },
-        required: [
-          'id',
-          'word',
-          'ipa',
-          'partOfSpeech',
-          'meaningVietnamese',
-          'definitionEnglish',
-          'exampleSentence',
-          'exampleSentenceVietnamese',
-        ],
-      },
-    },
-    story: {
-      type: Type.OBJECT,
-      properties: {
-        title: { type: Type.STRING },
-        content: { type: Type.STRING },
-        translation: { type: Type.STRING },
-      },
-      required: ['title', 'content', 'translation'],
-    },
-    quiz: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          id: { type: Type.STRING },
-          question: { type: Type.STRING },
-          options: { type: Type.ARRAY, items: { type: Type.STRING } },
-          correctAnswer: { type: Type.STRING },
-          explanation: { type: Type.STRING },
-          type: { type: Type.STRING, enum: ['multiple-choice', 'fill-blank'] },
-        },
-        required: [
-          'id',
-          'question',
-          'options',
-          'correctAnswer',
-          'explanation',
-          'type',
-        ],
-      },
-    },
-  },
-  required: ['flashcards', 'story', 'quiz'],
-};
-
-function buildWeaknessPrompt(
-  weakness: WeaknessPattern,
-  level: string,
-): string {
-  const exampleLines = weakness.examples
-    .map(
-      (ex, i) =>
-        `${i + 1}. word="${ex.word}", question="${ex.question}", userAnswered="${ex.userAnswer}", correctAnswer="${ex.correctAnswer}"`,
-    )
-    .join('\n');
-
-  const focusByCategory: Record<string, string> = {
-    vocabulary_gap:
-      'pick 5 brand-new English words the learner has not seen, drawn from the same topic as their mistakes',
-    grammar_confusion:
-      'pick 5 English words that share the same root but differ in part of speech (e.g. analyze/analysis/analytical), so the learner can practise telling them apart',
-    spelling_similarity:
-      'pick 5 English words that look or sound similar to the words the learner confused, so they can drill the differences',
-    meaning_overlap:
-      'pick 5 English words whose Vietnamese meanings are commonly mixed up with the words above, so the learner can disambiguate them',
-  };
-
-  const focus =
-    focusByCategory[weakness.category] ??
-    'pick 5 English words that target this weakness';
-
-  return `
-You are an expert English teacher (EdTech specialist) creating a remedial mini-lesson for a Vietnamese learner at CEFR level ${level}.
-
-Weakness category: ${weakness.category} (${weakness.categoryVi})
-Recent mistakes from this learner:
-${exampleLines || '(no specific examples available)'}
-
-Task: ${focus}.
-
-Output MUST be a JSON object containing exactly:
-1. 'flashcards': 5 entries with detailed info per word.
-2. 'story': a cohesive ~120-180 word short story using all 5 words naturally.
-3. 'quiz': 5 questions where the 'question' is the English word (e.g. "What does 'X' mean?") and 'options' are Vietnamese definitions, with one correct answer.
-
-Requirements:
-- Vietnamese translations must be natural and accurate.
-- Example sentences must match ${level} complexity.
-- The lesson must directly target the ${weakness.category} weakness.
-`.trim();
-}
-
-async function callLessonModel(prompt: string): Promise<string> {
-  const config = {
-    responseMimeType: 'application/json',
-    responseSchema: lessonSchema,
-    thinkingConfig: { thinkingBudget: 0 },
-  };
-  try {
-    const response = await ai.models.generateContent({
-      model: PRIMARY_MODEL,
-      contents: prompt,
-      config,
-    });
-    const text = response.text;
-    if (!text) throw new Error('Empty response from primary model');
-    return text;
-  } catch (err) {
-    console.warn(
-      `Weakness lesson primary model "${PRIMARY_MODEL}" failed, falling back to "${FALLBACK_MODEL}":`,
-      err,
-    );
-    const response = await ai.models.generateContent({
-      model: FALLBACK_MODEL,
-      contents: prompt,
-      config,
-    });
-    const text = response.text;
-    if (!text) throw new Error('Empty response from fallback model');
-    return text;
-  }
-}
-
-/**
- * Ask Gemini to generate a 5-word remedial lesson aimed at a specific
- * weakness pattern. The response shape matches `GeneratedLesson` so the
- * existing Flashcards / Story / Quiz views can render it without any
- * special casing.
- */
-export async function generateTargetedLesson(
-  weakness: WeaknessPattern,
-  level: string,
-): Promise<GeneratedLesson> {
-  const prompt = buildWeaknessPrompt(weakness, level);
-  const text = await callLessonModel(prompt);
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch (e) {
-    throw new Error(
-      `Failed to parse targeted-lesson JSON: ${(e as Error).message}`,
-    );
-  }
-
-  // The schema constrains the structure server-side, but be defensive.
-  const lesson = parsed as GeneratedLesson;
-  if (
-    !lesson ||
-    !Array.isArray(lesson.flashcards) ||
-    !Array.isArray(lesson.quiz) ||
-    !lesson.story
-  ) {
-    throw new Error('Targeted lesson response missing required sections');
+function assertLesson(lesson: GeneratedLesson | null): GeneratedLesson {
+  // The server checks the shape too; be defensive.
+  if (!lesson || !Array.isArray(lesson.flashcards) || !Array.isArray(lesson.quiz) || !lesson.story) {
+    throw new Error('Lesson response missing required sections');
   }
   return lesson;
 }
 
 /**
- * Ask Gemini to generate a lesson focusing specifically on the user's hardest words.
- * The lesson will use the actual hardest words (with their recorded meanings, definition, examples, etc.).
+ * A 5-word remedial lesson aimed at a specific weakness pattern. The
+ * response shape matches `GeneratedLesson` so the existing Flashcards /
+ * Story / Quiz views can render it without any special casing.
+ */
+export async function generateTargetedLesson(
+  weakness: WeaknessPattern,
+  level: string,
+): Promise<GeneratedLesson> {
+  const lesson = await invokeAi<GeneratedLesson>('generateRemedialLesson', {
+    mode: 'weakness',
+    level,
+    weakness: {
+      category: weakness.category,
+      categoryVi: weakness.categoryVi,
+      examples: weakness.examples.slice(0, 5).map((ex) => ({
+        word: ex.word,
+        question: ex.question,
+        userAnswer: ex.userAnswer,
+        correctAnswer: ex.correctAnswer,
+      })),
+    },
+  });
+  return assertLesson(lesson);
+}
+
+/**
+ * A lesson built on the user's hardest words, using their recorded
+ * meanings and parts of speech.
  */
 export async function generateHardestWordsLesson(
   words: any[],
@@ -489,62 +336,16 @@ export async function generateHardestWordsLesson(
   if (!words || words.length === 0) {
     throw new Error('No words provided to generate lesson');
   }
-  const wordDetails = words
-    .map(
-      (w, i) =>
-        `${i + 1}. word="${w.word}", meaning="${w.meaning_vi || ''}", partOfSpeech="${w.part_of_speech || ''}"`,
-    )
-    .join('\n');
-
-  const prompt = `
-You are an expert English teacher (EdTech specialist) creating a remedial mini-lesson for a Vietnamese learner at CEFR level ${level}.
-
-The learner has been struggling with these specific English words:
-${wordDetails}
-
-Task:
-Create a cohesive remedial mini-lesson that uses these EXACT words.
-
-Output MUST be a JSON object containing exactly:
-1. 'flashcards': 5 entries. For EACH entry, use the word itself, and populate its fields. Use the existing metadata where applicable, but make sure all fields are fully populated with accurate and natural details:
-   - 'id': standard unique id
-   - 'word': the English word (exactly as listed above)
-   - 'ipa': accurate IPA pronunciation
-   - 'partOfSpeech': part of speech
-   - 'meaningVietnamese': accurate and clear Vietnamese meaning
-   - 'definitionEnglish': simple English definition
-   - 'exampleSentence': a clear, high-quality example sentence matching ${level} CEFR complexity using the word
-   - 'exampleSentenceVietnamese': Vietnamese translation of the example sentence
-2. 'story': a cohesive ~120-180 word short story using all 5 words naturally.
-3. 'quiz': 5 questions where the 'question' is the English word (e.g. "What does 'X' mean?") and 'options' are Vietnamese definitions, with one correct answer.
-
-Requirements:
-- Vietnamese translations must be natural and accurate.
-- Example sentences must match ${level} complexity.
-- The lesson must focus exactly on teaching the 5 words listed above.
-`.trim();
-
-  const text = await callLessonModel(prompt);
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch (e) {
-    throw new Error(
-      `Failed to parse targeted JSON: ${(e as Error).message}`,
-    );
-  }
-
-  const lesson = parsed as GeneratedLesson;
-  if (
-    !lesson ||
-    !Array.isArray(lesson.flashcards) ||
-    !Array.isArray(lesson.quiz) ||
-    !lesson.story
-  ) {
-    throw new Error('Lesson response missing required sections');
-  }
-  return lesson;
+  const lesson = await invokeAi<GeneratedLesson>('generateRemedialLesson', {
+    mode: 'words',
+    level,
+    words: words.slice(0, 10).map((w) => ({
+      word: String(w.word ?? ''),
+      meaning: String(w.meaning_vi ?? ''),
+      partOfSpeech: String(w.part_of_speech ?? ''),
+    })),
+  });
+  return assertLesson(lesson);
 }
 
 // --- Status flag (localStorage) -------------------------------------------

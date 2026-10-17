@@ -1,7 +1,5 @@
-import { GoogleGenAI, Type, Schema, Modality } from "@google/genai";
 import { DifficultyLevel, GeneratedLesson } from "../types";
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+import { invokeAi } from "./aiClient";
 
 // --- Audio Utils for Gemini TTS ---
 let audioContext: AudioContext | null = null;
@@ -49,22 +47,7 @@ export const createAudioBufferFromBase64 = async (base64: string): Promise<Audio
 
 // --- Generate TTS AudioBuffer (single API call, no playback) ---
 export const generateTTS = async (text: string): Promise<{ buffer: AudioBuffer, base64: string }> => {
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash-preview-tts",
-    contents: {
-      parts: [{ text }],
-    },
-    config: {
-      responseModalities: [Modality.AUDIO],
-      speechConfig: {
-        voiceConfig: {
-          prebuiltVoiceConfig: { voiceName: 'Kore' },
-        },
-      },
-    },
-  });
-
-  const base64 = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+  const base64 = await invokeAi<string>('tts', { text }, { timeoutMs: 120_000 });
   if (!base64) {
     throw new Error("No audio data returned from TTS");
   }
@@ -342,56 +325,6 @@ export const playTTS = async (text: string, speed: number = 1.0): Promise<TTSRes
 
 // --- Lesson Generation ---
 
-const lessonSchema: Schema = {
-  type: Type.OBJECT,
-  properties: {
-    flashcards: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          id: { type: Type.STRING },
-          word: { type: Type.STRING },
-          ipa: { type: Type.STRING },
-          partOfSpeech: { type: Type.STRING },
-          meaningVietnamese: { type: Type.STRING },
-          definitionEnglish: { type: Type.STRING },
-          exampleSentence: { type: Type.STRING },
-          exampleSentenceVietnamese: { type: Type.STRING },
-          collocations: { type: Type.ARRAY, items: { type: Type.STRING } },
-          memoryTip: { type: Type.STRING },
-        },
-        required: ["id", "word", "ipa", "partOfSpeech", "meaningVietnamese", "definitionEnglish", "exampleSentence", "exampleSentenceVietnamese"],
-      },
-    },
-    story: {
-      type: Type.OBJECT,
-      properties: {
-        title: { type: Type.STRING },
-        content: { type: Type.STRING },
-        translation: { type: Type.STRING },
-      },
-      required: ["title", "content", "translation"],
-    },
-    quiz: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          id: { type: Type.STRING },
-          question: { type: Type.STRING },
-          options: { type: Type.ARRAY, items: { type: Type.STRING } },
-          correctAnswer: { type: Type.STRING },
-          explanation: { type: Type.STRING },
-          type: { type: Type.STRING, enum: ["multiple-choice", "fill-blank"] },
-        },
-        required: ["id", "question", "options", "correctAnswer", "explanation", "type"],
-      },
-    },
-  },
-  required: ["flashcards", "story", "quiz"],
-};
-
 /**
  * Defensive clean-up of model output: guarantees every quiz question has a
  * correct answer among its options (otherwise the question is unanswerable)
@@ -412,88 +345,12 @@ function sanitizeLesson(lesson: GeneratedLesson): GeneratedLesson {
   return { ...lesson, flashcards, quiz };
 }
 
+/** Prompt, schema and model fallback live in the ai-proxy function (op generateLesson). */
 export const generateLessonContent = async (
   inputWords: string,
   level: DifficultyLevel,
   topic: string
 ): Promise<GeneratedLesson> => {
-  // Model priority: try stable model first, fallback to alternatives
-  const MODELS = [
-    "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
-  ];
-
-  const prompt = `
-    You are an expert English teacher (EdTech specialist).
-    Create a comprehensive English lesson based on the following vocabulary list, targeting CEFR Level ${level} and the topic "${topic}".
-    
-    The output must strictly be a JSON object containing:
-    1. 'flashcards': Detailed info for each word provided.
-    2. 'story': A cohesive, engaging short story (approx 150-200 words) using the vocabulary naturally.
-    3. 'quiz': ONE question for EACH word in the vocabulary list (so if there are 10 words, create exactly 10 quiz questions).
-    
-    CRITICAL INSTRUCTION FOR QUIZ:
-    - The 'question' must be the English vocabulary word (e.g., "What does 'Serendipity' mean?").
-    - The 'options' must be Vietnamese definitions/meanings.
-    - One option must be correct, others distractors.
-    
-    Input Vocabulary:
-    "${inputWords}"
-
-    FLASHCARD REQUIREMENTS:
-    - 'exampleSentence' MUST contain the vocabulary word itself (an inflected form such as plural or past tense is fine), so it can be used for fill-in-the-blank practice.
-    - 'collocations': 2-4 short, high-frequency collocations or chunks using the word (e.g. "make a decision", "decide on sth").
-    - 'memoryTip': ONE short Vietnamese sentence (max 25 words) with a memory hook OR a common mistake Vietnamese learners make with this word (confusable words, wrong preposition, pronunciation trap).
-
-    QUIZ OPTION REQUIREMENTS:
-    - Exactly 4 options, all distinct, all in Vietnamese, similar length and the same part of speech, so the answer cannot be guessed from form.
-    - Distractors should be plausible (meanings of related or easily confused words), not absurd.
-    - 'correctAnswer' must be copied EXACTLY from one of the options.
-
-    Requirements:
-    - Vietnamese translations must be natural and accurate.
-    - Example sentences must match the ${level} complexity.
-    - Quiz should follow 'Mastery Learning' principles.
-    - IMPORTANT: The story content must be PLAIN TEXT only. Do NOT use markdown formatting like **bold** or *italic*. Just write the words naturally.
-  `;
-
-  const config = {
-    responseMimeType: "application/json",
-    responseSchema: lessonSchema,
-    thinkingConfig: { thinkingBudget: 0 },
-  };
-
-  let lastError: unknown = null;
-
-  for (const model of MODELS) {
-    try {
-      console.log(`[Gemini] Trying model: ${model}`);
-      const response = await ai.models.generateContent({
-        model,
-        contents: prompt,
-        config,
-      });
-
-      const text = response.text;
-      if (!text) throw new Error("No response from AI");
-
-      const data = JSON.parse(text) as GeneratedLesson;
-      return sanitizeLesson(data);
-    } catch (error: any) {
-      lastError = error;
-      const status = error?.status || error?.message?.match(/(\d{3})/)?.[1];
-      console.warn(`[Gemini] Model "${model}" failed (${status}):`, error?.message || error);
-      
-      // Only retry on 503 (overloaded) or 429 (rate limit) — other errors are not retryable
-      if (status !== 503 && status !== '503' && status !== 429 && status !== '429') {
-        break;
-      }
-      // Small delay before trying next model
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-  }
-
-  console.error("Gemini Generation Error: All models failed", lastError);
-  throw lastError;
+  const data = await invokeAi<GeneratedLesson>('generateLesson', { words: inputWords, level, topic });
+  return sanitizeLesson(data);
 };

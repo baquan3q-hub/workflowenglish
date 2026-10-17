@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AppPhase, DifficultyLevel, GeneratedLesson, LessonProgress, UserSettings, FlashcardData, IeltsQuestion, IeltsAiFeedback, IeltsAttempt, IeltsSkill } from './types';
 import { generateLessonContent } from './services/geminiService';
+import { aiErrorMessage } from './services/aiClient';
 import { supabase, getProfile, signOut, saveLearningRecord, getLearningRecordFull, LearningRecord, saveLessonAudio, withTimeout, getCachedSession, resumeAuthRefresh, pauseAuthRefresh } from './services/supabaseClient';
 import {
   checkLevelSuggestion,
@@ -502,7 +503,10 @@ function App() {
       setPhase(AppPhase.FLASHCARDS);
     } catch (err) {
       console.error(err);
-      setError("Failed to generate lesson. Please try again or check your API key.");
+      showToast(aiErrorMessage(err), 'error', {
+        action: { label: 'Thử lại', onClick: () => void handleGenerate(text, settings) },
+        durationMs: 8000,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -1040,7 +1044,7 @@ function App() {
                 });
               } catch (err) {
                 console.error('Writing grading failed:', err);
-                showToast('Không thể chấm bài. Vui lòng thử lại.', 'info');
+                showToast(`Chưa chấm được bài. ${aiErrorMessage(err)}`, 'error');
               } finally {
                 setIsIeltsGrading(false);
               }
@@ -1129,7 +1133,7 @@ function App() {
                 });
               } catch (err) {
                 console.error('Speaking grading failed:', err);
-                showToast('Không thể chấm bài. Vui lòng thử lại.', 'info');
+                showToast(`Chưa chấm được bài. ${aiErrorMessage(err)}`, 'error');
               } finally {
                 setIsIeltsGrading(false);
               }

@@ -20,6 +20,7 @@ import {
 } from '../services/analyticsLogic';
 import { estimateMinutes } from '../services/reviewSessionLogic';
 import { getIeltsAttempts } from '../services/ieltsAttemptService';
+import { aiErrorMessage } from '../services/aiClient';
 import { analyzeWeaknesses, generateHardestWordsLesson, generateTargetedLesson } from '../services/weaknessService';
 import { GeneratedLesson, IeltsAttempt, WeaknessPattern } from '../types';
 import { ActivityHeatmap, ColumnChart, HeatmapLegend, ScoreLine, StackedBar, shortDate, weekdayLabel } from '../components/analytics/AnalyticsCharts';
@@ -318,7 +319,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       onStartTargetedLesson?.(await make());
     } catch (err) {
       console.error('Failed to generate practice lesson:', err);
-      setPracticeError('Không tạo được bài luyện tập. Thử lại sau ít phút.');
+      setPracticeError(aiErrorMessage(err));
     } finally {
       setGenerating(null);
     }

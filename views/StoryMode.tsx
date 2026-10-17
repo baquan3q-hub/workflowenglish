@@ -3,6 +3,7 @@ import { Play, Pause, Languages, Highlighter, ArrowRight, Loader2, Settings2, Vo
 import { StoryData, FlashcardData } from '../types';
 import { Button } from '../components/Common';
 import { generateTTS, createAudioBufferFromBase64, AudioPlayerController } from '../services/geminiService';
+import { aiErrorMessage } from '../services/aiClient';
 import { buildWordFormIndex, formatIpa } from '../services/reviewLogic';
 import { speakText } from '../services/browserSpeech';
 
@@ -171,9 +172,9 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
       setDuration(buffer.duration);
       buildWordTimings(buffer.duration);
       setAudioState('ready');
-    } catch (err: any) {
+    } catch (err) {
       console.error('Generate audio error:', err);
-      setAudioError(err.message || 'Không tạo được âm thanh');
+      setAudioError(`Không tạo được âm thanh. ${aiErrorMessage(err)}`);
       setAudioState('idle');
     }
   };
