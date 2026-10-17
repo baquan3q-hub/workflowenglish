@@ -7,6 +7,10 @@ import {
   fuzzDays,
   gradeTypedAnswer,
   shuffle,
+  spellingDiff,
+  suggestedRatingForGrade,
+  levenshtein,
+  normalizeAnswer,
   wordFormsOf,
   buildWordFormIndex,
   SAME_SESSION_WINDOW_MS,
@@ -153,6 +157,44 @@ describe('shuffle', () => {
       fc.property(fc.array(fc.integer()), (xs) => {
         const out = shuffle(xs);
         return out.length === xs.length && [...out].sort().join() === [...xs].sort().join();
+      }),
+    );
+  });
+});
+
+describe('spellingDiff', () => {
+  const read = (ops: ReturnType<typeof spellingDiff>, side: 'input' | 'target') =>
+    ops
+      .map((o) =>
+        side === 'input'
+          ? o.op === 'del' ? '' : o.ch
+          : o.op === 'ins' ? '' : o.op === 'sub' ? o.expected : o.ch,
+      )
+      .join('');
+
+  it('marks the swapped letters of recieve and suggests Khó', () => {
+    const ops = spellingDiff('recieve', 'receive');
+    expect(ops.filter((o) => o.op !== 'same')).toHaveLength(2);
+    expect(gradeTypedAnswer('recieve', 'receive').grade).toBe('close');
+    expect(suggestedRatingForGrade('close')).toBe(1);
+    expect(suggestedRatingForGrade('correct')).toBe(2);
+    expect(suggestedRatingForGrade('wrong')).toBe(0);
+  });
+
+  it('reports missing and extra letters', () => {
+    expect(spellingDiff('adress', 'address').find((o) => o.op === 'del')?.ch).toBe('d');
+    expect(spellingDiff('untill', 'until').find((o) => o.op === 'ins')?.ch).toBe('l');
+    expect(spellingDiff('Receive', 'receive').every((o) => o.op === 'same')).toBe(true);
+  });
+
+  it('rebuilds both strings and uses the minimum number of edits', () => {
+    const word = fc.string({ unit: fc.constantFrom('a', 'b', 'c', 'e', 'i'), maxLength: 9 });
+    fc.assert(
+      fc.property(word, word, (input, target) => {
+        const ops = spellingDiff(input, target);
+        expect(read(ops, 'input')).toBe(normalizeAnswer(input));
+        expect(read(ops, 'target')).toBe(normalizeAnswer(target));
+        expect(ops.filter((o) => o.op !== 'same')).toHaveLength(levenshtein(normalizeAnswer(input), normalizeAnswer(target)));
       }),
     );
   });

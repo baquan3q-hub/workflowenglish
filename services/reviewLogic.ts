@@ -298,6 +298,63 @@ export function gradeTypedAnswer(
   return { grade: 'wrong' };
 }
 
+export type DiffOp = 'same' | 'sub' | 'ins' | 'del';
+
+export interface DiffChar {
+  /** The typed character (`same`, `sub`, `ins`) or the missing one (`del`). */
+  ch: string;
+  op: DiffOp;
+  /** For `sub`: the character the target has here. */
+  expected?: string;
+}
+
+/**
+ * Character alignment of a typed word against the target (minimum edits,
+ * Levenshtein). `ins` is an extra typed letter, `del` a letter the input is
+ * missing. Reading `same`/`sub`/`ins` gives the input back; reading
+ * `same`/`sub.expected`/`del` gives the target. Compared case-insensitively
+ * after {@link normalizeAnswer}.
+ */
+export function spellingDiff(input: string, target: string): DiffChar[] {
+  const a = [...normalizeAnswer(input)];
+  const b = [...normalizeAnswer(target)];
+  const d: number[][] = Array.from({ length: a.length + 1 }, (_, i) =>
+    Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)),
+  );
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      d[i][j] = Math.min(
+        d[i - 1][j] + 1,
+        d[i][j - 1] + 1,
+        d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
+      );
+    }
+  }
+
+  const out: DiffChar[] = [];
+  let i = a.length;
+  let j = b.length;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && d[i][j] === d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)) {
+      out.push(a[i - 1] === b[j - 1] ? { ch: a[i - 1], op: 'same' } : { ch: a[i - 1], op: 'sub', expected: b[j - 1] });
+      i--;
+      j--;
+    } else if (i > 0 && d[i][j] === d[i - 1][j] + 1) {
+      out.push({ ch: a[i - 1], op: 'ins' });
+      i--;
+    } else {
+      out.push({ ch: b[j - 1], op: 'del' });
+      j--;
+    }
+  }
+  return out.reverse();
+}
+
+/** Rating suggested for a spelling attempt: Tốt when exact, Khó when close, Lại otherwise. */
+export function suggestedRatingForGrade(grade: AnswerGrade): ConfidenceRating {
+  return grade === 'correct' ? 2 : grade === 'close' ? 1 : 0;
+}
+
 // --- Word forms ------------------------------------------------------------
 
 /** Common irregular verbs: base → [past, past participle, ...]. */

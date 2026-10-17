@@ -1,15 +1,20 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Volume2, ChevronLeft, ChevronRight, Settings2, StopCircle } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Volume2, ChevronLeft, ChevronRight, StopCircle } from 'lucide-react';
 import { FlashcardData, MasteryLevel, ConfidenceRating, WordMasteryRecord } from '../types';
-import { Button, Badge } from '../components/Common';
 import { StatusBadge } from '../components/ui/StatusBadge';
+import { Segmented } from '../components/ui/Segmented';
+import { RatingButtons } from '../components/ui/RatingButtons';
+import { RATING_META } from '../components/ui/srsTheme';
+import { FlashcardWorkspace, type WorkspaceTab } from '../components/flashcards/FlashcardWorkspace';
 import {
   bulkEnsureWordsWithMetadata,
   getWordMastery,
   normalizeWord,
 } from '../services/masteryService';
 import { applyRating } from '../services/reviewService';
-import { formatIpa } from '../services/reviewLogic';
+import { savePersonalNote } from '../services/noteService';
+import { formatIpa, suggestedRatingForGrade, type AnswerGrade } from '../services/reviewLogic';
+import type { ReviewSource } from '../types';
 
 interface FlashcardsProps {
   cards: FlashcardData[];
@@ -21,6 +26,23 @@ interface FlashcardsProps {
   onMasteryMapChange?: (map: Record<string, WordMasteryRecord | null>) => void;
   onShowToast?: (message: string, type?: 'success' | 'info') => void;
 }
+
+type Speed = '0.75' | '1' | '1.25';
+
+const SWIPE_THRESHOLD = 80;
+
+/** Whether `iso` falls on today's local calendar day. */
+function isToday(iso: string | null | undefined): boolean {
+  if (!iso) return false;
+  return new Date(iso).toDateString() === new Date().toDateString();
+}
+
+const SectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <p className="mb-1 text-caption font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{children}</p>
+);
+
+const iconButton =
+  'inline-flex min-h-touch min-w-touch items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white';
 
 const Flashcards: React.FC<FlashcardsProps> = ({
   cards,
@@ -35,122 +57,59 @@ const Flashcards: React.FC<FlashcardsProps> = ({
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [isFlipped, setIsFlipped] = useState(false);
   // When the current card was shown, for the review log's thinking time.
-  const cardShownAtRef = React.useRef(Date.now());
+  const cardShownAtRef = useRef(Date.now());
+
+  // Practice on the current card; reset when the card changes.
+  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>('spell');
+  const [spellingGrade, setSpellingGrade] = useState<AnswerGrade | null>(null);
+  const [handwritingCompared, setHandwritingCompared] = useState(false);
   useEffect(() => {
     cardShownAtRef.current = Date.now();
+    setSpellingGrade(null);
+    setHandwritingCompared(false);
   }, [currentIndex]);
+
+  // Ratings given on this screen, by normalized word.
+  const [ratings, setRatings] = useState<Record<string, ConfidenceRating>>({});
+  const [remindShown, setRemindShown] = useState(false);
+  const [remindOpen, setRemindOpen] = useState(false);
+  const remindRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (remindOpen) remindRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [remindOpen]);
 
   // Swipe gesture states
   const [dragStartX, setDragStartX] = useState<number | null>(null);
   const [dragOffset, setDragOffset] = useState<number>(0);
   const [isDragging, setIsDragging] = useState<boolean>(false);
-  const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
   const [flyOutDirection, setFlyOutDirection] = useState<'left' | 'right' | null>(null);
-  const hasDraggedRef = React.useRef(false);
+  const hasDraggedRef = useRef(false);
 
   // Audio state (browser SpeechSynthesis — free, no API cost)
   const [playingText, setPlayingText] = useState<string | null>(null);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
+  const [playbackSpeed, setPlaybackSpeed] = useState<Speed>('1');
 
   // Word-level highlighting via onboundary event
   const [activeWordIndex, setActiveWordIndex] = useState<number | null>(null);
 
-  // Mastery tracking — keyed by normalized word
-  const [masteryMap, setMasteryMap] = useState<Record<string, WordMasteryRecord | null>>(parentMasteryMap ?? {});
+  // Mastery tracking — keyed by normalized word. The ref lets async saves
+  // merge into the latest map.
+  const [masteryMap, setMasteryMapState] = useState<Record<string, WordMasteryRecord | null>>(parentMasteryMap ?? {});
+  const masteryMapRef = useRef(masteryMap);
+  const setMasteryMap = useCallback(
+    (next: Record<string, WordMasteryRecord | null>) => {
+      masteryMapRef.current = next;
+      setMasteryMapState(next);
+      onMasteryMapChange?.(next);
+    },
+    [onMasteryMapChange],
+  );
 
   useEffect(() => {
     onIndexChange?.(currentIndex);
   }, [currentIndex, onIndexChange]);
   const [masteryLoaded, setMasteryLoaded] = useState(false);
   const [savingRating, setSavingRating] = useState(false);
-
-  // Compute swipe styles dynamically
-  const cardStyle = useMemo(() => {
-    if (flyOutDirection === 'right') {
-      return {
-        transform: 'translateX(150%) rotate(15deg)',
-        opacity: 0,
-        transition: 'all 300ms ease-in-out',
-      };
-    }
-    if (flyOutDirection === 'left') {
-      return {
-        transform: 'translateX(-150%) rotate(-15deg)',
-        opacity: 0,
-        transition: 'all 300ms ease-in-out',
-      };
-    }
-    if (isDragging) {
-      const rotation = dragOffset * 0.05; // 0.05 deg per pixel
-      return {
-        transform: `translateX(${dragOffset}px) rotate(${rotation}deg)`,
-        transition: 'none',
-      };
-    }
-    return {
-      transform: 'none',
-      transition: 'all 300ms cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-    };
-  }, [isDragging, dragOffset, flyOutDirection]);
-
-  // --- Swipe event handlers ------------------------------------------------
-  const handleDragStart = (clientX: number) => {
-    if (!isFlipped || savingRating) return; // Only drag when flipped and not saving
-    setDragStartX(clientX);
-    setIsDragging(true);
-    hasDraggedRef.current = false;
-  };
-
-  const handleDragMove = (clientX: number) => {
-    if (!isDragging || dragStartX === null) return;
-    const offset = clientX - dragStartX;
-    setDragOffset(offset);
-
-    if (Math.abs(offset) > 5) {
-      hasDraggedRef.current = true;
-    }
-
-    if (offset > 80) {
-      setSwipeDirection('right');
-    } else if (offset < -80) {
-      setSwipeDirection('left');
-    } else {
-      setSwipeDirection(null);
-    }
-  };
-
-  const handleDragEnd = () => {
-    if (!isDragging) return;
-    setIsDragging(false);
-    setDragStartX(null);
-
-    const threshold = 80;
-    if (dragOffset > threshold) {
-      triggerSwipeOut('right');
-    } else if (dragOffset < -threshold) {
-      triggerSwipeOut('left');
-    } else {
-      setDragOffset(0);
-      setSwipeDirection(null);
-    }
-  };
-
-  const triggerSwipeOut = (dir: 'left' | 'right') => {
-    setFlyOutDirection(dir);
-    const rating: ConfidenceRating = dir === 'right' ? 2 : 0;
-    
-    const dummyEvent = {
-      stopPropagation: () => {},
-      preventDefault: () => {}
-    } as React.MouseEvent;
-
-    setTimeout(() => {
-      handleRating(rating, dummyEvent);
-      setDragOffset(0);
-      setSwipeDirection(null);
-      setFlyOutDirection(null);
-    }, 300);
-  };
 
   const currentCard = cards[currentIndex];
   const currentNormalizedWord = useMemo(
@@ -160,8 +119,42 @@ const Flashcards: React.FC<FlashcardsProps> = ({
   const currentMastery = masteryMap[currentNormalizedWord] ?? null;
   const currentLevel: MasteryLevel = currentMastery?.mastery_level ?? MasteryLevel.NEW;
 
-  // Show quick-mark buttons when card is flipped (for ALL mastery levels)
-  const shouldShowQuickMark = masteryLoaded && isFlipped;
+  const isRated = useCallback(
+    (word: string) => {
+      const key = normalizeWord(word);
+      return ratings[key] !== undefined || isToday(masteryMap[key]?.last_reviewed_at);
+    },
+    [ratings, masteryMap],
+  );
+  const ratedCount = useMemo(() => cards.filter((c) => isRated(c.word)).length, [cards, isRated]);
+  const unratedCount = cards.length - ratedCount;
+
+  // Ratings open once the answer is seen: flipped, spelled or compared.
+  const canRate = masteryLoaded && (isFlipped || spellingGrade !== null || handwritingCompared);
+  const suggested = spellingGrade !== null ? suggestedRatingForGrade(spellingGrade) : null;
+  const currentRating = ratings[currentNormalizedWord];
+
+  // Compute swipe styles dynamically
+  const cardStyle = useMemo(() => {
+    if (flyOutDirection) {
+      const sign = flyOutDirection === 'right' ? 1 : -1;
+      return {
+        transform: `translateX(${sign * 150}%) rotate(${sign * 15}deg)`,
+        opacity: 0,
+        transition: 'all 300ms ease-in-out',
+      };
+    }
+    if (isDragging) {
+      return {
+        transform: `translateX(${dragOffset}px) rotate(${dragOffset * 0.05}deg)`,
+        transition: 'none',
+      };
+    }
+    return {
+      transform: 'none',
+      transition: 'all 300ms cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+    };
+  }, [isDragging, dragOffset, flyOutDirection]);
 
   // --- Mastery bootstrap on mount / cards change ---------------------------
   useEffect(() => {
@@ -169,7 +162,8 @@ const Flashcards: React.FC<FlashcardsProps> = ({
 
     // Use cached/parent mastery mapping if already loaded to avoid N+1 queries
     if (parentMasteryMap && Object.keys(parentMasteryMap).length > 0) {
-      setMasteryMap(parentMasteryMap);
+      masteryMapRef.current = parentMasteryMap;
+      setMasteryMapState(parentMasteryMap);
       setMasteryLoaded(true);
       return;
     }
@@ -196,7 +190,6 @@ const Flashcards: React.FC<FlashcardsProps> = ({
           next[normalizeWord(w)] = records[i];
         });
         setMasteryMap(next);
-        onMasteryMapChange?.(next);
       } catch (err) {
         // Don't block the card display on a network error.
         console.error('Failed to load word mastery for flashcards:', err);
@@ -208,7 +201,7 @@ const Flashcards: React.FC<FlashcardsProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [userId, cards, parentMasteryMap, onMasteryMapChange]);
+  }, [userId, cards, parentMasteryMap, setMasteryMap]);
 
   const cleanupAudio = useCallback(() => {
     window.speechSynthesis.cancel();
@@ -222,21 +215,14 @@ const Flashcards: React.FC<FlashcardsProps> = ({
     };
   }, [currentIndex, cleanupAudio]);
 
-  const handleNext = () => {
+  const goTo = (index: number) => {
     cleanupAudio();
     setIsFlipped(false);
-    setTimeout(() => {
-      setCurrentIndex((prev) => (prev + 1) % cards.length);
-    }, 200);
+    setRemindOpen(false);
+    setTimeout(() => setCurrentIndex(index), 200);
   };
-
-  const handlePrev = () => {
-    cleanupAudio();
-    setIsFlipped(false);
-    setTimeout(() => {
-      setCurrentIndex((prev) => (prev - 1 + cards.length) % cards.length);
-    }, 200);
-  };
+  const handleNext = () => goTo((currentIndex + 1) % cards.length);
+  const handlePrev = () => goTo((currentIndex - 1 + cards.length) % cards.length);
 
   const handlePlayAudio = (text: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -251,7 +237,7 @@ const Flashcards: React.FC<FlashcardsProps> = ({
 
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'en-US';
-    utterance.rate = playbackSpeed;
+    utterance.rate = parseFloat(playbackSpeed);
 
     // Try to pick a better voice
     const voices = window.speechSynthesis.getVoices();
@@ -262,7 +248,6 @@ const Flashcards: React.FC<FlashcardsProps> = ({
     const words = text.split(/\s+/).filter(w => w.length > 0);
     let charCursor = 0;
     const wordBoundaries = words.map(word => {
-      // Find this word's starting char index in the original text
       const idx = text.indexOf(word, charCursor);
       const boundary = { start: idx, end: idx + word.length };
       charCursor = idx + word.length;
@@ -286,33 +271,14 @@ const Flashcards: React.FC<FlashcardsProps> = ({
     window.speechSynthesis.speak(utterance);
   };
 
-  // --- Keyboard shortcuts --------------------------------------------------
-  // Space/Enter: flip · after flip → "Đã nhớ", ← "Cần ôn lại" · before flip ←/→ browse
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
-      if (e.key === ' ' || e.key === 'Enter') {
-        if (e.target instanceof HTMLButtonElement) return; // let the focused button handle it
-        e.preventDefault();
-        setIsFlipped((v) => !v);
-      } else if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        if (isFlipped && shouldShowQuickMark && !savingRating) triggerSwipeOut('right');
-        else if (!isFlipped) handleNext();
-      } else if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        if (isFlipped && shouldShowQuickMark && !savingRating) triggerSwipeOut('left');
-        else if (!isFlipped) handlePrev();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  });
+  // --- Rating ----------------------------------------------------------------
+  const handleRating = async (rating: ConfidenceRating) => {
+    if (savingRating || !currentCard) return;
 
-  // --- Rating handler ------------------------------------------------------
-  const handleRating = async (rating: ConfidenceRating, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (savingRating) return;
+    const source: ReviewSource =
+      spellingGrade !== null ? 'spelling' : handwritingCompared ? 'handwriting' : 'lesson_flashcard';
+    const alreadyRated = isRated(currentCard.word);
+    const word = currentNormalizedWord;
 
     setSavingRating(true);
     try {
@@ -325,37 +291,114 @@ const Flashcards: React.FC<FlashcardsProps> = ({
         word: currentCard.word,
         current: currentMastery,
         rating,
-        source: 'lesson_flashcard',
+        source,
         durationMs: Date.now() - cardShownAtRef.current,
+        // A second rating of the same card today shouldn't count twice.
+        creditGoal: !alreadyRated,
       });
 
       void goal.then((credit) => {
         if (credit?.justReached) {
-          onShowToast?.(`🎉 Hoàn thành mục tiêu hôm nay! Streak: ${credit.goalsUpdated.current_streak} ngày`, 'success');
+          onShowToast?.(`Hoàn thành mục tiêu hôm nay. Chuỗi ${credit.goalsUpdated.current_streak} ngày`, 'success');
         }
       });
 
-      const nextMap = {
-        ...masteryMap,
-        [currentNormalizedWord]: updated,
-      };
-      setMasteryMap(nextMap);
-      onMasteryMapChange?.(nextMap);
+      setMasteryMap({ ...masteryMapRef.current, [word]: updated });
+      setRatings((prev) => ({ ...prev, [word]: rating }));
 
-      // Auto-advance to next card after rating
-      cleanupAudio();
-      setIsFlipped(false);
-      setTimeout(() => {
-        if (currentIndex < cards.length - 1) {
-          setCurrentIndex((prev) => prev + 1);
-        }
-      }, 300);
+      // Auto-advance to the next card after rating
+      if (currentIndex < cards.length - 1) goTo(currentIndex + 1);
+      else {
+        cleanupAudio();
+        setIsFlipped(false);
+      }
     } catch (err) {
       console.error('Failed to save rating:', err);
+      onShowToast?.('Chưa lưu được đánh giá, thử lại nhé', 'info');
     } finally {
       setSavingRating(false);
     }
   };
+
+  const handleSaveNote = useCallback(
+    async (word: string, note: string) => {
+      const saved = await savePersonalNote(userId, word, note);
+      const key = normalizeWord(word);
+      const prev = masteryMapRef.current[key];
+      setMasteryMap({ ...masteryMapRef.current, [key]: prev ? { ...prev, personal_note: saved.personal_note } : saved });
+    },
+    [userId, setMasteryMap],
+  );
+
+  // --- Swipe: right = Tốt, left = Lại ----------------------------------------
+  const triggerSwipeOut = (dir: 'left' | 'right') => {
+    setFlyOutDirection(dir);
+    setTimeout(() => {
+      void handleRating(dir === 'right' ? 2 : 0);
+      setDragOffset(0);
+      setFlyOutDirection(null);
+    }, 300);
+  };
+
+  const handleDragStart = (clientX: number) => {
+    if (!isFlipped || !canRate || savingRating) return;
+    setDragStartX(clientX);
+    setIsDragging(true);
+    hasDraggedRef.current = false;
+  };
+
+  const handleDragMove = (clientX: number) => {
+    if (!isDragging || dragStartX === null) return;
+    const offset = clientX - dragStartX;
+    setDragOffset(offset);
+    if (Math.abs(offset) > 5) hasDraggedRef.current = true;
+  };
+
+  const handleDragEnd = () => {
+    if (!isDragging) return;
+    setIsDragging(false);
+    setDragStartX(null);
+    if (dragOffset > SWIPE_THRESHOLD) triggerSwipeOut('right');
+    else if (dragOffset < -SWIPE_THRESHOLD) triggerSwipeOut('left');
+    else setDragOffset(0);
+  };
+
+  // --- Keyboard: space/enter flip · 1–4 rate · ←/→ browse --------------------
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === ' ' || e.key === 'Enter') {
+        if (e.target instanceof HTMLButtonElement) return; // let the focused button handle it
+        e.preventDefault();
+        setIsFlipped((v) => !v);
+      } else if (e.key >= '1' && e.key <= '4') {
+        if (!canRate || savingRating) return;
+        e.preventDefault();
+        void handleRating((Number(e.key) - 1) as ConfidenceRating);
+      } else if (e.key === 'ArrowRight' && currentIndex < cards.length - 1) {
+        e.preventDefault();
+        handleNext();
+      } else if (e.key === 'ArrowLeft' && currentIndex > 0) {
+        e.preventDefault();
+        handlePrev();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
+  const finish = () => {
+    if (unratedCount > 0 && !remindShown) {
+      setRemindShown(true);
+      setRemindOpen(true);
+      return;
+    }
+    cleanupAudio();
+    onNextPhase();
+  };
+
+  if (!currentCard) return null;
 
   const isLastCard = currentIndex === cards.length - 1;
   const isTextPlaying = (text: string) => playingText === text;
@@ -373,14 +416,10 @@ const Flashcards: React.FC<FlashcardsProps> = ({
           const isWhitespace = /^\s+$/.test(part);
           const currentTimingIdx = isWhitespace ? -1 : timingWordCounter++;
           const isWordActive = currentTimingIdx === activeWordIndex;
-
           return (
             <span
               key={pIdx}
-              className={`
-                transition-all duration-150 rounded px-0.5
-                ${isWordActive ? 'bg-blue-500 text-white shadow-sm transform scale-105 inline-block' : 'text-slate-800 dark:text-slate-200'}
-              `}
+              className={`rounded px-0.5 transition-colors duration-150 ${isWordActive ? 'bg-blue-500 text-white' : ''}`}
             >
               {part}
             </span>
@@ -390,168 +429,142 @@ const Flashcards: React.FC<FlashcardsProps> = ({
     );
   };
 
-  return (
-    <div className="max-w-2xl mx-auto flex flex-col gap-3 sm:gap-6">
-      {/* Header row */}
-      <div className="flex w-full justify-between items-end">
-        <div className="space-y-1">
-          <h2 className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-white">Thẻ từ vựng</h2>
-          <p className="text-slate-600 dark:text-slate-400 text-xs sm:text-sm">Chạm để lật thẻ<span className="hidden sm:inline"> · phím cách để lật · ←/→ đánh giá</span></p>
-        </div>
+  const audioButton = (text: string, label: string) => (
+    <button
+      type="button"
+      onClick={(e) => handlePlayAudio(text, e)}
+      aria-label={isTextPlaying(text) ? 'Dừng' : label}
+      title={label}
+      className={`${iconButton} ${isTextPlaying(text) ? 'text-blue-600 dark:text-blue-400' : ''}`}
+    >
+      {isTextPlaying(text) ? <StopCircle className="h-4 w-4" aria-hidden="true" /> : <Volume2 className="h-4 w-4" aria-hidden="true" />}
+    </button>
+  );
 
-        {/* Speed Control */}
-        <label className="flex min-h-touch items-center gap-1.5 bg-white dark:bg-slate-800 px-2 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
-          <Settings2 className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" aria-hidden="true" />
-          <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 sr-only sm:not-sr-only">Tốc độ đọc:</span>
-          <select
-            value={playbackSpeed}
-            onChange={(e) => setPlaybackSpeed(parseFloat(e.target.value))}
-            className="text-sm font-medium text-slate-700 dark:text-slate-300 bg-transparent outline-none cursor-pointer"
-          >
-            <option value={0.75}>0.75x</option>
-            <option value={1.0}>1.0x</option>
-            <option value={1.25}>1.25x</option>
-          </select>
-        </label>
+  const swipeOpacity = (dir: 1 | -1) =>
+    flyOutDirection ? (flyOutDirection === (dir === 1 ? 'right' : 'left') ? 1 : 0) : Math.max(0, Math.min((dir * dragOffset) / SWIPE_THRESHOLD, 1));
+
+  return (
+    <div className="mx-auto flex max-w-2xl flex-col gap-4">
+      {/* Header */}
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <h2 className="text-heading font-semibold text-slate-900 dark:text-white">Thẻ từ vựng</h2>
+          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400" aria-live="polite">
+            Đã chấm <span className="font-semibold tabular-nums text-slate-900 dark:text-white">{ratedCount}/{cards.length}</span> thẻ
+          </p>
+        </div>
+        <Segmented<Speed>
+          label="Tốc độ đọc"
+          value={playbackSpeed}
+          onChange={setPlaybackSpeed}
+          options={[
+            { value: '0.75', label: '0.75×' },
+            { value: '1', label: '1×' },
+            { value: '1.25', label: '1.25×' },
+          ]}
+        />
       </div>
 
-      {/* Flashcard */}
+      {/* Progress: one segment per card, filled once rated */}
+      <div className="flex gap-1" aria-hidden="true">
+        {cards.map((c, i) => (
+          <span
+            key={c.word + i}
+            className={`h-1 flex-1 rounded-full ${
+              isRated(c.word) ? 'bg-slate-900 dark:bg-white' : i === currentIndex ? 'bg-slate-400 dark:bg-slate-500' : 'bg-slate-200 dark:bg-slate-800'
+            }`}
+          />
+        ))}
+      </div>
+
+      {/* Card */}
       <div
-        className="w-full perspective-1000 cursor-pointer group touch-none select-none relative"
+        className="perspective-1000 relative w-full cursor-pointer touch-pan-y select-none"
         style={{ minHeight: '300px', ...cardStyle }}
-        onClick={(e) => {
+        onClick={() => {
           if (hasDraggedRef.current) {
-            e.stopPropagation();
             hasDraggedRef.current = false;
             return;
           }
-          setIsFlipped(!isFlipped);
+          setIsFlipped((v) => !v);
         }}
         onMouseDown={(e) => {
-          if (e.button !== 0) return;
-          handleDragStart(e.clientX);
+          if (e.button === 0) handleDragStart(e.clientX);
         }}
-        onMouseMove={(e) => {
-          handleDragMove(e.clientX);
-        }}
-        onMouseUp={() => {
-          handleDragEnd();
-        }}
-        onMouseLeave={() => {
-          if (isDragging) {
-            handleDragEnd();
-          }
-        }}
-        onTouchStart={(e) => {
-          if (e.touches.length > 0) {
-            handleDragStart(e.touches[0].clientX);
-          }
-        }}
-        onTouchMove={(e) => {
-          if (e.touches.length > 0) {
-            handleDragMove(e.touches[0].clientX);
-          }
-        }}
-        onTouchEnd={() => {
-          handleDragEnd();
-        }}
+        onMouseMove={(e) => handleDragMove(e.clientX)}
+        onMouseUp={handleDragEnd}
+        onMouseLeave={() => isDragging && handleDragEnd()}
+        onTouchStart={(e) => e.touches.length > 0 && handleDragStart(e.touches[0].clientX)}
+        onTouchMove={(e) => e.touches.length > 0 && handleDragMove(e.touches[0].clientX)}
+        onTouchEnd={handleDragEnd}
       >
-        <div className={`relative w-full duration-500 transform-style-3d transition-transform ${isFlipped ? 'rotate-y-180' : ''}`} style={{ minHeight: '300px' }}>
-
+        <div className={`transform-style-3d relative w-full transition-transform duration-500 ${isFlipped ? 'rotate-y-180' : ''}`} style={{ minHeight: '300px' }}>
           {/* FRONT */}
-          <div className={`${isFlipped ? 'invisible absolute inset-0' : 'relative'} w-full backface-hidden bg-white dark:bg-slate-800 rounded-2xl sm:rounded-3xl shadow-lg border-2 border-blue-100 dark:border-blue-900 flex flex-col items-center justify-center p-6 sm:p-8`}
+          <div
+            className={`${isFlipped ? 'invisible absolute inset-0' : 'relative'} backface-hidden flex w-full flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900 sm:p-8`}
             style={{ minHeight: '300px' }}
           >
-            {/* Mastery badge — top-right corner */}
             {masteryLoaded && (
-              <div className="absolute top-3 right-3">
+              <div className="absolute right-4 top-4">
                 <StatusBadge level={currentLevel} variant="dot" size="md" />
               </div>
             )}
-            <span className="text-xs font-bold tracking-widest text-blue-700 dark:text-blue-300 uppercase mb-2">Từ vựng</span>
-            <h3 className="text-3xl sm:text-5xl font-bold text-slate-800 dark:text-white mb-4 text-center">{currentCard.word}</h3>
-            
-            {/* English Definition for Guessing */}
+            <h3 className="break-words text-center text-display font-semibold text-slate-900 dark:text-white">{currentCard.word}</h3>
             {currentCard.definitionEnglish && (
-              <div 
-                className="w-full max-w-md p-3 sm:p-4 mb-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-center"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsFlipped(!isFlipped);
-                }}
-              >
-                <p className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
-                  Đoán nghĩa tiếng Việt qua định nghĩa:
-                </p>
-                <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 italic font-medium leading-relaxed">
-                  "{currentCard.definitionEnglish}"
-                </p>
-              </div>
+              <p className="mt-4 max-w-md text-center text-base italic leading-relaxed text-slate-500 dark:text-slate-400">
+                “{currentCard.definitionEnglish}”
+              </p>
             )}
-
-            <p className="text-slate-500 dark:text-slate-400 font-serif italic text-xs sm:text-sm mt-2">Chạm vào thẻ để xem nghĩa tiếng Việt</p>
+            <p className="mt-8 text-sm text-slate-400 dark:text-slate-500">
+              Chạm để xem nghĩa<span className="hidden sm:inline"> · phím cách</span>
+            </p>
           </div>
 
           {/* BACK */}
           <div
-            className={`${!isFlipped ? 'invisible absolute inset-0 overflow-hidden' : 'relative'} w-full backface-hidden rotate-y-180 bg-white dark:bg-slate-800 rounded-2xl sm:rounded-3xl shadow-lg border-2 border-emerald-100 dark:border-emerald-900 flex flex-col p-4 sm:p-6`}
+            className={`${!isFlipped ? 'invisible absolute inset-0 overflow-hidden' : 'relative'} backface-hidden rotate-y-180 flex w-full flex-col rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 sm:p-6`}
             style={{ minHeight: '300px' }}
           >
-            <div className="flex justify-between items-start mb-3">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">{currentCard.word}</h3>
-                  <Badge color="blue">{currentCard.partOfSpeech}</Badge>
-                  {masteryLoaded && <StatusBadge level={currentLevel} />}
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-baseline gap-x-2">
+                  <h3 className="text-title font-semibold text-slate-900 dark:text-white">{currentCard.word}</h3>
+                  {currentCard.partOfSpeech && (
+                    <span className="text-sm italic text-slate-500 dark:text-slate-400">{currentCard.partOfSpeech}</span>
+                  )}
                 </div>
-                <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-mono text-sm">
+                <div className="-ml-2 flex items-center font-mono text-sm text-slate-500 dark:text-slate-400">
+                  {audioButton(currentCard.word, `Nghe phát âm ${currentCard.word}`)}
                   <span>{formatIpa(currentCard.ipa)}</span>
-                  <button
-                    onClick={(e) => handlePlayAudio(currentCard.word, e)}
-                    aria-label={isTextPlaying(currentCard.word) ? 'Dừng phát âm' : `Nghe phát âm ${currentCard.word}`}
-                    className={`inline-flex min-h-touch min-w-touch items-center justify-center rounded-full transition-colors ${isTextPlaying(currentCard.word) ? 'bg-red-100 dark:bg-red-900/30 text-red-600' : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-300'}`}
-                  >
-                    {isTextPlaying(currentCard.word) ? <StopCircle className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-                  </button>
                 </div>
               </div>
-              <Badge color="green">Tiếng Việt</Badge>
+              {masteryLoaded && <StatusBadge level={currentLevel} />}
             </div>
 
-            <div className="space-y-3 text-left flex-1">
+            <p className="mt-2 text-lg font-semibold text-slate-900 dark:text-white">{currentCard.meaningVietnamese}</p>
+            {currentCard.definitionEnglish && (
+              <p className="mt-1 text-sm italic text-slate-500 dark:text-slate-400">{currentCard.definitionEnglish}</p>
+            )}
+
+            <div className="mt-4 space-y-4 border-t border-slate-100 pt-4 dark:border-slate-800">
               <div>
-                <p className="text-lg font-medium text-emerald-700 dark:text-emerald-400">{currentCard.meaningVietnamese}</p>
-              </div>
-
-              <div className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-                <p className="text-sm text-slate-600 dark:text-slate-400 font-semibold mb-1">Định nghĩa</p>
-                <p className="text-slate-700 dark:text-slate-300 italic">{currentCard.definitionEnglish}</p>
-              </div>
-
-              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">
-                <div className="flex justify-between items-center mb-1">
-                  <p className="text-sm text-blue-700 dark:text-blue-300 font-semibold">Ví dụ</p>
-                  <button
-                    onClick={(e) => handlePlayAudio(currentCard.exampleSentence, e)}
-                    className={`inline-flex min-h-touch min-w-touch -my-2 -mr-2 items-center justify-center rounded-full transition-colors ${isTextPlaying(currentCard.exampleSentence) ? 'text-red-600' : 'text-blue-600 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200'}`}
-                    title="Nghe câu ví dụ"
-                    aria-label={isTextPlaying(currentCard.exampleSentence) ? 'Dừng câu ví dụ' : 'Nghe câu ví dụ'}
-                  >
-                    {isTextPlaying(currentCard.exampleSentence) ? <StopCircle className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-                  </button>
+                <div className="flex items-center justify-between">
+                  <SectionLabel>Ví dụ</SectionLabel>
+                  <div className="-my-2 -mr-2">{audioButton(currentCard.exampleSentence, 'Nghe câu ví dụ')}</div>
                 </div>
-                <p className="text-slate-800 dark:text-slate-200 mb-1 leading-relaxed text-sm sm:text-base">
-                  "{renderHighlightedText(currentCard.exampleSentence, isTextPlaying(currentCard.exampleSentence))}"
+                <p className="leading-relaxed text-slate-800 dark:text-slate-200">
+                  {renderHighlightedText(currentCard.exampleSentence, isTextPlaying(currentCard.exampleSentence))}
                 </p>
-                <p className="text-slate-500 dark:text-slate-400 text-sm">{currentCard.exampleSentenceVietnamese}</p>
+                <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{currentCard.exampleSentenceVietnamese}</p>
               </div>
 
               {currentCard.collocations && currentCard.collocations.length > 0 && (
-                <div className="p-3 bg-violet-50 dark:bg-violet-900/20 rounded-lg border border-violet-100 dark:border-violet-800">
-                  <p className="text-sm text-violet-700 dark:text-violet-300 font-semibold mb-1.5">Cụm từ hay đi kèm</p>
+                <div>
+                  <SectionLabel>Cụm từ hay đi kèm</SectionLabel>
                   <div className="flex flex-wrap gap-1.5">
                     {currentCard.collocations.map((c) => (
-                      <span key={c} className="text-xs sm:text-sm px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-violet-100 dark:border-violet-800 text-slate-700 dark:text-slate-200">
+                      <span key={c} className="rounded-md bg-slate-100 px-2 py-0.5 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                         {c}
                       </span>
                     ))}
@@ -560,98 +573,131 @@ const Flashcards: React.FC<FlashcardsProps> = ({
               )}
 
               {currentCard.memoryTip && (
-                <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-100 dark:border-amber-800">
-                  <p className="text-sm text-amber-800 dark:text-amber-300 font-semibold mb-1">💡 Mẹo nhớ &amp; lỗi hay gặp</p>
-                  <p className="text-slate-700 dark:text-slate-300 text-sm">{currentCard.memoryTip}</p>
+                <div>
+                  <SectionLabel>Mẹo nhớ</SectionLabel>
+                  <p className="text-sm text-slate-700 dark:text-slate-300">{currentCard.memoryTip}</p>
+                </div>
+              )}
+
+              {currentMastery?.personal_note && (
+                <div>
+                  <SectionLabel>Ghi chú của bạn</SectionLabel>
+                  <p className="whitespace-pre-line text-sm text-slate-700 dark:text-slate-300">{currentMastery.personal_note}</p>
                 </div>
               )}
             </div>
           </div>
         </div>
 
-        {/* Swipe Overlays */}
+        {/* Swipe hints */}
         {isFlipped && (isDragging || flyOutDirection) && (
           <>
-            {/* Right Swipe Overlay (Remembered) */}
-            <div 
-              className="absolute inset-0 bg-rate-good/20 rounded-2xl sm:rounded-3xl border-4 border-rate-good flex flex-col items-center justify-center pointer-events-none transition-opacity duration-150 z-50"
-              style={{
-                opacity: dragOffset > 0 ? Math.min(dragOffset / 80, 1) : flyOutDirection === 'right' ? 1 : 0
-              }}
+            <div
+              className="pointer-events-none absolute inset-0 z-10 flex items-start justify-start rounded-2xl border-2 border-rate-good p-5"
+              style={{ opacity: swipeOpacity(1) }}
             >
-              <div className="bg-rate-good-solid text-white font-bold text-xl sm:text-2xl px-6 py-3 rounded-2xl shadow-lg transform rotate-[-12deg] flex items-center gap-2">
-                <span aria-hidden="true">✓</span> ĐÃ NHỚ
-              </div>
+              <span className="rounded-lg bg-rate-good-solid px-3 py-1 text-sm font-semibold text-white">Tốt</span>
             </div>
-
-            {/* Left Swipe Overlay (Forgot) */}
-            <div 
-              className="absolute inset-0 bg-rate-again/20 rounded-2xl sm:rounded-3xl border-4 border-rate-again flex flex-col items-center justify-center pointer-events-none transition-opacity duration-150 z-50"
-              style={{
-                opacity: dragOffset < 0 ? Math.min(-dragOffset / 80, 1) : flyOutDirection === 'left' ? 1 : 0
-              }}
+            <div
+              className="pointer-events-none absolute inset-0 z-10 flex items-start justify-end rounded-2xl border-2 border-rate-again p-5"
+              style={{ opacity: swipeOpacity(-1) }}
             >
-              <div className="bg-rate-again-solid text-white font-bold text-xl sm:text-2xl px-6 py-3 rounded-2xl shadow-lg transform rotate-[12deg] flex items-center gap-2">
-                <span aria-hidden="true">↻</span> CHƯA NHỚ
-              </div>
+              <span className="rounded-lg bg-rate-again-solid px-3 py-1 text-sm font-semibold text-white">Lại</span>
             </div>
           </>
         )}
       </div>
 
-      {/* Quick-Mark buttons — shown after flip for ALL mastery levels */}
-      {shouldShowQuickMark && (
-        <div
-          className="w-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-3 sm:p-4"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <p className="text-center text-sm font-medium text-slate-600 dark:text-slate-400 mb-3">
-            Bạn nhớ từ này không?
+      {/* Rating */}
+      <div className="min-h-[64px]">
+        {canRate ? (
+          <div>
+            <RatingButtons onRate={(r) => void handleRating(r)} disabled={savingRating} suggested={suggested} />
+            <p className="mt-2 text-center text-xs text-slate-400 dark:text-slate-500">
+              {currentRating !== undefined
+                ? `Đã chấm ${RATING_META[currentRating].label} · chấm lại nếu muốn`
+                : 'Vuốt thẻ phải: Tốt · trái: Lại'}
+              <span className="hidden sm:inline"> · phím 1–4</span>
+            </p>
+          </div>
+        ) : (
+          <p className="flex min-h-[64px] items-center justify-center text-sm text-slate-500 dark:text-slate-400">
+            Lật thẻ, gõ hoặc viết từ để tự chấm
           </p>
-          {/* Same colours as "Tốt" / "Lại" in the review session: these two buttons rate 2 and 0. */}
-          <div className="grid grid-cols-2 gap-3" role="group" aria-label="Tự đánh giá mức độ nhớ">
+        )}
+      </div>
+
+      {/* Practice */}
+      <FlashcardWorkspace
+        key={currentNormalizedWord}
+        word={currentCard.word}
+        note={currentMastery?.personal_note ?? null}
+        onSaveNote={(note) => handleSaveNote(currentCard.word, note)}
+        onSpellingGrade={setSpellingGrade}
+        onHandwritingCompared={() => setHandwritingCompared(true)}
+        tab={workspaceTab}
+        onTabChange={setWorkspaceTab}
+      />
+
+      {/* Reminder before leaving with unrated cards */}
+      {remindOpen && (
+        <div ref={remindRef} role="status" className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/60">
+          <p className="font-semibold text-slate-900 dark:text-white">Còn {unratedCount} thẻ chưa chấm</p>
+          <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-400">Chấm xong, lịch ôn tập sẽ khớp với mức nhớ của bạn hơn.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={(e) => handleRating(2 as ConfidenceRating, e)}
-              disabled={savingRating}
-              aria-keyshortcuts="ArrowRight"
-              className="flex min-h-touch items-center justify-center gap-2 py-3 px-4 bg-rate-good-solid hover:bg-rate-good-solid/90 text-white font-bold rounded-xl shadow-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed text-sm sm:text-base active:scale-95"
+              onClick={() => {
+                const first = cards.findIndex((c) => !isRated(c.word));
+                if (first >= 0) goTo(first);
+              }}
+              className="min-h-touch rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
             >
-              <span aria-hidden="true">✓</span> Đã nhớ
-              <kbd className="hidden sm:inline text-[10px] font-semibold bg-white/25 rounded px-1.5 py-0.5" aria-hidden="true">→</kbd>
+              Chấm thẻ còn lại
             </button>
             <button
               type="button"
-              onClick={(e) => handleRating(0 as ConfidenceRating, e)}
-              disabled={savingRating}
-              aria-keyshortcuts="ArrowLeft"
-              className="flex min-h-touch items-center justify-center gap-2 py-3 px-4 bg-rate-again-solid hover:bg-rate-again-solid/90 text-white font-bold rounded-xl shadow-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed text-sm sm:text-base active:scale-95"
+              onClick={() => {
+                cleanupAudio();
+                onNextPhase();
+              }}
+              className="min-h-touch rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
-              <span aria-hidden="true">↻</span> Cần ôn lại
-              <kbd className="hidden sm:inline text-[10px] font-semibold bg-white/25 rounded px-1.5 py-0.5" aria-hidden="true">←</kbd>
+              Vẫn sang phần đọc
             </button>
           </div>
         </div>
       )}
 
-      {/* Controls */}
-      <div className="flex items-center gap-4 w-full justify-between">
-        <Button variant="ghost" onClick={handlePrev} disabled={currentIndex === 0}>
-          <ChevronLeft className="w-5 h-5 mr-1" /> Trước
-        </Button>
-
-        <span className="text-slate-500 dark:text-slate-400 font-medium font-mono" aria-live="polite">
+      {/* Navigation */}
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={handlePrev}
+          disabled={currentIndex === 0}
+          className="inline-flex min-h-touch items-center gap-1 rounded-xl px-3 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-35 dark:text-slate-300 dark:hover:bg-slate-800"
+        >
+          <ChevronLeft className="h-4 w-4" aria-hidden="true" /> Trước
+        </button>
+        <span className="text-sm tabular-nums text-slate-500 dark:text-slate-400" aria-live="polite">
           {currentIndex + 1} / {cards.length}
         </span>
-
         {isLastCard ? (
-          <Button variant="secondary" onClick={() => { cleanupAudio(); onNextPhase(); }}>
-            Sang phần đọc truyện <ChevronRight className="w-5 h-5 ml-1" />
-          </Button>
+          <button
+            type="button"
+            onClick={finish}
+            className="inline-flex min-h-touch items-center gap-1 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+          >
+            Sang phần đọc <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          </button>
         ) : (
-          <Button variant="outline" onClick={handleNext}>
-            Tiếp <ChevronRight className="w-5 h-5 ml-1" />
-          </Button>
+          <button
+            type="button"
+            onClick={handleNext}
+            className="inline-flex min-h-touch items-center gap-1 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            Tiếp <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          </button>
         )}
       </div>
     </div>
