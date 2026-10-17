@@ -11,10 +11,12 @@ Edge Function that holds the Gemini key. The app calls it through
 | gradeIeltsWriting, gradeIeltsSpeaking | 15 |
 | transcribeAudio | 30 |
 | tts | 120 |
+| listeningAudio | 80 (cached files are free) |
 
 ## Deploy (one time, then after every change in this folder)
 
-1. Run `docs/migrations/007_ai_usage.sql` in the Supabase SQL Editor.
+1. Run `docs/migrations/007_ai_usage.sql` in the Supabase SQL Editor, and
+   `009_ielts_listening.sql` for the `ielts-audio` bucket used by `listeningAudio`.
 2. Install the CLI and sign in: `npm i -g supabase`, then `supabase login`.
 3. Link the project: `supabase link --project-ref <project-ref>` (the ref is the
    subdomain of your Supabase URL).

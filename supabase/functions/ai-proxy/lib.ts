@@ -30,6 +30,20 @@ export interface OpSpec {
   build(payload: unknown): GeminiRequest;
   /** Checks parsed JSON output; throwing triggers one retry. */
   finalize?(data: unknown): unknown;
+  /**
+   * For outputs shared by every user: the result is written to a public
+   * Storage file and the response is `{ url }`. A file that already exists
+   * is returned without calling Gemini or counting against the limit.
+   */
+  storage?: StorageSpec;
+}
+
+export interface StorageSpec {
+  bucket: string;
+  /** Path inside the bucket, derived from the payload alone. */
+  path(payload: unknown): Promise<string>;
+  /** Turns the model output into the file body. */
+  encode(data: unknown): { body: Uint8Array; contentType: string };
 }
 
 export class BadRequest extends Error {}

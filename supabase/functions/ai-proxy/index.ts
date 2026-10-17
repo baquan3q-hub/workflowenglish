@@ -6,6 +6,9 @@
  * - Only the ops in ./ops are accepted; prompts are built on the server.
  * - Each call is logged to ai_usage, which also backs the hourly limit.
  *
+ * Ops with `storage` write their output to a public Storage file and answer
+ * { url }; a file that already exists is returned without calling Gemini.
+ *
  * Errors are JSON { error, message, retryAt? } with error one of
  * bad_request (400), auth (401), rate_limit (429), server (502), timeout (504).
  */
@@ -54,6 +57,13 @@ async function rateLimited(userId: string, op: string, limit: number): Promise<D
   return new Date(oldest + HOUR_MS);
 }
 
+/** The public URL when the file is already in the bucket, otherwise null. */
+async function existingPublicUrl(bucket: string, path: string): Promise<string | null> {
+  const url = admin.storage.from(bucket).getPublicUrl(path).data.publicUrl;
+  const res = await fetch(url, { method: 'HEAD' }).catch(() => null);
+  return res?.ok ? url : null;
+}
+
 async function logUsage(userId: string, op: string, model: string | null, startedAt: number, ok: boolean) {
   const { error } = await admin.from('ai_usage').insert({
     user_id: userId,
@@ -86,11 +96,19 @@ Deno.serve(async (req) => {
   if (!spec) return fail(400, 'bad_request', `Thao tác không được hỗ trợ: ${op || '(trống)'}`);
 
   let request;
+  let storagePath: string | null = null;
   try {
     request = spec.build(body.payload);
+    if (spec.storage) storagePath = await spec.storage.path(body.payload);
   } catch (err) {
     if (err instanceof BadRequest) return fail(400, 'bad_request', err.message);
     throw err;
+  }
+
+  // Shared output another learner already generated: free, no limit.
+  if (spec.storage && storagePath) {
+    const url = await existingPublicUrl(spec.storage.bucket, storagePath);
+    if (url) return json(200, { data: { url, cached: true }, model: null });
   }
 
   const retryAt = await rateLimited(userId, op, spec.hourlyLimit);
@@ -114,6 +132,14 @@ Deno.serve(async (req) => {
       });
     }
     const { model, data } = await callWithFallback(apiKey, spec, request);
+    if (spec.storage && storagePath) {
+      const { body: file, contentType } = spec.storage.encode(data);
+      const bucket = admin.storage.from(spec.storage.bucket);
+      const { error } = await bucket.upload(storagePath, file, { contentType, upsert: true, cacheControl: '31536000' });
+      if (error) throw new Error(`storage upload failed: ${error.message}`);
+      await logUsage(userId, op, model, startedAt, true);
+      return json(200, { data: { url: bucket.getPublicUrl(storagePath).data.publicUrl, cached: false }, model });
+    }
     await logUsage(userId, op, model, startedAt, true);
     return json(200, { data, model });
   } catch (err) {
