@@ -479,3 +479,63 @@ export async function bulkEnsureWordsWithMetadata(
     console.error(`bulkEnsureWordsWithMetadata: ${failures.length}/${unique.length} metadata updates failed`);
   }
 }
+
+export interface ReviewWordInput {
+  word: string;
+  meaningVi?: string;
+  example?: string;
+}
+
+/**
+ * Put words straight into the review queue (IELTS topic vocabulary, words
+ * picked from feedback). New words are created as LEARNING and due now, with
+ * their meaning and example. A word that already exists keeps its SRS state
+ * and metadata, except a NEW one, which is made due now.
+ */
+export async function addWordsToReview(
+  userId: string,
+  items: ReviewWordInput[],
+): Promise<{ added: number; alreadyThere: number }> {
+  const byWord = new Map<string, ReviewWordInput>();
+  for (const item of items) {
+    const word = normalizeWord(item.word);
+    if (word && !byWord.has(word)) byWord.set(word, item);
+  }
+  if (byWord.size === 0) return { added: 0, alreadyThere: 0 };
+
+  const now = new Date().toISOString();
+  const rows = [...byWord].map(([word, item]) => ({
+    user_id: userId,
+    word,
+    meaning_vi: item.meaningVi?.trim() || null,
+    example_sentence: item.example?.trim() || null,
+    mastery_level: MasteryLevel.LEARNING,
+    next_review_date: now,
+  }));
+
+  // Pass 1: insert the missing words. With ignoreDuplicates only inserted rows come back.
+  const { data: inserted, error } = await withTimeout(Promise.resolve(supabase
+    .from(TABLE)
+    .upsert(rows, { onConflict: 'user_id,word', ignoreDuplicates: true })
+    .select('word')));
+  if (error) throw error;
+  const insertedWords = new Set(((inserted ?? []) as { word: string }[]).map((r) => r.word));
+
+  // Pass 2: words the learner saw before but never reviewed join the queue too.
+  const existing = [...byWord.keys()].filter((w) => !insertedWords.has(w));
+  let promoted = 0;
+  if (existing.length) {
+    const { data, error: updateError } = await withTimeout(Promise.resolve(supabase
+      .from(TABLE)
+      .update({ mastery_level: MasteryLevel.LEARNING, next_review_date: now })
+      .eq('user_id', userId)
+      .eq('mastery_level', MasteryLevel.NEW)
+      .in('word', existing)
+      .select('word')));
+    if (updateError) throw updateError;
+    promoted = (data ?? []).length;
+  }
+
+  const added = insertedWords.size + promoted;
+  return { added, alreadyThere: byWord.size - added };
+}

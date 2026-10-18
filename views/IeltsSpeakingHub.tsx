@@ -4,16 +4,25 @@ import { getSpeakingQuestions, getRandomSpeakingQuestion } from '../data/ieltsSp
 import { ieltsFrameworks } from '../data/ieltsFrameworks';
 import { QuestionCard, FilterBar, FrameworkCard } from '../components/IeltsCommon';
 import IeltsAttemptHistory from '../components/IeltsAttemptHistory';
-import { Mic, BookOpen, TrendingUp, Filter, Lightbulb, ChevronDown, ChevronUp, Shuffle, Star } from 'lucide-react';
+import { Mic, BookOpen, Filter, Lightbulb, ChevronDown, ChevronUp, ChevronRight, Shuffle, Star, MessageSquareText, LayoutList, AudioLines, Repeat } from 'lucide-react';
+import type { SpeakingStudyTab } from './IeltsSpeakingStudy';
+
+const STUDY_LINKS: ReadonlyArray<{ tab: SpeakingStudyTab; title: string; subtitle: string; icon: React.ElementType }> = [
+  { tab: 'part1', title: 'Chủ đề Part 1', subtitle: 'Ý tưởng, từ vựng, mẫu band 6 và 7', icon: MessageSquareText },
+  { tab: 'part2', title: 'Cue card Part 2', subtitle: 'Theo loại đề, một câu chuyện cho nhiều đề', icon: LayoutList },
+  { tab: 'pronunciation', title: 'Phát âm cho người Việt', subtitle: 'Âm cuối, /θ/, trọng âm, nối âm', icon: AudioLines },
+  { tab: 'shadowing', title: 'Shadowing', subtitle: 'Nghe mẫu, ghi âm, so sánh', icon: Repeat },
+];
 
 interface Props {
   userId: string;
   onOpenAttempt: (attempt: IeltsAttempt) => void;
   onSelectQuestion: (q: IeltsQuestion) => void;
   onStartMockTest: () => void;
+  onOpenStudy: (tab: SpeakingStudyTab) => void;
 }
 
-export default function IeltsSpeakingHub({ userId, onSelectQuestion, onStartMockTest, onOpenAttempt }: Props) {
+export default function IeltsSpeakingHub({ userId, onSelectQuestion, onStartMockTest, onOpenAttempt, onOpenStudy }: Props) {
   const [activeTab, setActiveTab] = useState<'part_1' | 'part_2' | 'part_3'>('part_1');
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [showFrameworks, setShowFrameworks] = useState(false);
@@ -138,6 +147,29 @@ export default function IeltsSpeakingHub({ userId, onSelectQuestion, onStartMock
         </button>
       </div>
 
+      {/* Study before speaking */}
+      <section aria-labelledby="speaking-study-title" className="space-y-2">
+        <h2 id="speaking-study-title" className="text-sm font-bold text-slate-800 dark:text-white">Học trước khi nói</h2>
+        <ul className="grid gap-2 sm:grid-cols-2">
+          {STUDY_LINKS.map(({ tab, title, subtitle, icon: Icon }) => (
+            <li key={tab}>
+              <button
+                type="button"
+                onClick={() => onOpenStudy(tab)}
+                className="flex h-full min-h-touch w-full items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600"
+              >
+                <Icon className="h-5 w-5 flex-shrink-0 text-rose-600 dark:text-rose-400" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-slate-900 dark:text-white">{title}</span>
+                  <span className="block text-caption text-slate-500 dark:text-slate-400">{subtitle}</span>
+                </span>
+                <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-400" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      </section>
+
       {/* Practice history */}
       <IeltsAttemptHistory userId={userId} skill="speaking" onOpenAttempt={onOpenAttempt} />
 
@@ -150,7 +182,7 @@ export default function IeltsSpeakingHub({ userId, onSelectQuestion, onStartMock
           <div className="flex items-center gap-2">
             <Lightbulb className="w-4 h-4 text-rose-600 dark:text-rose-400" />
             <span className="text-sm font-bold text-rose-700 dark:text-rose-300">
-              🎯 Framework hướng dẫn nói
+              Framework hướng dẫn nói
             </span>
           </div>
           {showFrameworks ? <ChevronUp className="w-4 h-4 text-rose-400" /> : <ChevronDown className="w-4 h-4 text-rose-400" />}

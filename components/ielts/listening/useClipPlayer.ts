@@ -27,8 +27,9 @@ export function useClipPlayer(resolve: ResolveClip = segmentAudioUrl) {
 
   useEffect(() => stop, [stop]);
 
+  /** `onEnded` runs only when the clip plays to the end, not when it is stopped. */
   const play = useCallback(
-    async (seg: AudioSegment, rate = 1) => {
+    async (seg: AudioSegment, rate = 1, onEnded?: () => void) => {
       stop();
       setError(null);
       const c = new AbortController();
@@ -39,7 +40,11 @@ export function useClipPlayer(resolve: ResolveClip = segmentAudioUrl) {
         if (c.signal.aborted) return;
         const a = new Audio(url);
         a.playbackRate = rate;
-        a.onended = () => audio.current === a && setActiveId(null);
+        a.onended = () => {
+          if (audio.current !== a) return;
+          setActiveId(null);
+          onEnded?.();
+        };
         a.onerror = () => {
           if (audio.current !== a) return;
           setActiveId(null);

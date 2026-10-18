@@ -11,6 +11,8 @@ import { foldText } from '../../services/vocabLibraryLogic';
 import { CRITERION_DESCRIPTORS, DESCRIPTOR_BANDS, type DescriptorSkill } from './bandDescriptors';
 import { WRITING_GUIDES, type WritingGuide } from './writingGuides';
 import { ERROR_CATEGORIES } from './errorCategories';
+import { PRONUNCIATION_ITEMS, type PronunciationItem } from './pronunciation';
+import { OREO_STEPS, PART3_PHRASES, PART3_THEMES, STORY_BANKS } from './speakingTopics';
 
 export type LibrarySkill = 'general' | IeltsSkill;
 
@@ -548,6 +550,78 @@ function errorTypesLesson(): LibraryLesson {
   };
 }
 
+export const PRONUNCIATION_LESSON_PREFIX = 'sp_pron_';
+
+/** One pronunciation item from the Speaking study screen. */
+export function pronunciationLesson(p: PronunciationItem): LibraryLesson {
+  return {
+    id: `${PRONUNCIATION_LESSON_PREFIX}${p.id}`,
+    skill: 'speaking',
+    title: `Phát âm: ${p.title}`,
+    summary: p.problemVi.split('. ')[0].replace(/\.?$/, '.'),
+    minutes: 3,
+    tags: ['phát âm', 'pronunciation', p.sound, ...(p.minimalPairs?.flat() ?? [])],
+    sections: [
+      { text: [p.problemVi] },
+      { heading: 'Cách sửa', bullets: p.tipsVi },
+      { heading: 'Ví dụ để nói theo', example: p.examples.map((e) => (e.noteVi ? `${e.text}\n  → ${e.noteVi}` : e.text)).join('\n') },
+      ...(p.minimalPairs ? [{ heading: 'Cặp từ dễ nhầm', example: p.minimalPairs.map(([a, b]) => `${a} – ${b}`).join('\n') }] : []),
+    ],
+  };
+}
+
+function oneStoryLesson(): LibraryLesson {
+  return {
+    id: 'sp_one_story',
+    skill: 'speaking',
+    title: 'Part 2: một câu chuyện cho nhiều đề',
+    summary: 'Chuẩn bị vài câu chuyện thật, đổi góc kể để trả lời hàng chục cue card.',
+    minutes: 4,
+    tags: ['part 2', 'cue card', 'story', 'câu chuyện', 'chuẩn bị'],
+    sections: [
+      {
+        text: [
+          'Cue card có hàng trăm đề nhưng chỉ xoay quanh năm loại: người, nơi chốn, đồ vật, sự kiện và trải nghiệm. Thay vì học thuộc từng bài, hãy chuẩn bị 3–4 câu chuyện thật của chính bạn, mỗi câu có đủ người, nơi chốn, đồ vật và cảm xúc.',
+          'Khi gặp đề, dành 10 giây đầu của phút chuẩn bị để chọn câu chuyện gần nhất, rồi ghi chú theo từng gạch đầu dòng của đề.',
+        ],
+      },
+      {
+        heading: 'Cách đổi góc kể',
+        bullets: [
+          'Đề về người: chọn một nhân vật trong câu chuyện làm trung tâm.',
+          'Đề về nơi chốn hoặc đồ vật: tả kỹ bối cảnh hoặc món đồ, câu chuyện chỉ làm nền.',
+          'Đề về sự kiện hoặc trải nghiệm: kể theo trình tự thời gian và nhấn vào cảm xúc ở cuối.',
+          'Luôn trả lời đủ các gạch đầu dòng của đề. Giám khảo nhận ra ngay câu chuyện bị "bẻ" mà không khớp đề.',
+        ],
+      },
+      ...STORY_BANKS.map((s) => ({
+        heading: s.titleVi,
+        text: [s.summaryVi],
+        bullets: s.covers.map((c) => `${c.title}: ${c.angleVi}`),
+      })),
+    ],
+  };
+}
+
+function part3DiscussionLesson(): LibraryLesson {
+  return {
+    id: 'sp_part3_discussion',
+    skill: 'speaking',
+    title: 'Part 3: mở rộng ý theo O.R.E.O. và cụm từ thảo luận',
+    summary: 'Câu trả lời Part 3 có quan điểm, lý do, ví dụ và hệ quả, cùng các cụm từ giúp nói có sắc thái.',
+    minutes: 4,
+    tags: ['part 3', 'oreo', 'discussion', 'thảo luận', 'opinion'],
+    sections: [
+      { heading: 'Bốn bước', bullets: OREO_STEPS.map((s) => `${s.label}: ${s.hintVi}`) },
+      ...PART3_THEMES.slice(0, 2).map((t) => ({
+        heading: `Ví dụ: ${t.oreo.question}`,
+        example: OREO_STEPS.map((s) => `${s.label}: ${t.oreo[s.key]}`).join('\n'),
+      })),
+      ...PART3_PHRASES.map((g) => ({ heading: g.titleVi, bullets: g.items })),
+    ],
+  };
+}
+
 export const LIBRARY_LESSONS: readonly LibraryLesson[] = [
   ...WRITTEN_LESSONS.filter((l) => l.skill === 'general'),
   ...WRITTEN_LESSONS.filter((l) => l.skill === 'listening'),
@@ -558,6 +632,9 @@ export const LIBRARY_LESSONS: readonly LibraryLesson[] = [
   ...ieltsFrameworks.filter((f) => f.skill === 'writing').map(frameworkLesson),
   ...WRITTEN_LESSONS.filter((l) => l.skill === 'speaking'),
   descriptorLesson('speaking'),
+  oneStoryLesson(),
+  part3DiscussionLesson(),
+  ...PRONUNCIATION_ITEMS.map(pronunciationLesson),
   ...ieltsFrameworks.filter((f) => f.skill === 'speaking').map(frameworkLesson),
 ];
 

@@ -34,6 +34,7 @@ import IeltsWritingStudy, { type WritingStudyTab } from './views/IeltsWritingStu
 import IeltsWritingPractice from './views/IeltsWritingPractice';
 import IeltsWritingFeedback from './views/IeltsWritingFeedback';
 import IeltsSpeakingHub from './views/IeltsSpeakingHub';
+import IeltsSpeakingStudy, { type SpeakingStudyTab } from './views/IeltsSpeakingStudy';
 import IeltsSpeakingPractice from './views/IeltsSpeakingPractice';
 import IeltsSpeakingFeedback from './views/IeltsSpeakingFeedback';
 import IeltsListeningHub from './views/IeltsListeningHub';
@@ -155,6 +156,7 @@ function App() {
   /** Lesson to open in Thư viện IELTS; undefined shows the list. */
   const [ieltsLibraryLessonId, setIeltsLibraryLessonId] = useState<string | undefined>(undefined);
   const [ieltsWritingStudyTab, setIeltsWritingStudyTab] = useState<WritingStudyTab>('guides');
+  const [ieltsSpeakingStudyTab, setIeltsSpeakingStudyTab] = useState<SpeakingStudyTab>('part1');
   /** Listening session: which test and parts, and the answers once submitted. `run` restarts the sheet on retry. */
   const [ieltsListening, setIeltsListening] = useState<{
     testId: string;
@@ -1351,6 +1353,27 @@ function App() {
               setSelectedIeltsQuestion(randomQ);
               setIeltsFeedbackData(null);
               setIeltsUserAnswer('');
+              setPhase(AppPhase.IELTS_SPEAKING_PRACTICE);
+            }}
+            onOpenStudy={(tab) => {
+              setIeltsSpeakingStudyTab(tab);
+              setPhase(AppPhase.IELTS_SPEAKING_STUDY);
+            }}
+          />
+        );
+
+      case AppPhase.IELTS_SPEAKING_STUDY:
+        return (
+          <IeltsSpeakingStudy
+            key={ieltsSpeakingStudyTab}
+            userId={currentUser?.id ?? ''}
+            initialTab={ieltsSpeakingStudyTab}
+            onBack={() => setPhase(AppPhase.IELTS_SPEAKING_HUB)}
+            onPractice={(q) => {
+              setSelectedIeltsQuestion(q);
+              setIeltsFeedbackData(null);
+              setIeltsUserAnswer('');
+              setIsSpeakingMockTest(false);
               setPhase(AppPhase.IELTS_SPEAKING_PRACTICE);
             }}
           />

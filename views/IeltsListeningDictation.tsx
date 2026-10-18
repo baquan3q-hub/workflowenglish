@@ -1,7 +1,8 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, Keyboard, Loader2, Play, RotateCcw, Square } from 'lucide-react';
 import { LISTENING_TESTS, PART_DESCRIPTIONS_VI, type ListeningSection } from '../data/ielts/listening';
-import { compareDictation, dictationLines, type DictationResult, type DictationToken } from '../services/listeningDrillLogic';
+import { compareDictation, dictationLines, type DictationResult } from '../services/listeningDrillLogic';
+import { DictationTokens, accuracyTone } from '../components/ielts/DictationTokens';
 import { useClipPlayer, type ResolveClip } from '../components/ielts/listening/useClipPlayer';
 
 interface Props {
@@ -18,33 +19,6 @@ const secondaryBtn =
 const ghostBtn =
   'inline-flex min-h-touch min-w-touch items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800';
 const panel = 'rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900';
-
-const TOKEN_CLASS: Record<DictationToken['status'], string> = {
-  ok: 'text-slate-900 dark:text-white',
-  close: 'rounded bg-amber-100 px-0.5 text-amber-900 dark:bg-amber-500/20 dark:text-amber-100',
-  wrong: 'rounded bg-rose-100 px-0.5 text-rose-900 dark:bg-rose-500/20 dark:text-rose-100',
-  missed: 'rounded px-0.5 text-rose-700 underline decoration-dotted underline-offset-4 dark:text-rose-300',
-  extra: 'text-slate-400 line-through dark:text-slate-500',
-};
-
-function Tokens({ tokens }: { tokens: DictationToken[] }) {
-  return (
-    <p className="text-base leading-loose">
-      {tokens.map((t, i) => (
-        <React.Fragment key={i}>
-          <span className={TOKEN_CLASS[t.status]} title={t.typed ? `Bạn viết: ${t.typed}` : undefined}>
-            {t.word}
-            {t.typed && <span className="ml-1 text-caption line-through opacity-70">{t.typed}</span>}
-          </span>{' '}
-        </React.Fragment>
-      ))}
-    </p>
-  );
-}
-
-function accuracyTone(a: number) {
-  return a >= 90 ? 'text-emerald-600 dark:text-emerald-400' : a >= 70 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400';
-}
 
 function PartPicker({ onPick }: { onPick: (s: ListeningSection) => void }) {
   return (
@@ -215,7 +189,7 @@ export default function IeltsListeningDictation({ section: initial, onBack, reso
                   <span className="text-caption font-semibold text-slate-500 dark:text-slate-400">Bản gốc</span>
                   <span className={`text-sm font-bold tabular-nums ${accuracyTone(result.accuracy)}`}>{result.accuracy}%</span>
                 </p>
-                <Tokens tokens={result.tokens} />
+                <DictationTokens tokens={result.tokens} />
                 <p className="text-caption text-slate-500 dark:text-slate-400">
                   Gạch chân: từ bị sót. Nền đỏ: nghe sai. Nền vàng: gần đúng, sai chính tả. Gạch ngang: từ thừa.
                 </p>
