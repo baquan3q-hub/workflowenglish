@@ -35,7 +35,8 @@ import IeltsWritingPractice from './views/IeltsWritingPractice';
 import IeltsWritingFeedback from './views/IeltsWritingFeedback';
 import IeltsSpeakingHub from './views/IeltsSpeakingHub';
 import IeltsSpeakingStudy, { type SpeakingStudyTab } from './views/IeltsSpeakingStudy';
-import IeltsSpeakingPractice from './views/IeltsSpeakingPractice';
+import IeltsSpeakingPractice, { type SpeakingSubmission } from './views/IeltsSpeakingPractice';
+import IeltsSpeakingMock, { type MockSubmission } from './views/IeltsSpeakingMock';
 import IeltsSpeakingFeedback from './views/IeltsSpeakingFeedback';
 import IeltsListeningHub from './views/IeltsListeningHub';
 import IeltsListeningPractice from './views/IeltsListeningPractice';
@@ -44,10 +45,10 @@ import IeltsListeningDictation from './views/IeltsListeningDictation';
 import IeltsListeningDrill from './views/IeltsListeningDrill';
 import { gradeWritingTask } from './services/ieltsWritingService';
 import { gradeSpeakingAnswer } from './services/ieltsSpeakingService';
+import { fluencySummaryForGrader, isFluencyMetrics, type FluencyMetrics } from './services/fluencyLogic';
 import { saveIeltsAttempt, saveListeningAttempt, resolveAttemptQuestion, isListeningDetails, getPreviousWritingAttempt } from './services/ieltsAttemptService';
 import { getListeningTest, type ListeningAnswers } from './data/ielts/listening';
 import { attemptLabels, scoreSections, sessionSections, type ListeningMode } from './services/listeningLogic';
-import { speakingPart1Questions } from './data/ieltsSpeakingQuestions';
 import { Toast, type ToastAction, type ToastType } from './components/Common';
 import { Loader2, LogOut, History, BookOpen, Save, Sun, Moon } from 'lucide-react';
 import { AppNavDesktop, AppNavMobile, type NavRequest } from './components/AppNav';
@@ -150,9 +151,10 @@ function App() {
   /** The attempt before the one on screen (same prompt), for the band change and the diff. */
   const [ieltsWritingPrevious, setIeltsWritingPrevious] = useState<{ answer: string; feedback: IeltsAiFeedback } | null>(null);
   const [isIeltsGrading, setIsIeltsGrading] = useState(false);
-  const [ieltsSpeakingAudioBase64, setIeltsSpeakingAudioBase64] = useState<string>('');
-  const [ieltsSpeakingAudioMime, setIeltsSpeakingAudioMime] = useState<string>('audio/webm');
-  const [isSpeakingMockTest, setIsSpeakingMockTest] = useState(false);
+  /** Fluency measured on the device for the Speaking answer on screen. */
+  const [ieltsSpeakingFluency, setIeltsSpeakingFluency] = useState<FluencyMetrics | null>(null);
+  /** Bumped to start a fresh mock test script. */
+  const [ieltsMockRun, setIeltsMockRun] = useState(0);
   /** Lesson to open in Thư viện IELTS; undefined shows the list. */
   const [ieltsLibraryLessonId, setIeltsLibraryLessonId] = useState<string | undefined>(undefined);
   const [ieltsWritingStudyTab, setIeltsWritingStudyTab] = useState<WritingStudyTab>('guides');
@@ -883,6 +885,7 @@ function App() {
     answerText: string;
     durationSeconds?: number;
     feedback: IeltsAiFeedback;
+    details?: Record<string, unknown>;
   }) => {
     if (!currentUser) return;
     void saveIeltsAttempt({ userId: currentUser.id, ...input }).then(saved => {
@@ -958,8 +961,65 @@ function App() {
         void findPreviousWriting(attempt.questionPrompt, attempt.createdAt).then(setIeltsWritingPrevious);
       }
     } else {
-      setIsSpeakingMockTest(false);
+      const fluency = attempt.details?.fluency;
+      setIeltsSpeakingFluency(isFluencyMetrics(fluency) ? fluency : null);
       setPhase(AppPhase.IELTS_SPEAKING_FEEDBACK);
+    }
+  };
+
+  const startIeltsSpeaking = (q: IeltsQuestion) => {
+    setSelectedIeltsQuestion(q);
+    setIeltsFeedbackData(null);
+    setIeltsUserAnswer('');
+    setIeltsSpeakingFluency(null);
+    setPhase(AppPhase.IELTS_SPEAKING_PRACTICE);
+  };
+
+  const startIeltsMock = () => {
+    setSelectedIeltsQuestion(null);
+    setIeltsFeedbackData(null);
+    setIeltsUserAnswer('');
+    setIeltsSpeakingFluency(null);
+    setIeltsMockRun(n => n + 1);
+    setPhase(AppPhase.IELTS_SPEAKING_MOCK);
+  };
+
+  /** Grades one Speaking submission (a single part or the whole mock) and saves it. */
+  const gradeIeltsSpeaking = async (
+    question: IeltsQuestion,
+    part: string,
+    sub: SpeakingSubmission | MockSubmission,
+  ) => {
+    setIsIeltsGrading(true);
+    try {
+      const feedback = await gradeSpeakingAnswer(
+        question.prompt,
+        sub.transcript,
+        part,
+        question.targetBand,
+        sub.audioBase64,
+        sub.audioMimeType,
+        sub.fluency ? fluencySummaryForGrader(sub.fluency) : undefined,
+      );
+      setSelectedIeltsQuestion(question);
+      setIeltsUserAnswer(sub.transcript);
+      setIeltsSpeakingFluency(sub.fluency);
+      setIeltsFeedbackData(feedback);
+      setPhase(AppPhase.IELTS_SPEAKING_FEEDBACK);
+      recordIeltsAttempt({
+        skill: 'speaking',
+        question,
+        taskOrPart: part,
+        answerText: sub.transcript,
+        durationSeconds: sub.durationSeconds,
+        feedback,
+        details: sub.fluency ? { fluency: sub.fluency } : undefined,
+      });
+    } catch (err) {
+      console.error('Speaking grading failed:', err);
+      showToast(`Chưa chấm được bài. ${aiErrorMessage(err)}`, 'error');
+    } finally {
+      setIsIeltsGrading(false);
     }
   };
 
@@ -1339,22 +1399,8 @@ function App() {
           <IeltsSpeakingHub
             userId={currentUser?.id ?? ''}
             onOpenAttempt={openIeltsAttempt}
-            onSelectQuestion={(q) => {
-              setSelectedIeltsQuestion(q);
-              setIeltsFeedbackData(null);
-              setIeltsUserAnswer('');
-              setIsSpeakingMockTest(false);
-              setPhase(AppPhase.IELTS_SPEAKING_PRACTICE);
-            }}
-            onStartMockTest={() => {
-              setIsSpeakingMockTest(true);
-              const p1Questions = speakingPart1Questions.filter(q => q.taskOrPart === 'part_1');
-              const randomQ = p1Questions[Math.floor(Math.random() * p1Questions.length)] || speakingPart1Questions[0];
-              setSelectedIeltsQuestion(randomQ);
-              setIeltsFeedbackData(null);
-              setIeltsUserAnswer('');
-              setPhase(AppPhase.IELTS_SPEAKING_PRACTICE);
-            }}
+            onSelectQuestion={startIeltsSpeaking}
+            onStartMockTest={startIeltsMock}
             onOpenStudy={(tab) => {
               setIeltsSpeakingStudyTab(tab);
               setPhase(AppPhase.IELTS_SPEAKING_STUDY);
@@ -1369,60 +1415,30 @@ function App() {
             userId={currentUser?.id ?? ''}
             initialTab={ieltsSpeakingStudyTab}
             onBack={() => setPhase(AppPhase.IELTS_SPEAKING_HUB)}
-            onPractice={(q) => {
-              setSelectedIeltsQuestion(q);
-              setIeltsFeedbackData(null);
-              setIeltsUserAnswer('');
-              setIsSpeakingMockTest(false);
-              setPhase(AppPhase.IELTS_SPEAKING_PRACTICE);
-            }}
+            onPractice={startIeltsSpeaking}
           />
         );
 
       case AppPhase.IELTS_SPEAKING_PRACTICE:
         return selectedIeltsQuestion ? (
           <IeltsSpeakingPractice
+            key={selectedIeltsQuestion.id}
             question={selectedIeltsQuestion}
-            isMockTest={isSpeakingMockTest}
-            onSubmit={async (transcript, audioBase64, audioMimeType, durationSeconds) => {
-              setIsIeltsGrading(true);
-              setIeltsUserAnswer(transcript);
-              setIeltsSpeakingAudioBase64(audioBase64);
-              setIeltsSpeakingAudioMime(audioMimeType);
-              const gradedPart = isSpeakingMockTest ? 'part_3' : selectedIeltsQuestion.taskOrPart;
-              try {
-                const feedback = await gradeSpeakingAnswer(
-                  selectedIeltsQuestion.prompt,
-                  transcript,
-                  gradedPart,
-                  selectedIeltsQuestion.targetBand,
-                  audioBase64,
-                  audioMimeType
-                );
-                setIeltsFeedbackData(feedback);
-                setPhase(AppPhase.IELTS_SPEAKING_FEEDBACK);
-                recordIeltsAttempt({
-                  skill: 'speaking',
-                  question: selectedIeltsQuestion,
-                  taskOrPart: gradedPart,
-                  answerText: transcript,
-                  durationSeconds,
-                  feedback,
-                });
-              } catch (err) {
-                console.error('Speaking grading failed:', err);
-                showToast(`Chưa chấm được bài. ${aiErrorMessage(err)}`, 'error');
-              } finally {
-                setIsIeltsGrading(false);
-              }
-            }}
-            onBack={() => {
-              setIsSpeakingMockTest(false);
-              setPhase(AppPhase.IELTS_SPEAKING_HUB);
-            }}
+            onSubmit={(sub) => void gradeIeltsSpeaking(selectedIeltsQuestion, selectedIeltsQuestion.taskOrPart, sub)}
+            onBack={() => setPhase(AppPhase.IELTS_SPEAKING_HUB)}
             isGrading={isIeltsGrading}
           />
         ) : null;
+
+      case AppPhase.IELTS_SPEAKING_MOCK:
+        return (
+          <IeltsSpeakingMock
+            key={ieltsMockRun}
+            onSubmit={(sub) => void gradeIeltsSpeaking(sub.question, 'mock', sub)}
+            onBack={() => setPhase(AppPhase.IELTS_SPEAKING_HUB)}
+            isGrading={isIeltsGrading}
+          />
+        );
 
       case AppPhase.IELTS_SPEAKING_FEEDBACK:
         return selectedIeltsQuestion && ieltsFeedbackData ? (
@@ -1430,16 +1446,16 @@ function App() {
             question={selectedIeltsQuestion}
             userTranscript={ieltsUserAnswer}
             feedback={ieltsFeedbackData}
+            fluency={ieltsSpeakingFluency}
             onRetry={() => {
-              setIeltsFeedbackData(null);
-              setIeltsUserAnswer('');
-              setPhase(AppPhase.IELTS_SPEAKING_PRACTICE);
+              if (selectedIeltsQuestion.questionType === 'mock_test') startIeltsMock();
+              else startIeltsSpeaking(selectedIeltsQuestion);
             }}
             onBackToHub={() => {
               setSelectedIeltsQuestion(null);
               setIeltsFeedbackData(null);
               setIeltsUserAnswer('');
-              setIsSpeakingMockTest(false);
+              setIeltsSpeakingFluency(null);
               setPhase(AppPhase.IELTS_SPEAKING_HUB);
             }}
           />

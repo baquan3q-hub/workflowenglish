@@ -11,6 +11,7 @@ const PART_LABELS: Record<string, string> = {
   part_3: 'Part 3',
   part_4: 'Part 4',
   full_test: 'Cả đề',
+  mock: 'Thi thử',
 };
 
 const COLLAPSED_COUNT = 5;

@@ -29,7 +29,7 @@ const IELTS_PHASES: readonly AppPhase[] = [
   AppPhase.IELTS_SPEAKING_HUB,
   AppPhase.IELTS_SPEAKING_STUDY,
   AppPhase.IELTS_SPEAKING_PRACTICE,
-  AppPhase.IELTS_LISTENING_PRACTICE,
+  AppPhase.IELTS_SPEAKING_MOCK,
   AppPhase.IELTS_SPEAKING_FEEDBACK,
   AppPhase.IELTS_LISTENING_HUB,
   AppPhase.IELTS_LISTENING_PRACTICE,
@@ -51,6 +51,7 @@ const NO_TAB_BAR_PHASES: readonly AppPhase[] = [
   AppPhase.SENTENCE_DRILL,
   AppPhase.IELTS_WRITING_PRACTICE,
   AppPhase.IELTS_SPEAKING_PRACTICE,
+  AppPhase.IELTS_SPEAKING_MOCK,
 ];
 
 export function isLessonPhase(phase: AppPhase): boolean {

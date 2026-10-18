@@ -11,9 +11,11 @@ export async function gradeSpeakingAnswer(
   targetBand: string,
   audioBase64?: string,
   audioMimeType?: string,
+  /** Fluency measured on the device (fluencySummaryForGrader). */
+  measured?: string,
 ): Promise<IeltsAiFeedback> {
   const audio = audioBase64 ? { data: audioBase64, mimeType: audioMimeType || 'audio/webm' } : undefined;
-  return invokeAi<IeltsAiFeedback>('gradeIeltsSpeaking', { question, transcript, part, targetBand, audio });
+  return invokeAi<IeltsAiFeedback>('gradeIeltsSpeaking', { question, transcript, part, targetBand, audio, measured });
 }
 
 // ─── Transcribe audio with Gemini ──────────────────────────────────

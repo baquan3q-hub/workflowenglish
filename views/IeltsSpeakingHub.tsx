@@ -87,11 +87,11 @@ export default function IeltsSpeakingHub({ userId, onSelectQuestion, onStartMock
       <div className="bg-gradient-to-r from-rose-500 to-orange-500 rounded-2xl p-5 sm:p-6 text-white shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="space-y-1 text-center sm:text-left">
           <div className="inline-flex items-center gap-1 bg-white/20 px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider">
-            <Star className="w-3.5 h-3.5 fill-current" /> Mock Test
+            <Star className="w-3.5 h-3.5 fill-current" /> Thi thử
           </div>
-          <h3 className="text-lg sm:text-xl font-black">Luyện thi thử IELTS Full 3 Parts</h3>
+          <h3 className="text-lg sm:text-xl font-black">Thi thử đủ 3 phần, 11–14 phút</h3>
           <p className="text-xs text-white/80 max-w-md">
-            Trải nghiệm trọn vẹn phòng thi IELTS: Trả lời Part 1 quen thuộc, chuẩn bị 1 phút nói 2 phút cho Part 2 và thảo luận sâu ở Part 3.
+            Giám khảo đọc câu hỏi, micro tự bật sau mỗi câu. Chấm một lần cho cả bài: band từng phần, band tổng và 3 việc cần cải thiện.
           </p>
         </div>
         <button

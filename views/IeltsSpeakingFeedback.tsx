@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { IeltsAiFeedback, IeltsQuestion } from '../types';
+import type { FluencyMetrics } from '../services/fluencyLogic';
+import FluencyPanel from '../components/ielts/speaking/FluencyPanel';
 import { BandScoreDisplay, CriterionScoreBar, FeedbackList, SentenceCorrectionList, NextActionsList } from '../components/IeltsCommon';
-import { ArrowLeft, RotateCcw, Save, ChevronDown, ChevronUp, FileText, Sparkles, Volume2, Mic } from 'lucide-react';
+import { ArrowLeft, RotateCcw, Save, ChevronDown, ChevronUp, FileText, Sparkles, Volume2, Mic, ListChecks, Layers } from 'lucide-react';
 
 interface Props {
   question: IeltsQuestion;
@@ -9,9 +11,14 @@ interface Props {
   feedback: IeltsAiFeedback;
   onRetry: () => void;
   onBackToHub: () => void;
+  /** Measured on the device; absent for older attempts. */
+  fluency?: FluencyMetrics | null;
 }
 
-export default function IeltsSpeakingFeedback({ question, userTranscript, feedback, onRetry, onBackToHub }: Props) {
+const PART_TITLES: Record<number, string> = { 1: 'Part 1 · Phỏng vấn', 2: 'Part 2 · Nói một mình', 3: 'Part 3 · Thảo luận' };
+
+export default function IeltsSpeakingFeedback({ question, userTranscript, feedback, onRetry, onBackToHub, fluency }: Props) {
+  const isMock = question.questionType === 'mock_test';
   const [showOriginal, setShowOriginal] = useState(false);
   const [showImproved, setShowImproved] = useState(false);
 
@@ -35,7 +42,7 @@ export default function IeltsSpeakingFeedback({ question, userTranscript, feedba
       {/* Score Hero */}
       <div className="bg-gradient-to-br from-slate-50 to-rose-50 dark:from-slate-800 dark:to-rose-900/20 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 text-center space-y-4">
         <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-          Estimated Speaking Band
+          {isMock ? 'Band Speaking cả bài thi thử' : 'Estimated Speaking Band'}
         </p>
         <BandScoreDisplay
           score={feedback.estimatedBand}
@@ -47,6 +54,43 @@ export default function IeltsSpeakingFeedback({ question, userTranscript, feedba
         </p>
       </div>
 
+      {/* Band per part (mock test) */}
+      {feedback.partBands && feedback.partBands.length > 0 && (
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5 space-y-3">
+          <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
+            <Layers className="w-4 h-4 text-slate-500" aria-hidden="true" />
+            Band từng phần
+          </h3>
+          <ul className="grid gap-3 sm:grid-cols-3">
+            {feedback.partBands.map((p) => (
+              <li key={p.part} className="rounded-xl bg-slate-50 dark:bg-slate-900/40 p-3 space-y-1">
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">{PART_TITLES[p.part] ?? `Part ${p.part}`}</p>
+                <p className="text-2xl font-bold tabular-nums text-slate-900 dark:text-white">{p.band.toFixed(1)}</p>
+                <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-300">{p.comment}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Top improvements (mock test) */}
+      {feedback.topImprovements && feedback.topImprovements.length > 0 && (
+        <div className="bg-amber-50 dark:bg-amber-900/10 rounded-xl border border-amber-200 dark:border-amber-800/40 p-4 sm:p-5 space-y-3">
+          <h3 className="text-sm font-bold text-amber-800 dark:text-amber-200 flex items-center gap-2">
+            <ListChecks className="w-4 h-4" aria-hidden="true" />
+            3 việc cần cải thiện trước
+          </h3>
+          <ol className="space-y-2">
+            {feedback.topImprovements.map((t, i) => (
+              <li key={i} className="flex gap-2 text-sm leading-relaxed text-amber-900 dark:text-amber-100">
+                <span className="font-bold tabular-nums">{i + 1}.</span>
+                <span>{t}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
       {/* Criterion Scores */}
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5 space-y-4">
         <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">Điểm theo tiêu chí</h3>
@@ -54,6 +98,8 @@ export default function IeltsSpeakingFeedback({ question, userTranscript, feedba
           <CriterionScoreBar key={i} criterion={c} skill="speaking" />
         ))}
       </div>
+
+      {fluency && <FluencyPanel metrics={fluency} title={isMock ? 'Chỉ số trôi chảy cả bài' : undefined} />}
 
       {/* Strengths & Weaknesses */}
       <div className="grid sm:grid-cols-2 gap-4">
@@ -150,7 +196,7 @@ export default function IeltsSpeakingFeedback({ question, userTranscript, feedba
           className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-rose-600 to-orange-600 hover:from-rose-700 hover:to-orange-700 text-white rounded-xl text-sm font-bold shadow-lg hover:shadow-xl transition-all"
         >
           <RotateCcw className="w-4 h-4" />
-          Nói lại để cải thiện
+          {isMock ? 'Thi thử đề khác' : 'Nói lại để cải thiện'}
         </button>
         <button
           onClick={onBackToHub}

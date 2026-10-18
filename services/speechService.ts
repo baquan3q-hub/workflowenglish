@@ -15,6 +15,37 @@ let mediaRecorder: MediaRecorder | null = null;
 let audioChunks: Blob[] = [];
 let recordingStartTime = 0;
 let durationInterval: ReturnType<typeof setInterval> | null = null;
+let levelContext: AudioContext | null = null;
+let levelInterval: ReturnType<typeof setInterval> | null = null;
+
+/** Live microphone level (RMS, 0–1) every 100 ms while recording. */
+function startLevels(stream: MediaStream, onLevel: (rms: number) => void): void {
+  const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!Ctx) return;
+  try {
+    levelContext = new Ctx();
+    const analyser = levelContext.createAnalyser();
+    analyser.fftSize = 1024;
+    levelContext.createMediaStreamSource(stream).connect(analyser);
+    const data = new Float32Array(analyser.fftSize);
+    levelInterval = setInterval(() => {
+      analyser.getFloatTimeDomainData(data);
+      let sum = 0;
+      for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
+      onLevel(Math.sqrt(sum / data.length));
+    }, 100);
+  } catch (err) {
+    console.warn('Microphone level meter unavailable', err);
+    stopLevels();
+  }
+}
+
+function stopLevels(): void {
+  if (levelInterval) clearInterval(levelInterval);
+  levelInterval = null;
+  if (levelContext) void levelContext.close().catch(() => undefined);
+  levelContext = null;
+}
 
 /**
  * Check if the browser supports audio recording
@@ -44,6 +75,7 @@ function getSupportedMimeType(): string {
  */
 export async function startRecording(
   onDurationUpdate?: (seconds: number) => void,
+  onLevel?: (rms: number) => void,
 ): Promise<void> {
   if (!isRecordingSupported()) {
     throw new Error('Trình duyệt của bạn không hỗ trợ ghi âm. Vui lòng sử dụng Chrome hoặc Edge.');
@@ -71,6 +103,8 @@ export async function startRecording(
 
     mediaRecorder.start(1000); // Collect data every second
     recordingStartTime = Date.now();
+    stopLevels();
+    if (onLevel) startLevels(stream, onLevel);
 
     // Duration timer
     if (durationInterval) clearInterval(durationInterval);
@@ -100,6 +134,7 @@ export function stopRecording(): Promise<{ blob: Blob; durationSeconds: number; 
       clearInterval(durationInterval);
       durationInterval = null;
     }
+    stopLevels();
 
     const durationSeconds = Math.floor((Date.now() - recordingStartTime) / 1000);
     const mimeType = mediaRecorder.mimeType;
@@ -131,6 +166,7 @@ export function cancelRecording(): void {
     clearInterval(durationInterval);
     durationInterval = null;
   }
+  stopLevels();
 
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
     mediaRecorder.onstop = null;

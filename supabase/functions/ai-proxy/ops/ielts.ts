@@ -26,7 +26,13 @@ const feedbackFields = {
   improvedVersion: S.str(),
   nextActions: S.arr(S.str()),
 };
-const speakingSchema = S.obj({ ...feedbackFields, pronunciationNotes: S.arr(S.str()), followUpDrill: S.str() });
+const speakingFields = { ...feedbackFields, pronunciationNotes: S.arr(S.str()), followUpDrill: S.str() };
+const speakingSchema = S.obj(speakingFields);
+const mockSchema = S.obj({
+  ...speakingFields,
+  partBands: S.arr(S.obj({ part: S.num(), band: S.num(), comment: S.str() })),
+  topImprovements: S.arr(S.str()),
+});
 
 /** Same ids as data/ielts/errorCategories.ts (a test keeps them equal). */
 export const WRITING_ERROR_CATEGORIES = [
@@ -67,6 +73,16 @@ function checkFeedback(data: unknown): unknown {
   const f = data as { estimatedBand?: unknown; criterionScores?: unknown } | null;
   if (!f || typeof f.estimatedBand !== 'number' || !Array.isArray(f.criterionScores)) {
     throw new Error('feedback is missing band or criteria');
+  }
+  return data;
+}
+
+/** Mock tests must report all three parts. */
+function checkSpeakingFeedback(data: unknown): unknown {
+  checkFeedback(data);
+  const f = data as { partBands?: unknown };
+  if (f.partBands !== undefined && (!Array.isArray(f.partBands) || f.partBands.length !== 3)) {
+    throw new Error('mock feedback needs one band per part');
   }
   return data;
 }
@@ -204,33 +220,50 @@ const PART_DESCRIPTIONS: Record<string, string> = {
     'This is Speaking Part 2 (Cue Card monologue). The user was given 1 minute to prepare and should speak continuously for 1 to 2 minutes. The transcript represents their complete monologue. Evaluate if they covered all bullet points in the prompt.',
   part_3:
     'This is Speaking Part 3 (Two-way discussion). The transcript contains answers to multiple discussion questions. Grade their ability to expand on abstract ideas, justify opinions, and use cohesive devices. This is graded jointly to measure overall Coherence and Cohesion.',
+  mock: 'This is a full mock Speaking test (Part 1 interview, Part 2 long turn, Part 3 discussion). The transcript is grouped by part. Grade the whole performance as an examiner would at the end of the test, and also judge each part on its own.',
 };
+
+const MOCK_OUTPUT = `
+10. partBands: exactly 3 objects in order, one per part, each with:
+   - part: 1, 2 or 3
+   - band: estimated band for that part alone (0.5 increments)
+   - comment: one or two sentences in Vietnamese on what helped or hurt the band in this part
+11. topImprovements: exactly 3 items, the changes that would raise the overall band most, most important first. Each is one concrete sentence in Vietnamese with an English example where useful.`;
 
 export const gradeIeltsSpeaking: OpSpec = {
   hourlyLimit: 15,
   models: FLASH_MODELS,
-  timeoutMs: 90_000,
+  timeoutMs: 120_000,
   kind: 'json',
-  finalize: checkFeedback,
+  finalize: checkSpeakingFeedback,
   build(payload) {
     const p = asObject(payload);
     const question = str(p, 'question', { max: 3000 });
-    const transcript = str(p, 'transcript', { max: 12_000 });
-    const part = oneOf(p, 'part', ['part_1', 'part_2', 'part_3'] as const, 'part_1');
+    const part = oneOf(p, 'part', ['part_1', 'part_2', 'part_3', 'mock'] as const, 'part_1');
+    const isMock = part === 'mock';
+    const transcript = str(p, 'transcript', { max: isMock ? 24_000 : 12_000 });
     const targetBand = str(p, 'targetBand', { max: 20, optional: true }) || '6.0';
+    const measured = str(p, 'measured', { max: 600, optional: true });
     const audio = p.audio ? inlineData(p.audio, 'audio', ['audio/']) : null;
+    const audioNote = isMock
+      ? 'The attached audio is the Part 2 monologue only; judge pronunciation and fluency from it and apply what you hear to the whole test.'
+      : '';
+    const measuredNote = measured
+      ? `\n- Fluency measured from the recording (use it as evidence for Fluency and Coherence, together with what you hear): ${measured}`
+      : '';
 
     const prompt = `You are a certified, strict IELTS Speaking Examiner conducting a real face-to-face IELTS Speaking Test.
 Evaluate the user's spoken answer/monologue transcript exactly according to the official IELTS Speaking Band Descriptors.
 Do not claim this is an official IELTS score. Provide a realistic, strict estimated band score.
 
-CRITICAL: Listen to the attached audio recording to evaluate the user's actual pronunciation, fluency, hesitation, and speech markers. Check the provided transcript (which the user might have edited for correctness) against their actual audio. Compare the speech in the audio with the transcript and identify the EXACT words that are mispronounced, omitted, or mumbled, and list them in the pronunciation notes. Do NOT make up pronunciation errors that do not exist in the audio.
+CRITICAL: Listen to the attached audio recording to evaluate the user's actual pronunciation, fluency, hesitation, and speech markers. Check the provided transcript (which the user might have edited for correctness) against their actual audio. Compare the speech in the audio with the transcript and identify the EXACT words that are mispronounced, omitted, or mumbled, and list them in the pronunciation notes. Do NOT make up pronunciation errors that do not exist in the audio. ${audioNote}
 
 Input Speaking Context:
 - Speaking part: ${part}
 - Part characteristics: ${PART_DESCRIPTIONS[part]}
 - Question/Topic details: ${question}
-- User's transcript: ${transcript}
+- User's transcript (fillers and repetitions are kept as spoken):
+${transcript}${measuredNote}
 - Target band: ${targetBand}
 
 Instructions for grading criteria:
@@ -265,12 +298,23 @@ Output format (JSON):
 7. nextActions: 3 specific practice suggestions (mix Vietnamese and English)
 8. pronunciationNotes: array of 3-5 highly specific pronunciation tips, each formatted as:
    "• [Từ]: Hay phát âm sai thành [phiên âm sai] (thiếu âm đuôi [âm]). Hãy phát âm đúng là [IPA / hướng dẫn cụ thể]."
-9. followUpDrill: a short follow-up speaking exercise (1-2 sentences) for the user to practise repeating or improving their response.`;
+9. followUpDrill: a short follow-up speaking exercise (1-2 sentences) for the user to practise repeating or improving their response.${isMock ? MOCK_OUTPUT : ''}`;
 
     const parts: Part[] = audio ? [{ inlineData: audio }, { text: prompt }] : [{ text: prompt }];
-    return { contents: [{ role: 'user', parts }], generationConfig: jsonConfig(speakingSchema) };
+    return { contents: [{ role: 'user', parts }], generationConfig: jsonConfig(isMock ? mockSchema : speakingSchema) };
   },
 };
+
+/**
+ * Verbatim on purpose: fillers, repeats and false starts are what the fluency
+ * measures count, and what the examiner hears.
+ */
+export const TRANSCRIBE_PROMPT = `Transcribe this recording of an English language learner (likely Vietnamese) word for word.
+- Keep every filler and hesitation sound exactly as spoken: um, uh, er, erm, ah, hmm.
+- Keep repeated words, false starts and self-corrections (for example "I I think", "she go- she went").
+- Do not fix grammar or word choice, and do not add words that were not said.
+- Use normal punctuation so sentences are readable.
+Return ONLY the transcript text, nothing else. If the audio is unclear or empty, return "[No speech detected]".`;
 
 export const transcribeAudio: OpSpec = {
   hourlyLimit: 30,
@@ -287,7 +331,7 @@ export const transcribeAudio: OpSpec = {
           parts: [
             { inlineData: audio },
             {
-              text: 'Please transcribe this audio recording accurately. The speaker is an English language learner (likely Vietnamese). Return ONLY the transcript text, nothing else. If the audio is unclear or empty, return "[No speech detected]".',
+              text: TRANSCRIBE_PROMPT,
             },
           ],
         },

@@ -30,6 +30,7 @@ export enum AppPhase {
   IELTS_LISTENING_DRILL = 'IELTS_LISTENING_DRILL',
   IELTS_WRITING_STUDY = 'IELTS_WRITING_STUDY',
   IELTS_SPEAKING_STUDY = 'IELTS_SPEAKING_STUDY',
+  IELTS_SPEAKING_MOCK = 'IELTS_SPEAKING_MOCK',
 }
 
 // ─── IELTS Module Types ────────────────────────────────────────────
@@ -109,6 +110,15 @@ export interface IeltsAiFeedback {
   /** Writing feedback 2.0 (Phase I6); absent on older attempts. */
   paragraphFeedback?: IeltsParagraphFeedback[];
   task1Checklist?: IeltsTask1Check[];
+  /** Speaking mock test 2.0 (Phase I8): one band per part and the 3 biggest wins. */
+  partBands?: IeltsPartBand[];
+  topImprovements?: string[];
+}
+
+export interface IeltsPartBand {
+  part: number;
+  band: number;
+  comment: string;
 }
 
 export interface IeltsAttempt {
