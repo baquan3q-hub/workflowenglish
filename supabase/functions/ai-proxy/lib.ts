@@ -50,6 +50,8 @@ export interface OpSpec {
    * is returned without calling Gemini or counting against the limit.
    */
   storage?: StorageSpec;
+  /** Only users listed in app_admins (migration 011) may call it. */
+  adminOnly?: boolean;
 }
 
 export interface StorageSpec {

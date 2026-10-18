@@ -4,6 +4,7 @@ import { gradeIeltsSpeaking, gradeIeltsWriting, ieltsChat, ieltsIdeas, transcrib
 import { generateLesson, generateRemedialLesson, recommendWords } from './lesson.ts';
 import { listeningAudio } from './listening.ts';
 import { generateListeningSection } from './listeningGenerate.ts';
+import { listeningNotes } from './listeningNotes.ts';
 import { generateSentences, gradeSentence } from './sentences.ts';
 
 /** Story narration: 24 kHz mono 16-bit PCM, returned as base64. */
@@ -40,6 +41,7 @@ export const OPS: Record<string, OpSpec> = {
   tts,
   listeningAudio,
   generateListeningSection,
+  listeningNotes,
 };
 
 export type OpName = keyof typeof OPS;

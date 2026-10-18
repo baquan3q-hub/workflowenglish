@@ -10,12 +10,14 @@
  * { url }; a file that already exists is returned without calling Gemini.
  *
  * Errors are JSON { error, message, retryAt?, reason? } with error one of
- * bad_request (400), auth (401), rate_limit (429), server (500/502), timeout (504).
+ * bad_request (400), auth (401), forbidden (403), rate_limit (429),
+ * server (500/502), timeout (504).
  * `reason` says why a server error happened: not_configured (no key),
  * model_unavailable, key_invalid, quota, blocked or unknown.
  *
  * op "aiHealth" checks the setup (key, each model, ai_usage, the audio
- * bucket) and reports per item; see the admin page.
+ * bucket) and reports per item; see the admin page. It and ops marked
+ * `adminOnly` need a row in app_admins (migration 011).
  */
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { BadRequest } from './lib.ts';
@@ -110,6 +112,15 @@ async function health(): Promise<Response> {
   return json(200, { data: report, model: null });
 }
 
+/** Whether the user is listed in app_admins. False when the table is missing. */
+async function isAdmin(userId: string): Promise<boolean> {
+  const { data, error } = await admin.from('app_admins').select('user_id').eq('user_id', userId).maybeSingle();
+  if (error) console.error('[ai-proxy] admin lookup failed:', error.message);
+  return !error && !!data;
+}
+
+const notAdmin = () => fail(403, 'forbidden', 'Chỉ quản trị viên được dùng tính năng này.');
+
 /** null when under the limit, otherwise when the oldest call in the window expires. */
 async function rateLimited(userId: string, op: string, limit: number): Promise<Date | null> {
   const since = new Date(Date.now() - HOUR_MS).toISOString();
@@ -167,6 +178,7 @@ Deno.serve(async (req) => {
   }
   const op = typeof body.op === 'string' ? body.op : '';
   if (op === 'aiHealth') {
+    if (!(await isAdmin(userId))) return notAdmin();
     const wait = await rateLimited(userId, op, 10);
     if (wait) return fail(429, 'rate_limit', 'Bạn đã kiểm tra quá nhiều lần trong giờ này.', { retryAt: wait.toISOString() });
     void logUsage(userId, op, null, Date.now(), true);
@@ -174,6 +186,7 @@ Deno.serve(async (req) => {
   }
   const spec = Object.hasOwn(OPS, op) ? OPS[op] : undefined;
   if (!spec) return fail(400, 'bad_request', `Thao tác không được hỗ trợ: ${op || '(trống)'}`);
+  if (spec.adminOnly && !(await isAdmin(userId))) return notAdmin();
 
   let request;
   let storagePath: string | null = null;

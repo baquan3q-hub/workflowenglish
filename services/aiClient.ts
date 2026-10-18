@@ -7,7 +7,7 @@
  */
 import { getCachedSession, supabase } from './supabaseClient';
 
-export type AiErrorKind = 'rate_limit' | 'timeout' | 'network' | 'server' | 'auth' | 'bad_request';
+export type AiErrorKind = 'rate_limit' | 'timeout' | 'network' | 'server' | 'auth' | 'forbidden' | 'bad_request';
 
 /** Why the server failed, when ai-proxy knows (see its index.ts). */
 export type AiErrorReason = 'not_configured' | 'model_unavailable' | 'key_invalid' | 'quota' | 'blocked' | 'unknown';
@@ -43,6 +43,7 @@ export function aiErrorFromResponse(status: number, body: unknown): AiError {
     return new AiError('rate_limit', message, retryAt && !isNaN(retryAt.getTime()) ? retryAt : undefined);
   }
   if (status === 401) return new AiError('auth', message);
+  if (status === 403) return new AiError('forbidden', message);
   if (status === 400) return new AiError('bad_request', message);
   if (status === 504) return new AiError('timeout', message);
   const reason = REASONS.find((r) => r === b.reason);
@@ -69,6 +70,8 @@ export function aiErrorMessage(err: unknown): string {
         : 'Chưa kết nối được máy chủ AI. Vui lòng thử lại sau ít phút.';
     case 'auth':
       return 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+    case 'forbidden':
+      return 'Chỉ quản trị viên được dùng tính năng này.';
     case 'bad_request':
       return 'Yêu cầu chưa hợp lệ. Vui lòng kiểm tra nội dung rồi thử lại.';
     default:

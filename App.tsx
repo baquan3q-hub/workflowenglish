@@ -50,6 +50,9 @@ import { fluencySummaryForGrader, isFluencyMetrics, type FluencyMetrics } from '
 import { saveIeltsAttempt, saveListeningAttempt, resolveAttemptQuestion, isListeningDetails, getPreviousWritingAttempt } from './services/ieltsAttemptService';
 import { getListeningTest, type ListeningAnswers } from './data/ielts/listening';
 import { isGeneratedTestId, loadGeneratedTest } from './services/listeningGenerationService';
+import { isLibraryTestId } from './services/listeningLibraryLogic';
+import { isAppAdmin, loadLibraryTest, registerPreview } from './services/listeningLibraryService';
+import IeltsAdmin, { type AdminEditing } from './views/IeltsAdmin';
 import { attemptLabels, scoreSections, sessionSections, type ListeningMode } from './services/listeningLogic';
 import { Toast, type ToastAction, type ToastType } from './components/Common';
 import { Loader2, LogOut, History, BookOpen, Save, Sun, Moon } from 'lucide-react';
@@ -169,7 +172,11 @@ function App() {
     mode: ListeningMode;
     answers: ListeningAnswers;
     run: number;
+    /** An admin trying out a draft: nothing is saved and leaving goes back to the editor. */
+    preview?: boolean;
   } | null>(null);
+  const [ieltsAdmin, setIeltsAdmin] = useState(false);
+  const [ieltsAdminEditing, setIeltsAdminEditing] = useState<AdminEditing | null>(null);
 
   // Synchronous mirror of currentRecordId so queued saves always update the
   // row created by an earlier save instead of inserting a duplicate.
@@ -256,6 +263,19 @@ function App() {
     flashcardIndex,
     lessonMasteryMap,
   ]);
+
+  // Admins get a link to the content editor; everyone else never sees it.
+  useEffect(() => {
+    if (!currentUser) {
+      setIeltsAdmin(false);
+      return;
+    }
+    let live = true;
+    void isAppAdmin(currentUser.id).then(ok => live && setIeltsAdmin(ok));
+    return () => {
+      live = false;
+    };
+  }, [currentUser?.id]);
 
   // Check for draft on login / user session loaded
   useEffect(() => {
@@ -918,8 +938,8 @@ function App() {
     setPhase(AppPhase.IELTS_LIBRARY);
   };
 
-  const startIeltsListening = (testId: string, sectionIds: string[], mode: ListeningMode) => {
-    setIeltsListening(prev => ({ testId, sectionIds, mode, answers: {}, run: (prev?.run ?? 0) + 1 }));
+  const startIeltsListening = (testId: string, sectionIds: string[], mode: ListeningMode, preview = false) => {
+    setIeltsListening(prev => ({ testId, sectionIds, mode, answers: {}, run: (prev?.run ?? 0) + 1, preview }));
     setPhase(AppPhase.IELTS_LISTENING_PRACTICE);
   };
 
@@ -929,7 +949,7 @@ function App() {
     if (!session || !test) return;
     setIeltsListening({ ...session, answers });
     setPhase(AppPhase.IELTS_LISTENING_RESULT);
-    if (!currentUser) return;
+    if (!currentUser || session.preview) return;
     const sections = sessionSections(test, session.sectionIds);
     const score = scoreSections(sections, answers);
     const labels = attemptLabels(test, sections);
@@ -959,6 +979,11 @@ function App() {
         void loadGeneratedTest(d.testId).then(test => {
           if (test) open();
           else showToast('Không mở được bài này: đề AI tạo đã bị xoá hoặc chưa được lưu.', 'info');
+        });
+      } else if (isLibraryTestId(d.testId)) {
+        void loadLibraryTest(d.testId).then(test => {
+          if (test) open();
+          else showToast('Không mở được bài này: đề đã bị gỡ khỏi thư viện.', 'info');
         });
       }
       return;
@@ -1244,6 +1269,7 @@ function App() {
             userId={currentUser?.id ?? ''}
             onOpenPhase={setPhase}
             onOpenLibrary={(id) => openIeltsLibrary(id)}
+            onOpenAdmin={ieltsAdmin ? () => setPhase(AppPhase.IELTS_ADMIN) : undefined}
             onAction={(target) => {
               if (target.kind === 'phase') setPhase(target.phase);
               else if (target.kind === 'lesson') openIeltsLibrary(target.lessonId);
@@ -1303,7 +1329,7 @@ function App() {
             sectionIds={ieltsListening.sectionIds}
             mode={ieltsListening.mode}
             onSubmit={submitIeltsListening}
-            onExit={() => setPhase(AppPhase.IELTS_LISTENING_HUB)}
+            onExit={() => setPhase(ieltsListening.preview ? AppPhase.IELTS_ADMIN : AppPhase.IELTS_LISTENING_HUB)}
           />
         );
       }
@@ -1317,8 +1343,8 @@ function App() {
             sectionIds={ieltsListening.sectionIds}
             mode={ieltsListening.mode}
             answers={ieltsListening.answers}
-            onRetry={() => startIeltsListening(test.id, ieltsListening.sectionIds, ieltsListening.mode)}
-            onBack={() => setPhase(AppPhase.IELTS_LISTENING_HUB)}
+            onRetry={() => startIeltsListening(test.id, ieltsListening.sectionIds, ieltsListening.mode, ieltsListening.preview)}
+            onBack={() => setPhase(ieltsListening.preview ? AppPhase.IELTS_ADMIN : AppPhase.IELTS_LISTENING_HUB)}
             onDictation={(sectionId) => {
               setIeltsDictation({ testId: test.id, sectionId });
               setPhase(AppPhase.IELTS_LISTENING_DICTATION);
@@ -1339,6 +1365,24 @@ function App() {
           />
         );
       }
+
+      case AppPhase.IELTS_ADMIN:
+        return (
+          <IeltsAdmin
+            userId={currentUser?.id ?? ''}
+            onBack={() => {
+              setIeltsAdminEditing(null);
+              setPhase(AppPhase.IELTS_HOME);
+            }}
+            editing={ieltsAdminEditing}
+            onEditingChange={setIeltsAdminEditing}
+            onPreview={(editing) => {
+              setIeltsAdminEditing(editing);
+              const test = registerPreview(editing.item);
+              startIeltsListening(test.id, [], 'practice', true);
+            }}
+          />
+        );
 
       case AppPhase.IELTS_LISTENING_DRILL:
         return <IeltsListeningDrill onBack={() => setPhase(AppPhase.IELTS_LISTENING_HUB)} />;

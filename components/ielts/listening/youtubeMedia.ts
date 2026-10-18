@@ -32,8 +32,14 @@ export interface PlayerCallbacks {
   onError(code: number): void;
 }
 
-/** Builds a player inside `el` and resolves once it is ready. */
-export type CreatePlayer = (el: HTMLElement, videoId: string, startSeconds: number, cb: PlayerCallbacks) => Promise<YTPlayerLike>;
+/** Builds a player inside `el` and resolves once it is ready. `vars` override the player settings (the admin page wants YouTube controls). */
+export type CreatePlayer = (
+  el: HTMLElement,
+  videoId: string,
+  startSeconds: number,
+  cb: PlayerCallbacks,
+  vars?: Record<string, unknown>,
+) => Promise<YTPlayerLike>;
 
 /** What a learner can do about each YouTube error code. */
 export function youtubeErrorMessage(code: number): string {
@@ -85,7 +91,7 @@ export function loadYouTubeApi(): Promise<YTNamespace> {
 
 const READY_TIMEOUT_MS = 20_000;
 
-export const createYouTubePlayer: CreatePlayer = async (el, videoId, startSeconds, cb) => {
+export const createYouTubePlayer: CreatePlayer = async (el, videoId, startSeconds, cb, vars = {}) => {
   const YT = await loadYouTubeApi();
   return new Promise<YTPlayerLike>((resolve, reject) => {
     const timer = window.setTimeout(() => reject(new Error('YouTube player not ready')), READY_TIMEOUT_MS);
@@ -105,6 +111,7 @@ export const createYouTubePlayer: CreatePlayer = async (el, videoId, startSecond
         rel: 0,
         start: Math.floor(startSeconds),
         origin: window.location.origin,
+        ...vars,
       },
       events: {
         onReady: () => {

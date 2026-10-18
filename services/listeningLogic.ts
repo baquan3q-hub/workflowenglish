@@ -308,6 +308,24 @@ export function sectionQuestions(section: ListeningSection): ListeningQuestion[]
   return section.groups.flatMap((g) => g.questions);
 }
 
+/**
+ * Gives the part, its segments and groups ids of its own: every generated
+ * Part 2 comes back as `gen-p2`, a copied library test repeats its source, and drafts and audio progress are keyed by id.
+ */
+export function rekeySection(section: ListeningSection, sectionId: string): ListeningSection {
+  const segmentIds = new Map(section.segments.map((s, i) => [s.id, `${sectionId}-s${i + 1}`]));
+  return {
+    ...section,
+    id: sectionId,
+    segments: section.segments.map((s) => ({ ...s, id: segmentIds.get(s.id)! })),
+    groups: section.groups.map((g, i) => ({
+      ...g,
+      id: `${sectionId}-g${i + 1}`,
+      questions: g.questions.map((q) => ({ ...q, segmentId: segmentIds.get(q.segmentId) ?? q.segmentId })),
+    })) as ListeningSection['groups'],
+  };
+}
+
 // --- Data checks ---------------------------------------------------------------
 
 /** Problems in one section; empty when it is usable. Same rules as the generateListeningSection op. */

@@ -14,6 +14,7 @@ import {
   Target,
   TrendingDown,
   TrendingUp,
+  ShieldCheck,
 } from 'lucide-react';
 import { AppPhase, type IeltsAttempt, type IeltsSkill } from '../types';
 import { getIeltsAttempts } from '../services/ieltsAttemptService';
@@ -44,6 +45,8 @@ interface Props {
   userId: string;
   onOpenPhase: (phase: AppPhase) => void;
   onOpenLibrary: (lessonId?: string) => void;
+  /** Shown to admins only: opens the content editor. */
+  onOpenAdmin?: () => void;
   /** Follows the next-action button: a phase, a lesson or a study tab. */
   onAction: (target: NextActionTarget) => void;
   /** Swapped out in previews and tests. */
@@ -221,7 +224,7 @@ const CriterionList: React.FC<{ skill: GradedSkill; trends: CriterionTrend[] }> 
   );
 };
 
-export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onAction, loadAttempts }: Props) {
+export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAdmin, onAction, loadAttempts }: Props) {
   const [attempts, setAttempts] = useState<IeltsAttempt[] | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [prefs, setPrefs] = useState(() => getPreferences(userId));
@@ -277,10 +280,22 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onAction
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 anim-fade-up">
-      <header>
-        <p className="text-caption font-medium text-slate-500 dark:text-slate-400">IELTS Academic</p>
-        <h1 className="mt-1 text-heading font-bold text-slate-900 dark:text-white">Lộ trình IELTS của bạn</h1>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Học trong Thư viện, luyện đề, xem phản hồi rồi làm lại để lên band.</p>
+      <header className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-caption font-medium text-slate-500 dark:text-slate-400">IELTS Academic</p>
+          <h1 className="mt-1 text-heading font-bold text-slate-900 dark:text-white">Lộ trình IELTS của bạn</h1>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Học trong Thư viện, luyện đề, xem phản hồi rồi làm lại để lên band.</p>
+        </div>
+        {onOpenAdmin && (
+          <button
+            type="button"
+            onClick={onOpenAdmin}
+            className="inline-flex min-h-touch flex-shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <ShieldCheck className="h-4 w-4" /> <span className="hidden sm:inline">Quản trị</span>
+            <span className="sr-only sm:hidden">Quản trị</span>
+          </button>
+        )}
       </header>
 
       <section aria-labelledby="ielts-next" className={`${panel} p-4 sm:p-5`}>

@@ -32,6 +32,8 @@ export enum AppPhase {
   IELTS_SPEAKING_STUDY = 'IELTS_SPEAKING_STUDY',
   IELTS_SPEAKING_MOCK = 'IELTS_SPEAKING_MOCK',
   IELTS_ERROR_LOG = 'IELTS_ERROR_LOG',
+  /** Admins only: the Listening library editor and the AI check. */
+  IELTS_ADMIN = 'IELTS_ADMIN',
 }
 
 // ─── IELTS Module Types ────────────────────────────────────────────

@@ -13,7 +13,8 @@ Edge Function that holds the Gemini key. The app calls it through
 | tts | 120 |
 | listeningAudio | 80 (cached files are free) |
 | generateListeningSection | 10 |
-| aiHealth | 10 |
+| aiHealth (admins only) | 10 |
+| listeningNotes (admins only) | 30 |
 
 ## Models
 
@@ -38,8 +39,10 @@ Failures now carry a `reason` (`not_configured`, `key_invalid`, `model_unavailab
 
 ## Deploy (one time, then after every change in this folder)
 
-1. Run `docs/migrations/007_ai_usage.sql` in the Supabase SQL Editor, and
-   `009_ielts_listening.sql` for the `ielts-audio` bucket used by `listeningAudio`.
+1. Run `docs/migrations/007_ai_usage.sql` in the Supabase SQL Editor,
+   `009_ielts_listening.sql` for the `ielts-audio` bucket used by `listeningAudio`,
+   and `011_listening_library.sql` for `app_admins` (admin-only ops) plus the
+   insert line at its top that makes you an admin.
 2. Install the CLI and sign in: `npm i -g supabase`, then `supabase login`.
 3. Link the project: `supabase link --project-ref <project-ref>` (the ref is the
    subdomain of your Supabase URL).

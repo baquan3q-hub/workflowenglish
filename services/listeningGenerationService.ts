@@ -16,9 +16,11 @@ import {
   type ListeningPart,
 } from '../supabase/functions/ai-proxy/ops/listeningGenerate.ts';
 import { invokeAi } from './aiClient';
+import { rekeySection } from './listeningLogic';
 import { supabase } from './supabaseClient';
 
 export type { ListeningDifficulty, ListeningPart };
+export { rekeySection };
 
 const TABLE = 'listening_sections';
 const TEST_PREFIX = 'gen_';
@@ -62,24 +64,6 @@ export function generatedProblems(section: unknown, part: ListeningPart): string
   }
   if (s.part !== part) return [`expected Part ${part}, got Part ${String(s.part)}`];
   return generatedSectionProblems(s);
-}
-
-/**
- * Gives the part, its segments and groups ids of its own: every generated
- * Part 2 comes back as `gen-p2`, and drafts and audio progress are keyed by id.
- */
-export function rekeySection(section: ListeningSection, sectionId: string): ListeningSection {
-  const segmentIds = new Map(section.segments.map((s, i) => [s.id, `${sectionId}-s${i + 1}`]));
-  return {
-    ...section,
-    id: sectionId,
-    segments: section.segments.map((s) => ({ ...s, id: segmentIds.get(s.id)! })),
-    groups: section.groups.map((g, i) => ({
-      ...g,
-      id: `${sectionId}-g${i + 1}`,
-      questions: g.questions.map((q) => ({ ...q, segmentId: segmentIds.get(q.segmentId) ?? q.segmentId })),
-    })) as ListeningSection['groups'],
-  };
 }
 
 export function generatedTest(g: GeneratedListening): ListeningTest {

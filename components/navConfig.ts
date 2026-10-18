@@ -37,6 +37,7 @@ const IELTS_PHASES: readonly AppPhase[] = [
   AppPhase.IELTS_LISTENING_RESULT,
   AppPhase.IELTS_LISTENING_DICTATION,
   AppPhase.IELTS_LISTENING_DRILL,
+  AppPhase.IELTS_ADMIN,
 ];
 
 /**
