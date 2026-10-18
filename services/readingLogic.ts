@@ -196,6 +196,23 @@ export function validateReadingTest(test: ReadingTest): string[] {
 /** Exam: one 60-minute clock, checked at the end. Practice: a clock per passage and a check per group. */
 export type ReadingMode = 'exam' | 'practice';
 
+/** What a Reading attempt keeps in `details`: enough to grade it again and show time per passage. */
+export interface ReadingAttemptDetails {
+  testId: string;
+  passageIds: string[];
+  mode: ReadingMode;
+  answers: Record<number, string>;
+  score: number;
+  total: number;
+  /** Seconds spent on each passage, by passage id. */
+  seconds: Record<string, number>;
+}
+
+export function isReadingDetails(d: unknown): d is ReadingAttemptDetails {
+  const o = d as Partial<ReadingAttemptDetails> | null | undefined;
+  return !!o && typeof o.testId === 'string' && Array.isArray(o.passageIds) && !!o.answers && typeof o.answers === 'object';
+}
+
 /** The passages picked from a test, or all of them when none are. */
 export function sessionPassages(test: ReadingTest, passageIds: readonly string[]): ReadingPassage[] {
   const picked = test.passages.filter((p) => passageIds.includes(p.id));

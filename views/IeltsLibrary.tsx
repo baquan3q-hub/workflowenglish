@@ -25,7 +25,7 @@ const chipOff =
   'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800';
 const panel = 'rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900';
 
-const TABS: ReadonlyArray<LibrarySkill | 'all'> = ['all', 'general', 'listening', 'writing', 'speaking'];
+const TABS: ReadonlyArray<LibrarySkill | 'all'> = ['all', 'general', 'listening', 'reading', 'writing', 'speaking'];
 
 const LessonView: React.FC<{ lesson: LibraryLesson; onClose: () => void }> = ({ lesson, onClose }) => {
   const headingRef = useRef<HTMLHeadingElement>(null);

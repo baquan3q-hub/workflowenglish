@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft,
   BookOpen,
+  BookOpenText,
   CircleAlert,
   CircleCheck,
   CircleX,
@@ -28,6 +29,8 @@ import {
   type LoggedError,
 } from '../services/ieltsErrorLogic';
 import { drillsFor } from '../data/ielts/errorDrills';
+import { getReadingTest } from '../data/ielts/reading';
+import { summarizeReadingErrors, type ReadingErrorLog, type ReadingErrorSummary } from '../services/readingReview';
 import { Segmented } from '../components/ui/Segmented';
 import { ErrorState, Skeleton } from '../components/ui/States';
 
@@ -40,7 +43,7 @@ interface Props {
   grade?: typeof gradeSentence;
 }
 
-type Filter = 'all' | ErrorSkill;
+type Filter = 'all' | ErrorSkill | 'reading';
 
 /** Recent attempts read per skill. */
 const ATTEMPT_LIMIT = 30;
@@ -66,7 +69,7 @@ const VERDICT_STYLE = {
 } as const;
 
 async function loadRecent(userId: string): Promise<IeltsAttempt[]> {
-  const lists = await Promise.all((['writing', 'speaking'] as const).map((s) => getIeltsAttempts(userId, s, ATTEMPT_LIMIT)));
+  const lists = await Promise.all((['writing', 'speaking', 'reading'] as const).map((s) => getIeltsAttempts(userId, s, ATTEMPT_LIMIT)));
   return lists.flat();
 }
 
@@ -136,6 +139,60 @@ const CategoryCard: React.FC<{ summary: ErrorSummary; onLesson: () => void; onPr
     </li>
   );
 };
+
+/** A Reading mistake kind: how often, the trend, the learner's own answers, and the lesson that fixes it. */
+const ReadingKindCard: React.FC<{ summary: ReadingErrorSummary; onLesson: () => void }> = ({ summary: s, onLesson }) => (
+  <li className={`${panel} space-y-3 p-4`}>
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{s.info.label}</h3>
+        <p className="mt-0.5 text-caption text-slate-500 dark:text-slate-400">{s.perAttempt.toLocaleString('vi-VN')} lỗi/bài</p>
+      </div>
+      <div className="flex-shrink-0 text-right">
+        <p className="text-title font-bold tabular-nums text-slate-900 dark:text-white">{s.total}</p>
+        <TrendBadge trend={s.trend} />
+      </div>
+    </div>
+    <p className="text-sm text-slate-600 dark:text-slate-300">{s.info.hintVi}</p>
+    <ul className="space-y-2">
+      {s.examples.map((e, i) => (
+        <li key={i} className="space-y-1 rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60">
+          {e.context && <p className="text-sm text-slate-700 dark:text-slate-200">{e.context}</p>}
+          <p className="text-sm">
+            <span className="text-rose-700 line-through decoration-rose-300 dark:text-rose-300 dark:decoration-rose-700">{e.given}</span>
+            {' → '}
+            <span className="font-medium text-emerald-800 dark:text-emerald-300">{e.expected}</span>
+          </p>
+          <p className="text-caption text-slate-500 dark:text-slate-400">
+            {e.testTitle} · câu {e.number}
+            {shortDate(e.createdAt) && ` · ${shortDate(e.createdAt)}`}
+          </p>
+        </li>
+      ))}
+    </ul>
+    <button type="button" onClick={onLesson} className={secondaryBtn}>
+      <BookOpen className="h-4 w-4" /> Xem bài học
+    </button>
+  </li>
+);
+
+const ReadingSection: React.FC<{ log: ReadingErrorLog; onOpenLibrary: (id: string) => void }> = ({ log, onOpenLibrary }) => (
+  <section aria-labelledby="reading-errors" className="space-y-3">
+    <div>
+      <h2 id="reading-errors" className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+        <BookOpenText className="h-4 w-4 text-tone-mint-fg" aria-hidden="true" /> Reading
+      </h2>
+      <p className="mt-0.5 text-caption text-slate-500 dark:text-slate-400">
+        {log.total} lỗi trong {log.attempts} bài, chấm lại từ đáp án đã lưu.
+      </p>
+    </div>
+    <ul className="space-y-3">
+      {log.kinds.map((s) => (
+        <ReadingKindCard key={s.kind} summary={s} onLesson={() => onOpenLibrary(s.info.lessonId)} />
+      ))}
+    </ul>
+  </section>
+);
 
 // ─── Practice ───────────────────────────────────────────────────────
 
@@ -375,7 +432,17 @@ export default function IeltsErrorLog({ userId, onBack, onOpenLibrary, loadAttem
     void load();
   }, [load]);
 
-  const log = useMemo(() => (attempts ? summarizeErrors(attempts, filter === 'all' ? undefined : filter) : null), [attempts, filter]);
+  const log = useMemo(
+    () => (attempts && filter !== 'reading' ? summarizeErrors(attempts, filter === 'all' ? undefined : filter) : null),
+    [attempts, filter],
+  );
+  const readingLog = useMemo(
+    () => (attempts && (filter === 'all' || filter === 'reading') ? summarizeReadingErrors(attempts, getReadingTest) : null),
+    [attempts, filter],
+  );
+  const counted = (log?.attempts ?? 0) + (readingLog?.attempts ?? 0);
+  const hasWriting = !!log?.categories.length;
+  const hasReading = !!readingLog?.kinds.length;
   const current = practice ? log?.categories.find((c) => c.category === practice) : undefined;
 
   useEffect(() => {
@@ -393,10 +460,10 @@ export default function IeltsErrorLog({ userId, onBack, onOpenLibrary, loadAttem
       ) : (
         <>
           <header>
-            <p className="text-caption font-medium text-slate-500 dark:text-slate-400">IELTS Writing và Speaking</p>
+            <p className="text-caption font-medium text-slate-500 dark:text-slate-400">IELTS Writing, Speaking và Reading</p>
             <h1 className="mt-1 text-heading font-bold text-slate-900 dark:text-white">Sổ lỗi</h1>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-              Lỗi được gom từ phần sửa câu của các bài đã chấm. Sửa dứt điểm lỗi lặp lại nhiều nhất trước.
+              Lỗi được gom từ phần sửa câu của các bài đã chấm và các câu Reading làm sai. Sửa dứt điểm lỗi lặp lại nhiều nhất trước.
             </p>
           </header>
 
@@ -405,6 +472,7 @@ export default function IeltsErrorLog({ userId, onBack, onOpenLibrary, loadAttem
               { value: 'all', label: 'Tất cả' },
               { value: 'writing', label: 'Writing' },
               { value: 'speaking', label: 'Speaking' },
+              { value: 'reading', label: 'Reading' },
             ]}
             value={filter}
             onChange={(v) => setFilter(v as Filter)}
@@ -413,47 +481,56 @@ export default function IeltsErrorLog({ userId, onBack, onOpenLibrary, loadAttem
 
           {failed ? (
             <ErrorState message="Chưa tải được các bài đã chấm. Kiểm tra mạng rồi thử lại." onRetry={() => void load()} />
-          ) : !log ? (
+          ) : !attempts ? (
             <div className="space-y-3" aria-busy="true">
               <Skeleton className="h-5 w-48" />
               <Skeleton className="h-40 w-full" />
               <Skeleton className="h-40 w-full" />
             </div>
-          ) : log.categories.length === 0 ? (
+          ) : !hasWriting && !hasReading ? (
             <div className={`${panel} flex flex-col items-center gap-3 px-6 py-10 text-center`}>
               <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                 <NotebookPen className="h-5 w-5" />
               </span>
               <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                {log.attempts === 0 ? 'Chưa có bài nào được chấm' : 'Không có lỗi nào được ghi lại'}
+                {counted === 0 ? 'Chưa có bài nào được chấm' : 'Không có lỗi nào được ghi lại'}
               </p>
               <p className="max-w-sm text-caption text-slate-500 dark:text-slate-400">
-                {log.attempts === 0
-                  ? 'Nộp một bài Writing hoặc Speaking để AI chấm. Các câu được sửa sẽ tự vào sổ này.'
-                  : `${log.attempts} bài đã chấm chưa có câu nào cần sửa.`}
+                {counted > 0
+                  ? `${counted} bài đã chấm chưa có lỗi nào cần sửa.`
+                  : filter === 'reading'
+                    ? 'Nộp một bài Reading. Lỗi chính tả, vượt giới hạn từ, nhầm NOT GIVEN và sai heading sẽ tự vào sổ này.'
+                    : filter === 'all'
+                      ? 'Nộp một bài Writing hoặc Speaking để AI chấm, hoặc một bài Reading. Lỗi sẽ tự vào sổ này.'
+                      : 'Nộp một bài Writing hoặc Speaking để AI chấm. Các câu được sửa sẽ tự vào sổ này.'}
               </p>
             </div>
           ) : (
             <>
-              <p className="text-sm text-slate-600 dark:text-slate-300">
-                <span className="font-semibold text-slate-900 dark:text-white">{log.total} lỗi</span> trong {log.attempts} bài
-                {log.categories[0].info && (
-                  <>
-                    {' '}
-                    · gặp nhiều nhất: <span className="font-semibold text-slate-900 dark:text-white">{log.categories[0].label}</span>
-                  </>
-                )}
-              </p>
-              <ul className="space-y-3">
-                {log.categories.map((s) => (
-                  <CategoryCard
-                    key={s.category}
-                    summary={s}
-                    onLesson={() => onOpenLibrary(lessonFor(s.category))}
-                    onPractice={() => setPractice(s.category)}
-                  />
-                ))}
-              </ul>
+              {log && hasWriting && (
+                <>
+                  <p className="text-sm text-slate-600 dark:text-slate-300">
+                    <span className="font-semibold text-slate-900 dark:text-white">{log.total} lỗi</span> trong {log.attempts} bài
+                    {log.categories[0].info && (
+                      <>
+                        {' '}
+                        · gặp nhiều nhất: <span className="font-semibold text-slate-900 dark:text-white">{log.categories[0].label}</span>
+                      </>
+                    )}
+                  </p>
+                  <ul className="space-y-3">
+                    {log.categories.map((s) => (
+                      <CategoryCard
+                        key={s.category}
+                        summary={s}
+                        onLesson={() => onOpenLibrary(lessonFor(s.category))}
+                        onPractice={() => setPractice(s.category)}
+                      />
+                    ))}
+                  </ul>
+                </>
+              )}
+              {readingLog && hasReading && <ReadingSection log={readingLog} onOpenLibrary={onOpenLibrary} />}
               <p className="flex items-center gap-1.5 text-caption text-slate-500 dark:text-slate-400">
                 <Info className="h-3.5 w-3.5" /> Xu hướng so sánh nửa số bài gần đây với nửa trước, cần ít nhất 4 bài.
               </p>

@@ -8,6 +8,7 @@
  */
 
 import { supabase, withTimeout } from './supabaseClient';
+import type { ReadingAttemptDetails } from './readingLogic';
 import { IeltsAiFeedback, IeltsAttempt, IeltsQuestion, IeltsSkill } from '../types';
 import { writingTask2Questions } from '../data/ieltsWritingQuestions';
 import { speakingPart1Questions } from '../data/ieltsSpeakingQuestions';
@@ -174,22 +175,7 @@ export function isListeningDetails(d: unknown): d is ListeningAttemptDetails {
   return !!o && typeof o.testId === 'string' && Array.isArray(o.sectionIds) && !!o.answers && typeof o.answers === 'object';
 }
 
-/** What a Reading attempt keeps in `details`: enough to grade it again and show time per passage. */
-export interface ReadingAttemptDetails {
-  testId: string;
-  passageIds: string[];
-  mode: 'exam' | 'practice';
-  answers: Record<number, string>;
-  score: number;
-  total: number;
-  /** Seconds spent on each passage, by passage id. */
-  seconds: Record<string, number>;
-}
-
-export function isReadingDetails(d: unknown): d is ReadingAttemptDetails {
-  const o = d as Partial<ReadingAttemptDetails> | null | undefined;
-  return !!o && typeof o.testId === 'string' && Array.isArray(o.passageIds) && !!o.answers && typeof o.answers === 'object';
-}
+export { isReadingDetails, type ReadingAttemptDetails } from './readingLogic';
 
 interface GradedAttemptInput<D extends { mode: string }> {
   userId: string;
