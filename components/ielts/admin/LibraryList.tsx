@@ -11,6 +11,9 @@ import {
 import { formatTimestamp } from '../../../services/youtubeLogic';
 import { Segmented } from '../../ui/Segmented';
 import { dangerBtn, hint, iconBtn, input, panel, primaryBtn, secondaryBtn, tag } from './styles';
+import { toneClasses } from '../../ui/palette';
+
+const publishedTag = `inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-caption font-medium ${toneClasses('mint').tile}`;
 
 interface Props {
   items: LibraryItem[];
@@ -88,7 +91,7 @@ export default function LibraryList({ items, onNew, onEdit, onDuplicate, onDelet
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span
-                        className={`${tag} ${item.status === 'published' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300' : ''}`}
+                        className={item.status === 'published' ? publishedTag : tag}
                       >
                         {STATUS_LABELS_VI[item.status]}
                       </span>

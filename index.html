@@ -16,6 +16,15 @@
         { DEFAULT: v(name), fg: v(`${name}-fg`) },
         withSolid ? { solid: v(`${name}-solid`) } : {},
       );
+      // Pastel tones (components/ui/palette.ts): `bg-tone-sky`, `bg-tone-sky-soft`,
+      // `text-tone-sky-fg`, `border-tone-sky-border`.
+      const pastel = (name) => ({
+        DEFAULT: v(`tone-${name}-bg`),
+        soft: v(`tone-${name}-soft`),
+        fg: v(`tone-${name}-fg`),
+        border: v(`tone-${name}-border`),
+        accent: v(`tone-${name}-accent`),
+      });
       tailwind.config = {
         darkMode: 'class',
         theme: {
@@ -37,6 +46,16 @@
                 hard: tone('rate-hard', true),
                 good: tone('rate-good', true),
                 easy: tone('rate-easy', true),
+              },
+              tone: {
+                sky: pastel('sky'),
+                mint: pastel('mint'),
+                lavender: pastel('lavender'),
+                peach: pastel('peach'),
+                butter: pastel('butter'),
+                aqua: pastel('aqua'),
+                blush: pastel('blush'),
+                periwinkle: pastel('periwinkle'),
               },
             },
             fontSize: {
@@ -89,6 +108,19 @@
       --rate-hard: 249 115 22;   --rate-hard-fg: 194 65 12;    --rate-hard-solid: 194 65 12;
       --rate-good: 59 130 246;   --rate-good-fg: 29 78 216;    --rate-good-solid: 37 99 235;
       --rate-easy: 16 185 129;   --rate-easy-fg: 4 120 87;     --rate-easy-solid: 4 120 87;
+
+      /* Pastel tones. Source of truth: TONE_RGB in components/ui/palette.ts
+         (a test keeps this copy in sync and checks fg contrast >= 4.5:1).
+         bg = card tint, soft = tile/chip/button, fg = text, border = outline/hover,
+         accent = bar/dot fill. */
+      --tone-sky-bg: 240 249 255; --tone-sky-soft: 224 242 254; --tone-sky-fg: 7 89 133; --tone-sky-border: 186 230 253; --tone-sky-accent: 56 189 248;
+      --tone-mint-bg: 236 253 245; --tone-mint-soft: 209 250 229; --tone-mint-fg: 6 95 70; --tone-mint-border: 167 243 208; --tone-mint-accent: 52 211 153;
+      --tone-lavender-bg: 245 243 255; --tone-lavender-soft: 237 233 254; --tone-lavender-fg: 91 33 182; --tone-lavender-border: 221 214 254; --tone-lavender-accent: 167 139 250;
+      --tone-peach-bg: 255 247 237; --tone-peach-soft: 255 237 213; --tone-peach-fg: 154 52 18; --tone-peach-border: 254 215 170; --tone-peach-accent: 251 146 60;
+      --tone-butter-bg: 254 252 232; --tone-butter-soft: 254 249 195; --tone-butter-fg: 133 77 14; --tone-butter-border: 254 240 138; --tone-butter-accent: 250 204 21;
+      --tone-aqua-bg: 240 253 250; --tone-aqua-soft: 204 251 241; --tone-aqua-fg: 17 94 89; --tone-aqua-border: 153 246 228; --tone-aqua-accent: 45 212 191;
+      --tone-blush-bg: 253 242 248; --tone-blush-soft: 252 231 243; --tone-blush-fg: 157 23 77; --tone-blush-border: 251 207 232; --tone-blush-accent: 244 114 182;
+      --tone-periwinkle-bg: 238 242 255; --tone-periwinkle-soft: 224 231 255; --tone-periwinkle-fg: 55 48 163; --tone-periwinkle-border: 199 210 254; --tone-periwinkle-accent: 129 140 248;
     }
 
     .dark {
@@ -103,6 +135,15 @@
       --rate-hard: 251 146 60;   --rate-hard-fg: 253 186 116;
       --rate-good: 96 165 250;   --rate-good-fg: 147 197 253;
       --rate-easy: 52 211 153;   --rate-easy-fg: 110 231 183;
+
+      --tone-sky-bg: 20 43 67; --tone-sky-soft: 23 56 83; --tone-sky-fg: 186 230 253; --tone-sky-border: 31 89 124; --tone-sky-accent: 56 189 248;
+      --tone-mint-bg: 19 46 55; --tone-mint-soft: 22 61 64; --tone-mint-fg: 167 243 208; --tone-mint-border: 30 98 86; --tone-mint-accent: 52 211 153;
+      --tone-lavender-bg: 33 37 67; --tone-lavender-soft: 45 46 84; --tone-lavender-fg: 221 214 254; --tone-lavender-border: 76 69 125; --tone-lavender-accent: 167 139 250;
+      --tone-peach-bg: 43 38 44; --tone-peach-soft: 62 48 46; --tone-peach-fg: 254 215 170; --tone-peach-border: 109 72 49; --tone-peach-accent: 251 146 60;
+      --tone-butter-bg: 43 45 39; --tone-butter-soft: 62 59 38; --tone-butter-fg: 254 240 138; --tone-butter-border: 109 95 34; --tone-butter-accent: 250 204 21;
+      --tone-aqua-bg: 19 46 60; --tone-aqua-soft: 21 61 72; --tone-aqua-fg: 153 246 228; --tone-aqua-border: 27 99 102; --tone-aqua-accent: 45 212 191;
+      --tone-blush-bg: 42 34 59; --tone-blush-soft: 61 41 70; --tone-blush-fg: 251 207 232; --tone-blush-border: 107 59 98; --tone-blush-accent: 244 114 182;
+      --tone-periwinkle-bg: 29 37 67; --tone-periwinkle-soft: 38 46 83; --tone-periwinkle-fg: 199 210 254; --tone-periwinkle-border: 61 70 124; --tone-periwinkle-accent: 129 140 248;
     }
 
     body {
@@ -131,6 +172,39 @@
         transition-duration: 0.01ms !important;
         scroll-behavior: auto !important;
       }
+    }
+
+    /* Hover motion for interactive surfaces (the reduced-motion rule above
+       turns these into instant state changes).
+       .lift      rises 2px and gains the raised shadow on hover
+       .press     shrinks slightly while pressed
+       .icon-pop  grows and tilts when its .group parent is hovered or focused */
+    .lift,
+    .press,
+    .icon-pop {
+      transition-property: translate, scale, rotate, box-shadow, background-color, border-color, color;
+      transition-duration: 180ms;
+      transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    @media (hover: hover) {
+      .lift:hover {
+        translate: 0 -2px;
+        box-shadow: 0 10px 25px -5px rgb(15 23 42 / 0.12), 0 4px 10px -6px rgb(15 23 42 / 0.10);
+      }
+      .group:hover .icon-pop {
+        scale: 1.1;
+        rotate: -6deg;
+      }
+    }
+    .group:focus-visible .icon-pop,
+    .group:has(:focus-visible) .icon-pop {
+      scale: 1.1;
+      rotate: -6deg;
+    }
+    .press:active,
+    .lift:active {
+      translate: none;
+      scale: 0.98;
     }
 
     /* Bottom sheet / side panel entrance (components/ui/Sheet.tsx) */

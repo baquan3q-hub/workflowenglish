@@ -40,6 +40,10 @@ import { summarizeErrors } from '../services/ieltsErrorLogic';
 import { getPreferences, IELTS_TARGET_BANDS, setPreferences } from '../services/preferencesService';
 import { LIBRARY_LESSONS } from '../data/ielts/library';
 import { Skeleton } from '../components/ui/States';
+import { IconTile } from '../components/ui/IconTile';
+import { InteractiveCard } from '../components/ui/InteractiveCard';
+import { NAV_TONE, SKILL_TONE, toneClasses } from '../components/ui/palette';
+import { field, panel, primaryBtn, secondaryBtn } from '../components/ui/styles';
 
 interface Props {
   userId: string;
@@ -55,14 +59,6 @@ interface Props {
 
 const defaultLoad = async (userId: string) =>
   (await Promise.all((['listening', 'writing', 'speaking'] as const).map((s) => getIeltsAttempts(userId, s, 10)))).flat();
-
-const primaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200';
-const secondaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800';
-const panel = 'rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900';
-const field =
-  'min-h-touch w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:border-slate-400 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white';
 
 interface SkillDef {
   skill: IeltsSkill;
@@ -91,31 +87,34 @@ const SkillCard: React.FC<{ def: SkillDef; progress: SkillProgress | null; loadi
   loading,
   onOpen,
 }) => {
-  const Icon = def.icon;
   const available = !!def.phase;
+  const tone = SKILL_TONE[def.skill];
+  const t = toneClasses(tone);
   return (
-    <li className={`${panel} flex flex-col p-4`}>
-      <div className="flex items-start justify-between gap-3">
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-          <Icon className="h-5 w-5" />
-        </span>
-        <div className="text-right">
-          {loading ? (
-            <Skeleton className="ml-auto h-6 w-10" />
-          ) : (
-            <p className="text-title font-bold tabular-nums text-slate-900 dark:text-white">{fmtBand(progress?.current ?? null)}</p>
-          )}
-          <p className="text-caption text-slate-500 dark:text-slate-400">
-            {available ? `${progress?.attempts ?? 0} bài đã làm` : 'Sắp ra mắt'}
-          </p>
+    <li className="flex">
+      <InteractiveCard tone={tone} onClick={onOpen} disabled={!available} className="flex w-full flex-col p-4">
+        <div className="flex w-full items-start justify-between gap-3">
+          <IconTile icon={def.icon} tone={tone} />
+          <div className="text-right">
+            {loading ? (
+              <Skeleton className="ml-auto h-6 w-10" />
+            ) : (
+              <p className={`text-title font-bold tabular-nums ${t.text}`}>{fmtBand(progress?.current ?? null)}</p>
+            )}
+            <p className="text-caption text-slate-600 dark:text-slate-300">
+              {available ? `${progress?.attempts ?? 0} bài đã làm` : 'Sắp ra mắt'}
+            </p>
+          </div>
         </div>
-      </div>
-      <h3 className="mt-3 text-sm font-semibold text-slate-900 dark:text-white">{def.title}</h3>
-      <p className="mt-0.5 flex-1 text-caption text-slate-500 dark:text-slate-400">{def.hint}</p>
-      <button type="button" onClick={onOpen} disabled={!available} className={`${secondaryBtn} mt-4 w-full`}>
-        {available ? (progress?.attempts ? 'Luyện tiếp' : 'Bắt đầu') : 'Đang xây dựng'}
-        {available && <ArrowRight className="h-4 w-4" />}
-      </button>
+        <h3 className={`mt-3 text-sm font-semibold ${t.text}`}>{def.title}</h3>
+        <p className="mt-0.5 flex-1 text-caption text-slate-600 dark:text-slate-300">{def.hint}</p>
+        <span
+          className={`mt-4 inline-flex min-h-touch w-full items-center justify-center gap-2 rounded-xl border bg-white/80 px-4 text-sm font-semibold transition-colors group-hover:bg-white dark:bg-slate-900/50 dark:group-hover:bg-slate-900 ${t.border} ${t.text}`}
+        >
+          {available ? (progress?.attempts ? 'Luyện tiếp' : 'Bắt đầu') : 'Đang xây dựng'}
+          {available && <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />}
+        </span>
+      </InteractiveCard>
     </li>
   );
 };
@@ -123,8 +122,8 @@ const SkillCard: React.FC<{ def: SkillDef; progress: SkillProgress | null; loadi
 const SKILL_ICONS: Record<IeltsSkill, React.FC<{ className?: string }>> = { listening: Headphones, writing: PenTool, speaking: Mic };
 
 const TREND_META = {
-  up: { icon: TrendingUp, label: 'Đang tăng', cls: 'text-emerald-600 dark:text-emerald-400' },
-  down: { icon: TrendingDown, label: 'Đang giảm', cls: 'text-rose-600 dark:text-rose-400' },
+  up: { icon: TrendingUp, label: 'Đang tăng', cls: toneClasses('mint').text },
+  down: { icon: TrendingDown, label: 'Đang giảm', cls: toneClasses('blush').text },
   flat: { icon: Minus, label: 'Giữ nguyên', cls: 'text-slate-400 dark:text-slate-500' },
 } as const;
 
@@ -144,20 +143,21 @@ const WeeklyGoals: React.FC<{ goals: WeeklyGoal[]; from: Date }> = ({ goals, fro
         const done = g.remaining === 0;
         const pct = Math.min(100, Math.round((g.done / g.goal) * 100));
         const unit = g.skill === 'listening' ? 'part' : 'bài';
+        const t = toneClasses(SKILL_TONE[g.skill]);
         return (
           <li key={g.skill}>
             <div className="flex items-center justify-between gap-3 text-sm">
               <span className="flex items-center gap-2 font-medium text-slate-800 dark:text-slate-100">
-                <Icon className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+                <Icon className={`h-4 w-4 ${t.text}`} />
                 {SKILL_NAMES[g.skill]}
               </span>
               <span className="flex items-center gap-1.5 text-caption tabular-nums text-slate-600 dark:text-slate-300">
-                {done && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden />}
+                {done && <CheckCircle2 className={`h-3.5 w-3.5 ${toneClasses('mint').text}`} aria-hidden />}
                 {Math.min(g.done, g.goal)}/{g.goal} {unit}
               </span>
             </div>
             <div
-              className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
+              className={`mt-1.5 h-1.5 overflow-hidden rounded-full ${t.tile}`}
               role="progressbar"
               aria-label={`${SKILL_NAMES[g.skill]}: ${g.done}/${g.goal} ${unit}`}
               aria-valuemin={0}
@@ -165,7 +165,7 @@ const WeeklyGoals: React.FC<{ goals: WeeklyGoal[]; from: Date }> = ({ goals, fro
               aria-valuenow={Math.min(g.done, g.goal)}
             >
               <div
-                className={`h-full rounded-full ${done ? 'bg-emerald-500' : 'bg-slate-900 dark:bg-white'}`}
+                className={`h-full rounded-full transition-[width] duration-500 ${done ? toneClasses('mint').bar : t.bar}`}
                 style={{ width: `${pct}%` }}
               />
             </div>
@@ -209,7 +209,7 @@ const CriterionList: React.FC<{ skill: GradedSkill; trends: CriterionTrend[] }> 
                     </span>
                   )}
                   <span
-                    className={`w-8 text-right font-semibold tabular-nums ${isWeakest ? 'text-amber-600 dark:text-amber-400' : 'text-slate-900 dark:text-white'}`}
+                    className={`w-8 text-right font-semibold tabular-nums ${isWeakest ? toneClasses('peach').text : 'text-slate-900 dark:text-white'}`}
                     title={isWeakest ? 'Thấp nhất' : undefined}
                   >
                     {t.current.toFixed(1)}
@@ -290,17 +290,17 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
           <button
             type="button"
             onClick={onOpenAdmin}
-            className="inline-flex min-h-touch flex-shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            className={`group ${secondaryBtn} flex-shrink-0 !gap-1.5 !px-3`}
           >
-            <ShieldCheck className="h-4 w-4" /> <span className="hidden sm:inline">Quản trị</span>
+            <ShieldCheck className={`icon-pop h-4 w-4 ${toneClasses(NAV_TONE.admin).text}`} /> <span className="hidden sm:inline">Quản trị</span>
             <span className="sr-only sm:hidden">Quản trị</span>
           </button>
         )}
       </header>
 
-      <section aria-labelledby="ielts-next" className={`${panel} p-4 sm:p-5`}>
-        <p className="flex items-center gap-1.5 text-caption font-medium text-slate-500 dark:text-slate-400">
-          <Compass className="h-3.5 w-3.5" /> Việc nên làm tiếp
+      <section aria-labelledby="ielts-next" className={`group rounded-2xl border p-4 sm:p-5 ${toneClasses(NAV_TONE.next).surface}`}>
+        <p className={`flex items-center gap-1.5 text-caption font-semibold ${toneClasses(NAV_TONE.next).text}`}>
+          <Compass className="icon-pop h-3.5 w-3.5" /> Việc nên làm tiếp
         </p>
         {action ? (
           <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-center">
@@ -308,7 +308,7 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
               <h2 id="ielts-next" className="text-base font-semibold text-slate-900 dark:text-white">
                 {action.title}
               </h2>
-              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{action.reason}</p>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{action.reason}</p>
             </div>
             <button type="button" onClick={() => onAction(action.target)} className={`${primaryBtn} w-full sm:w-auto`}>
               {action.cta} <ArrowRight className="h-4 w-4" />
@@ -334,7 +334,7 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
             {attempts === null ? (
               <Skeleton className="mt-2 h-9 w-16" />
             ) : (
-              <p className="mt-1 text-[2rem] font-bold leading-none tabular-nums text-slate-900 dark:text-white">{fmtBand(overall)}</p>
+              <p className={`mt-1 text-[2rem] font-bold leading-none tabular-nums ${toneClasses(NAV_TONE.goal).text}`}>{fmtBand(overall)}</p>
             )}
             <p className="mt-2 text-caption text-slate-500 dark:text-slate-400">{overallNote(skillBands.length)}</p>
           </div>
@@ -355,7 +355,7 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <label className="block">
             <span className="flex items-center gap-1.5 text-caption font-medium text-slate-600 dark:text-slate-300">
-              <Target className="h-3.5 w-3.5" /> Band mục tiêu
+              <Target className={`h-3.5 w-3.5 ${toneClasses(NAV_TONE.goal).text}`} /> Band mục tiêu
             </span>
             <select
               className={`${field} mt-1`}
@@ -372,7 +372,7 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
           </label>
           <label className="block">
             <span className="flex items-center gap-1.5 text-caption font-medium text-slate-600 dark:text-slate-300">
-              <CalendarDays className="h-3.5 w-3.5" /> Ngày thi
+              <CalendarDays className={`h-3.5 w-3.5 ${toneClasses('butter').text}`} /> Ngày thi
             </span>
             <input
               type="date"
@@ -384,7 +384,7 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
           </label>
         </div>
         {loadFailed && (
-          <p className="mt-3 text-caption text-amber-700 dark:text-amber-400">
+          <p className={`mt-3 text-caption ${toneClasses('butter').text}`}>
             Chưa tải được lịch sử luyện tập.{' '}
             <button type="button" onClick={() => void load()} className="font-semibold underline underline-offset-2">
               Thử lại
@@ -430,10 +430,8 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
         </>
       )}
 
-      <section aria-labelledby="ielts-errors" className={`${panel} flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:p-5`}>
-        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-          <NotebookPen className="h-5 w-5" />
-        </span>
+      <section aria-labelledby="ielts-errors" className={`group ${panel} flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:p-5`}>
+        <IconTile icon={NotebookPen} tone={NAV_TONE.errorLog} />
         <div className="flex-1">
           <h2 id="ielts-errors" className="text-sm font-semibold text-slate-900 dark:text-white">
             Sổ lỗi
@@ -449,10 +447,8 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
         </button>
       </section>
 
-      <section aria-labelledby="ielts-library" className={`${panel} flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:p-5`}>
-        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-          <Library className="h-5 w-5" />
-        </span>
+      <section aria-labelledby="ielts-library" className={`group ${panel} flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:p-5`}>
+        <IconTile icon={Library} tone={NAV_TONE.library} />
         <div className="flex-1">
           <h2 id="ielts-library" className="text-sm font-semibold text-slate-900 dark:text-white">
             Thư viện IELTS
@@ -463,7 +459,7 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <button type="button" onClick={() => onOpenLibrary('gen_exam_structure')} className={secondaryBtn}>
-            <BookOpen className="h-4 w-4" /> Bắt đầu từ đây
+            <BookOpen className={`h-4 w-4 ${toneClasses(NAV_TONE.library).text}`} /> Bắt đầu từ đây
           </button>
           <button type="button" onClick={() => onOpenLibrary()} className={primaryBtn}>
             Mở thư viện
