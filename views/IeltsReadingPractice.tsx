@@ -360,7 +360,12 @@ export default function IeltsReadingPractice({ userId, test, passageIds, mode, o
           aria-labelledby="reading-tab-passage"
           className={`${tab === 'passage' ? 'block' : 'hidden'} ${panel} p-4 sm:p-6 lg:block lg:w-[var(--split)] lg:flex-shrink-0 lg:overflow-y-auto`}
         >
-          <PassageView passage={passage} highlights={highlights} onHighlightsChange={setHighlights} />
+          <PassageView
+            passage={passage}
+            highlights={highlights}
+            onHighlightsChange={setHighlights}
+            tools={exam ? undefined : { userId }}
+          />
         </div>
 
         <div

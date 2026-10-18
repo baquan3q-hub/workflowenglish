@@ -5,6 +5,7 @@ import { generateLesson, generateRemedialLesson, recommendWords } from './lesson
 import { listeningAudio } from './listening.ts';
 import { generateListeningSection } from './listeningGenerate.ts';
 import { listeningNotes } from './listeningNotes.ts';
+import { readingExplain } from './readingExplain.ts';
 import { generateSentences, gradeSentence } from './sentences.ts';
 
 /** Story narration: 24 kHz mono 16-bit PCM, returned as base64. */
@@ -42,6 +43,7 @@ export const OPS: Record<string, OpSpec> = {
   listeningAudio,
   generateListeningSection,
   listeningNotes,
+  readingExplain,
 };
 
 export type OpName = keyof typeof OPS;

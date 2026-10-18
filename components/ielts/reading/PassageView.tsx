@@ -2,12 +2,18 @@
  * A Reading passage with lettered paragraphs. Selecting words inside one
  * paragraph shows a "Tô sáng" button; tapping a highlight removes it.
  * Highlights are character ranges per paragraph, so they survive reloads.
+ *
+ * With `tools` (practice mode only: the real exam has no dictionary), the
+ * same selection can also be looked up: a few words get their meaning, a
+ * longer selection is explained as a sentence.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { Eraser, Highlighter } from 'lucide-react';
+import { BookOpen, Eraser, Highlighter, Languages } from 'lucide-react';
 import type { ReadingPassage } from '../../../data/ielts/reading/types';
 import { DIFFICULTY_LABELS } from '../../../data/ielts/reading';
 import { addRange, highlightSegments, passageWordCount, removeRangeAt, type HighlightRange } from '../../../services/readingLogic';
+import { cleanSelection, glossaryMatch, selectionKind, sentenceAt, type SelectionKind } from '../../../services/readingTools';
+import LookupPanel, { type Lookup } from './LookupPanel';
 import { ghostBtn, tag } from '../../ui/styles';
 
 export type Highlights = Record<string, HighlightRange[]>;
@@ -18,10 +24,14 @@ interface Props {
   passage: ReadingPassage;
   highlights: Highlights;
   onHighlightsChange: (next: Highlights) => void;
+  /** Word lookup and sentence explain; leave out in exam mode. */
+  tools?: { userId: string };
 }
 
 interface Pending {
   key: string;
+  /** The paragraph letter. */
+  label: string;
   range: HighlightRange;
   top: number;
   left: number;
@@ -37,9 +47,20 @@ function offsetIn(el: Element, node: Node, offset: number): number {
 
 const paraOf = (node: Node | null) => (node instanceof Element ? node : node?.parentElement)?.closest<HTMLElement>('[data-para]') ?? null;
 
-export default function PassageView({ passage, highlights, onHighlightsChange }: Props) {
+const popBtn =
+  'press inline-flex min-h-touch items-center gap-2 rounded-xl border px-4 text-sm font-semibold shadow-raised';
+const LOOKUP_STYLE: Record<SelectionKind, { label: string; icon: typeof BookOpen; className: string }> = {
+  word: { label: 'Tra từ', icon: BookOpen, className: 'border-tone-sky-border bg-tone-sky-soft text-tone-sky-fg' },
+  sentence: { label: 'Giải thích câu', icon: Languages, className: 'border-tone-lavender-border bg-tone-lavender-soft text-tone-lavender-fg' },
+};
+
+export default function PassageView({ passage, highlights, onHighlightsChange, tools }: Props) {
   const rootRef = useRef<HTMLElement>(null);
   const [pending, setPending] = useState<Pending | null>(null);
+  const [lookup, setLookup] = useState<{ id: number; value: Lookup } | null>(null);
+
+  // A lookup belongs to the passage it came from.
+  useEffect(() => setLookup(null), [passage.id]);
 
   useEffect(() => {
     const onSelection = () => {
@@ -54,9 +75,11 @@ export default function PassageView({ passage, highlights, onHighlightsChange }:
       const rect = range.getBoundingClientRect();
       setPending({
         key: para.dataset.para!,
+        label: para.dataset.label!,
         range: [start, end],
         top: Math.min(rect.bottom + 8, window.innerHeight - 56),
-        left: Math.min(Math.max(rect.left + rect.width / 2, 72), window.innerWidth - 72),
+        // Room for two buttons side by side.
+        left: Math.min(Math.max(rect.left + rect.width / 2, 136), window.innerWidth - 136),
       });
     };
     const clear = () => setPending(null);
@@ -71,6 +94,27 @@ export default function PassageView({ passage, highlights, onHighlightsChange }:
   const apply = () => {
     if (!pending) return;
     onHighlightsChange({ ...highlights, [pending.key]: addRange(highlights[pending.key] ?? [], pending.range) });
+    window.getSelection()?.removeAllRanges();
+    setPending(null);
+  };
+
+  const pendingText = pending ? (passage.paragraphs.find((p) => p.label === pending.label)?.text ?? '') : '';
+  const pendingSel = pending ? pendingText.slice(...pending.range) : '';
+  const pendingGloss = tools && pending ? glossaryMatch(passage.glossary, pendingSel) : undefined;
+  // A glossary phrase is a word lookup however many words it has.
+  const pendingKind = tools && pending ? (pendingGloss ? 'word' : selectionKind(pendingSel)) : null;
+
+  const openLookup = () => {
+    if (!pending || !pendingKind) return;
+    const text = cleanSelection(pendingSel);
+    const value: Lookup = {
+      mode: pendingKind,
+      text,
+      sentence: sentenceAt(pendingText, ...pending.range),
+      context: pendingText,
+      glossary: pendingGloss,
+    };
+    setLookup((prev) => ({ id: (prev?.id ?? 0) + 1, value }));
     window.getSelection()?.removeAllRanges();
     setPending(null);
   };
@@ -106,7 +150,7 @@ export default function PassageView({ passage, highlights, onHighlightsChange }:
         <div className="mt-1 flex min-h-touch items-center justify-between gap-2">
           <p className="flex items-center gap-1.5 text-caption text-slate-500 dark:text-slate-400">
             <Highlighter className="h-3.5 w-3.5 flex-shrink-0 text-tone-butter-fg" aria-hidden />
-            Bôi đen để tô sáng, bấm vào chỗ tô để bỏ.
+            {tools ? 'Bôi đen để tô sáng, tra từ hoặc giải thích câu.' : 'Bôi đen để tô sáng, bấm vào chỗ tô để bỏ.'}
           </p>
           {hasMarks && (
             <button type="button" onClick={clearAll} className={ghostBtn}>
@@ -126,7 +170,7 @@ export default function PassageView({ passage, highlights, onHighlightsChange }:
             >
               {p.label}
             </span>
-            <p data-para={key} className="flex-1 text-[15px] leading-7 text-slate-800 dark:text-slate-200">
+            <p data-para={key} data-label={p.label} className="flex-1 text-[15px] leading-7 text-slate-800 dark:text-slate-200">
               {highlightSegments(p.text, highlights[key] ?? []).map((s) =>
                 s.marked ? (
                   <mark
@@ -147,16 +191,29 @@ export default function PassageView({ passage, highlights, onHighlightsChange }:
       })}
 
       {pending && (
-        <button
-          type="button"
+        <div
           // Keep the selection alive until the click lands.
           onMouseDown={(e) => e.preventDefault()}
-          onClick={apply}
           style={{ top: pending.top, left: pending.left }}
-          className="press fixed z-50 inline-flex min-h-touch -translate-x-1/2 items-center gap-2 rounded-xl border border-tone-butter-border bg-tone-butter-soft px-4 text-sm font-semibold text-tone-butter-fg shadow-raised"
+          className="fixed z-50 flex -translate-x-1/2 gap-2"
         >
-          <Highlighter className="h-4 w-4" aria-hidden /> Tô sáng
-        </button>
+          <button type="button" onClick={apply} className={`${popBtn} border-tone-butter-border bg-tone-butter-soft text-tone-butter-fg`}>
+            <Highlighter className="h-4 w-4" aria-hidden /> Tô sáng
+          </button>
+          {pendingKind &&
+            (() => {
+              const { label, icon: Icon, className } = LOOKUP_STYLE[pendingKind];
+              return (
+                <button type="button" onClick={openLookup} className={`${popBtn} whitespace-nowrap ${className}`}>
+                  <Icon className="h-4 w-4" aria-hidden /> {label}
+                </button>
+              );
+            })()}
+        </div>
+      )}
+
+      {tools && lookup && (
+        <LookupPanel key={lookup.id} lookup={lookup.value} userId={tools.userId} onClose={() => setLookup(null)} />
       )}
     </article>
   );
