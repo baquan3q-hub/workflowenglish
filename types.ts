@@ -28,6 +28,9 @@ export enum AppPhase {
   IELTS_LISTENING_RESULT = 'IELTS_LISTENING_RESULT',
   IELTS_LISTENING_DICTATION = 'IELTS_LISTENING_DICTATION',
   IELTS_LISTENING_DRILL = 'IELTS_LISTENING_DRILL',
+  IELTS_READING_HUB = 'IELTS_READING_HUB',
+  IELTS_READING_PRACTICE = 'IELTS_READING_PRACTICE',
+  IELTS_READING_RESULT = 'IELTS_READING_RESULT',
   IELTS_WRITING_STUDY = 'IELTS_WRITING_STUDY',
   IELTS_SPEAKING_STUDY = 'IELTS_SPEAKING_STUDY',
   IELTS_SPEAKING_MOCK = 'IELTS_SPEAKING_MOCK',
@@ -38,7 +41,7 @@ export enum AppPhase {
 
 // ─── IELTS Module Types ────────────────────────────────────────────
 
-export type IeltsSkill = 'listening' | 'writing' | 'speaking';
+export type IeltsSkill = 'listening' | 'reading' | 'writing' | 'speaking';
 export type IeltsWritingTask = 'task_1' | 'task_2';
 export type IeltsSpeakingPart = 'part_1' | 'part_2' | 'part_3';
 export type IeltsEssayType = 'opinion' | 'discussion' | 'advantages_disadvantages' | 'problem_solution' | 'cause_effect' | 'two_part';

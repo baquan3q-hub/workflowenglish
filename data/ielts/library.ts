@@ -37,6 +37,7 @@ export interface LibraryLesson {
 export const LIBRARY_SKILL_LABELS: Record<LibrarySkill, string> = {
   general: 'Tổng quan',
   listening: 'Listening',
+  reading: 'Reading',
   writing: 'Writing',
   speaking: 'Speaking',
 };

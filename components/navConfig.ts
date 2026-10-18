@@ -37,13 +37,17 @@ const IELTS_PHASES: readonly AppPhase[] = [
   AppPhase.IELTS_LISTENING_RESULT,
   AppPhase.IELTS_LISTENING_DICTATION,
   AppPhase.IELTS_LISTENING_DRILL,
+  AppPhase.IELTS_READING_HUB,
+  AppPhase.IELTS_READING_PRACTICE,
+  AppPhase.IELTS_READING_RESULT,
   AppPhase.IELTS_ADMIN,
 ];
 
 /**
  * Screens where the app tab bar would get in the way: lesson steps have
  * their own step bar, and the review session / IELTS practice keep the
- * bottom of the screen for answer and rating controls.
+ * bottom of the screen for answer and rating controls. Reading practice
+ * needs the whole height for the passage and the questions.
  */
 const NO_TAB_BAR_PHASES: readonly AppPhase[] = [
   AppPhase.LANDING,
@@ -54,6 +58,7 @@ const NO_TAB_BAR_PHASES: readonly AppPhase[] = [
   AppPhase.IELTS_WRITING_PRACTICE,
   AppPhase.IELTS_SPEAKING_PRACTICE,
   AppPhase.IELTS_SPEAKING_MOCK,
+  AppPhase.IELTS_READING_PRACTICE,
 ];
 
 export function isLessonPhase(phase: AppPhase): boolean {

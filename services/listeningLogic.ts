@@ -1,6 +1,7 @@
 /**
- * IELTS Listening grading, done on the device (no AI): answer normalising,
- * word limits, error types, raw score to band, and checks on test data.
+ * IELTS Listening grading, done on the device (no AI): grading each group,
+ * raw score to band, and checks on test data. Answer checking itself is in
+ * ieltsAnswerLogic, shared with Reading.
  */
 import type {
   ListeningAnswers,
@@ -11,130 +12,21 @@ import type {
 } from '../data/ielts/listening/types';
 import type { AudioSegment } from './listeningAudioService';
 import { youtubeClipSource } from './youtubeLogic';
-import { countAnswerTokens, sectionProblems, squash, withinWordLimit } from '../supabase/functions/ai-proxy/ops/listeningRules.ts';
+import { sectionProblems } from '../supabase/functions/ai-proxy/ops/listeningRules.ts';
+import { classifyTextAnswer, letter, multiChoiceMarks, type AnswerStatus } from './ieltsAnswerLogic';
 
-export type AnswerStatus = 'correct' | 'spelling' | 'plural' | 'over_limit' | 'wrong' | 'blank';
-
-export const ANSWER_STATUS_LABELS: Record<AnswerStatus, string> = {
-  correct: 'Đúng',
-  spelling: 'Sai chính tả',
-  plural: 'Thiếu/thừa số nhiều',
-  over_limit: 'Vượt giới hạn từ',
-  wrong: 'Sai',
-  blank: 'Bỏ trống',
-};
-
-// --- Normalising -------------------------------------------------------------
-
-const UNITS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
-const TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
-const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
-const MONTH_ABBR: Record<string, string> = Object.fromEntries(MONTHS.map((m) => [m.slice(0, 3), m]));
-MONTH_ABBR.sept = 'september';
-
-function numberWordValue(w: string): number | null {
-  const u = UNITS.indexOf(w);
-  if (u >= 0) return u;
-  const t = TENS.indexOf(w);
-  return t >= 2 ? t * 10 : null;
-}
-
-/** Replaces runs of number words ("twenty five", "one hundred and fifty") with digits. */
-function numberWordsToDigits(tokens: string[]): string[] {
-  const out: string[] = [];
-  let i = 0;
-  while (i < tokens.length) {
-    let total = 0;
-    let current = 0;
-    let used = 0;
-    let j = i;
-    while (j < tokens.length) {
-      const w = tokens[j];
-      const v = numberWordValue(w);
-      if (v !== null) {
-        current += v;
-        used++;
-      } else if (w === 'hundred' && used > 0) {
-        current *= 100;
-      } else if (w === 'thousand' && used > 0) {
-        total += current * 1000;
-        current = 0;
-      } else if (w === 'and' && used > 0 && j + 1 < tokens.length && numberWordValue(tokens[j + 1]) !== null) {
-        // "one hundred and fifty"
-      } else break;
-      j++;
-    }
-    if (used > 0) {
-      out.push(String(total + current));
-      i = j;
-    } else {
-      out.push(tokens[i]);
-      i++;
-    }
-  }
-  return out;
-}
-
-/**
- * Case, spacing, final punctuation, number words, ordinals, "March 15" vs
- * "15 March", "7:30" vs "7.30", "1,500" vs "1500", currency signs, hyphens.
- */
-export function normalizeAnswer(raw: string): string {
-  let s = raw.toLowerCase().normalize('NFKC');
-  s = s.replace(/[’'`]/g, '');
-  s = s.replace(/(\d),(?=\d{3}\b)/g, '$1');
-  s = s.replace(/(\d):(\d)/g, '$1.$2');
-  s = s.replace(/[£$€]/g, ' ');
-  s = s.replace(/-/g, ' ');
-  s = s.replace(/\.(?!\d)|(?<!\d)\./g, ''); // dots, except decimals and times
-  s = s.replace(/[^a-z0-9. ]+/g, ' ');
-  let tokens = s.split(/\s+/).filter(Boolean);
-  tokens = tokens.map((t) => t.replace(/^(\d+)(st|nd|rd|th)$/, '$1'));
-  tokens = tokens.map((t) => MONTH_ABBR[t] ?? t);
-  tokens = numberWordsToDigits(tokens);
-  // "march 15" -> "15 march"
-  for (let i = 0; i + 1 < tokens.length; i++) {
-    if (MONTHS.includes(tokens[i]) && /^\d{1,2}$/.test(tokens[i + 1])) {
-      [tokens[i], tokens[i + 1]] = [tokens[i + 1], tokens[i]];
-      i++;
-    }
-  }
-  return tokens.join(' ');
-}
-
-export { countAnswerTokens, squash, withinWordLimit };
-
-export function levenshtein(a: string, b: string): number {
-  if (a === b) return 0;
-  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
-  for (let i = 1; i <= a.length; i++) {
-    const cur = [i];
-    for (let j = 1; j <= b.length; j++) {
-      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-    }
-    prev = cur;
-  }
-  return prev[b.length];
-}
-
-function isPluralSlip(given: string, accepted: string): boolean {
-  const forms = (w: string) => [w + 's', w + 'es', w.endsWith('y') ? w.slice(0, -1) + 'ies' : ''];
-  return forms(given).includes(accepted) || forms(accepted).includes(given);
-}
-
-/** Error type of a written answer (completion or short answer). */
-export function classifyTextAnswer(raw: string, accepted: readonly string[], wordLimit: number, numberAllowed: boolean): AnswerStatus {
-  const given = normalizeAnswer(raw);
-  if (!given) return 'blank';
-  const targets = accepted.map(normalizeAnswer);
-  if (targets.includes(given)) return 'correct';
-  if (!withinWordLimit(raw, wordLimit, numberAllowed)) return 'over_limit';
-  if (targets.some((t) => isPluralSlip(given, t))) return 'plural';
-  // One slip in a short word, two in a long one ("factorys" for "factories").
-  const slips = (t: string) => (t.length >= 8 ? 2 : 1);
-  if (targets.some((t) => !/\d/.test(t) && t.length >= 4 && levenshtein(given, t) <= slips(t))) return 'spelling';
-  return 'wrong';
-}
+export {
+  ANSWER_STATUS_LABELS,
+  classifyTextAnswer,
+  countAnswerTokens,
+  errorBreakdown,
+  levenshtein,
+  normalizeAnswer,
+  squash,
+  unansweredCount,
+  withinWordLimit,
+} from './ieltsAnswerLogic';
+export type { AnswerStatus } from './ieltsAnswerLogic';
 
 // --- Grading -----------------------------------------------------------------
 
@@ -150,8 +42,6 @@ export interface QuestionResult {
   expected: string;
   question: ListeningQuestion;
 }
-
-const letter = (s: string | undefined) => (s ?? '').trim().toUpperCase();
 
 export function gradeGroup(group: ListeningGroup, answers: ListeningAnswers, section: Pick<ListeningSection, 'id' | 'part'>): QuestionResult[] {
   const base = (q: ListeningQuestion) => ({ number: q.number, part: section.part, sectionId: section.id, groupId: group.id, groupType: group.type, question: q });
@@ -180,18 +70,9 @@ export function gradeGroup(group: ListeningGroup, answers: ListeningAnswers, sec
       });
 
     case 'mcq_multi': {
-      // Order-free: each correct letter earns one of the group's questions.
       const first = group.questions[0];
-      const chosen = [...new Set((answers[first.number] ?? '').split(',').map(letter).filter(Boolean))];
-      const correctSet = first.answers.map(letter);
-      const right = chosen.filter((c) => correctSet.includes(c));
-      const wrong = chosen.filter((c) => !correctSet.includes(c));
-      const expected = correctSet.join(',');
-      return group.questions.map((q, i) => {
-        if (i < right.length) return { ...base(q), given: right[i], status: 'correct' as const, expected };
-        const w = wrong[i - right.length];
-        return { ...base(q), given: w ?? '', status: w ? ('wrong' as const) : ('blank' as const), expected };
-      });
+      const marks = multiChoiceMarks(answers[first.number], first.answers, group.questions.length);
+      return group.questions.map((q, i) => ({ ...base(q), ...marks[i] }));
     }
   }
 }
@@ -254,26 +135,6 @@ export function scoreSections(sections: readonly ListeningSection[], answers: Li
   };
 }
 
-/** Counts of each wrong-answer type, for the result summary. */
-export function errorBreakdown(results: readonly QuestionResult[]): Partial<Record<AnswerStatus, number>> {
-  const out: Partial<Record<AnswerStatus, number>> = {};
-  for (const r of results) if (r.status !== 'correct') out[r.status] = (out[r.status] ?? 0) + 1;
-  return out;
-}
-
-/** Questions in a section that still have no answer (a choose-two group counts each missing letter). */
-export function unansweredCount(groups: readonly ListeningGroup[], answers: ListeningAnswers): number {
-  let n = 0;
-  for (const g of groups) {
-    if (g.type === 'mcq_multi') {
-      const chosen = (answers[g.questions[0].number] ?? '').split(',').filter(Boolean).length;
-      n += Math.max(0, g.questions.length - chosen);
-    } else {
-      n += g.questions.filter((q) => !(answers[q.number] ?? '').trim()).length;
-    }
-  }
-  return n;
-}
 
 // --- Audio -------------------------------------------------------------------
 

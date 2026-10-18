@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowRight,
   BookOpen,
+  BookOpenText,
   CalendarDays,
   CheckCircle2,
   Compass,
@@ -22,9 +23,11 @@ import {
   bandGap,
   criterionTrends,
   daysUntil,
+  goalUnit,
   nextAction,
   overallBand,
   overallNote,
+  PRACTISED_SKILLS,
   SKILL_NAMES,
   skillProgress,
   weakestCriterion,
@@ -58,7 +61,7 @@ interface Props {
 }
 
 const defaultLoad = async (userId: string) =>
-  (await Promise.all((['listening', 'writing', 'speaking'] as const).map((s) => getIeltsAttempts(userId, s, 10)))).flat();
+  (await Promise.all(PRACTISED_SKILLS.map((s) => getIeltsAttempts(userId, s, 10)))).flat();
 
 interface SkillDef {
   skill: IeltsSkill;
@@ -70,6 +73,8 @@ interface SkillDef {
 
 const SKILLS: readonly SkillDef[] = [
   { skill: 'listening', title: 'Listening', hint: '4 part, 40 câu, chấm tự động', icon: Headphones, phase: AppPhase.IELTS_LISTENING_HUB },
+  // No phase until the practice screen ships (R3): the card says "Sắp ra mắt".
+  { skill: 'reading', title: 'Reading', hint: '3 passage, 40 câu, Academic', icon: BookOpenText },
   { skill: 'writing', title: 'Writing', hint: 'Task 1, Task 2, AI chấm 4 tiêu chí', icon: PenTool, phase: AppPhase.IELTS_WRITING_HUB },
   { skill: 'speaking', title: 'Speaking', hint: 'Part 1, 2, 3 và thi thử', icon: Mic, phase: AppPhase.IELTS_SPEAKING_HUB },
 ];
@@ -119,7 +124,7 @@ const SkillCard: React.FC<{ def: SkillDef; progress: SkillProgress | null; loadi
   );
 };
 
-const SKILL_ICONS: Record<IeltsSkill, React.FC<{ className?: string }>> = { listening: Headphones, writing: PenTool, speaking: Mic };
+const SKILL_ICONS: Record<IeltsSkill, React.FC<{ className?: string }>> = { listening: Headphones, reading: BookOpenText, writing: PenTool, speaking: Mic };
 
 const TREND_META = {
   up: { icon: TrendingUp, label: 'Đang tăng', cls: toneClasses('mint').text },
@@ -142,7 +147,7 @@ const WeeklyGoals: React.FC<{ goals: WeeklyGoal[]; from: Date }> = ({ goals, fro
         const Icon = SKILL_ICONS[g.skill];
         const done = g.remaining === 0;
         const pct = Math.min(100, Math.round((g.done / g.goal) * 100));
-        const unit = g.skill === 'listening' ? 'part' : 'bài';
+        const unit = goalUnit(g.skill);
         const t = toneClasses(SKILL_TONE[g.skill]);
         return (
           <li key={g.skill}>
@@ -397,7 +402,7 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
         <h2 id="ielts-skills" className="text-title font-semibold text-slate-900 dark:text-white">
           Kỹ năng
         </h2>
-        <ul className="mt-3 grid gap-3 sm:grid-cols-3">
+        <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {SKILLS.map((def) => (
             <SkillCard
               key={def.skill}

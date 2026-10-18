@@ -64,17 +64,22 @@ export function bandGap(current: number | null, target: number | null): number |
   return Math.max(0, Math.round((target - current) * 2) / 2);
 }
 
-/** Skills the app tests; Reading is not in the app yet. */
+/**
+ * Skills learners can practise now: these count towards the overall band,
+ * weekly goals and the next action. Reading joins once its practice screen
+ * ships (phase R3).
+ */
 export const PRACTISED_SKILLS: readonly IeltsSkill[] = ['listening', 'writing', 'speaking'];
 
-/** Line under the overall band: how many skills it comes from, and that Reading is missing. */
+/** Line under the overall band: how many skills it comes from, and whether Reading is still missing. */
 export function overallNote(skillCount: number): string {
   if (skillCount === 0) return 'Làm một bài Listening, Writing hoặc Speaking để có band ước tính.';
   const from =
     skillCount === PRACTISED_SKILLS.length
       ? `từ ${skillCount} kỹ năng`
       : `từ ${skillCount}/${PRACTISED_SKILLS.length} kỹ năng đã luyện`;
-  return `Ước tính ${from} (chưa có Reading), mỗi kỹ năng lấy ${RECENT_ATTEMPTS} bài gần nhất.`;
+  const missing = PRACTISED_SKILLS.includes('reading') ? '' : ' (chưa có Reading)';
+  return `Ước tính ${from}${missing}, mỗi kỹ năng lấy ${RECENT_ATTEMPTS} bài gần nhất.`;
 }
 
 // ─── Criterion trends ───────────────────────────────────────────────
@@ -175,8 +180,13 @@ export function weakestCriterion(trends: ReadonlyArray<CriterionTrend>): Criteri
 
 // ─── Weekly goals ───────────────────────────────────────────────────
 
-/** Default weekly targets; Listening is counted in parts, a full test being four. */
-export const WEEKLY_GOALS: Record<IeltsSkill, number> = { listening: 1, writing: 2, speaking: 3 };
+/** Default weekly targets; Listening counts parts (a full test is four), Reading passages (a full test is three). */
+export const WEEKLY_GOALS: Record<IeltsSkill, number> = { listening: 1, reading: 2, writing: 2, speaking: 3 };
+
+/** What a weekly goal counts: Listening parts, Reading passages, otherwise whole attempts. */
+export function goalUnit(skill: IeltsSkill): string {
+  return skill === 'listening' ? 'part' : skill === 'reading' ? 'passage' : 'bài';
+}
 
 /** Monday 00:00 local time of the week containing `now`. */
 export function weekStart(now: Date): Date {
@@ -184,9 +194,9 @@ export function weekStart(now: Date): Date {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate() - sinceMonday);
 }
 
-/** How much one attempt counts towards its weekly goal: Listening counts its parts. */
+/** How much one attempt counts towards its weekly goal: Listening counts its parts, Reading its passages. */
 export function attemptUnits(attempt: IeltsAttempt): number {
-  if (attempt.skill !== 'listening') return 1;
+  if (attempt.skill !== 'listening' && attempt.skill !== 'reading') return 1;
   return Math.max(1, Object.keys(attempt.criterionScores ?? {}).length);
 }
 
@@ -247,10 +257,11 @@ export const EXAM_SOON_DAYS = 14;
 /** A criterion this far below its skill's band is a clear weakness worth a lesson. */
 export const WEAK_CRITERION_GAP = 0.5;
 
-export const SKILL_NAMES: Record<IeltsSkill, string> = { listening: 'Listening', writing: 'Writing', speaking: 'Speaking' };
+export const SKILL_NAMES: Record<IeltsSkill, string> = { listening: 'Listening', reading: 'Reading', writing: 'Writing', speaking: 'Speaking' };
 
 const HUBS: Record<IeltsSkill, AppPhase> = {
   listening: AppPhase.IELTS_LISTENING_HUB,
+  reading: AppPhase.IELTS_READING_HUB,
   writing: AppPhase.IELTS_WRITING_HUB,
   speaking: AppPhase.IELTS_SPEAKING_HUB,
 };
@@ -362,7 +373,7 @@ export function nextAction(input: NextActionInput): NextAction {
   if (open.length) {
     const share = (w: WeeklyGoal) => w.remaining / w.goal;
     const pick = [...open].sort((a, b) => share(b) - share(a) || bandOf(a.skill) - bandOf(b.skill))[0];
-    const unit = pick.skill === 'listening' ? 'part' : 'bài';
+    const unit = goalUnit(pick.skill);
     return {
       rule: 'weekly',
       title: `Luyện ${SKILL_NAMES[pick.skill]}: còn ${pick.remaining} ${unit} tuần này`,

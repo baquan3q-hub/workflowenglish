@@ -6,6 +6,7 @@ import {
   criterionScoresOf,
   criterionTrends,
   daysUntil,
+  goalUnit,
   nextAction,
   overallBand,
   overallNote,
@@ -227,7 +228,15 @@ describe('weekly goals', () => {
       { skill: 'speaking', goal: 3, done: 4, remaining: 0 },
     ]);
     expect(attemptUnits(attempt('listening', 6, iso(13)))).toBe(1);
-    expect(WEEKLY_GOALS).toEqual({ listening: 1, writing: 2, speaking: 3 });
+    expect(WEEKLY_GOALS).toEqual({ listening: 1, reading: 2, writing: 2, speaking: 3 });
+  });
+
+  it('names what each goal counts', () => {
+    expect(['listening', 'reading', 'writing', 'speaking'].map((s) => goalUnit(s as never))).toEqual(['part', 'passage', 'bài', 'bài']);
+  });
+
+  it('leaves Reading out until it can be practised', () => {
+    expect(PRACTISED_SKILLS).not.toContain('reading');
   });
 });
 
