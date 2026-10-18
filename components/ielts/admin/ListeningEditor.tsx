@@ -3,7 +3,7 @@
  * transcript, questions, then check and publish. Nothing is stored until
  * "Lưu nháp" or "Xuất bản"; leaving with changes asks first.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   CircleAlert,
@@ -249,6 +249,8 @@ export default function ListeningEditor({ item, saved: savedProp, onSave, onClos
   const [notesInfo, setNotesInfo] = useState('');
   const [confirmLeave, setConfirmLeave] = useState(false);
 
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
   const dirty = !saved || JSON.stringify(draft) !== JSON.stringify(saved);
   const section = draft.sections[Math.min(partIndex, draft.sections.length - 1)];
   const problems = useMemo(() => libraryProblems(draft), [draft]);
@@ -275,11 +277,13 @@ export default function ListeningEditor({ item, saved: savedProp, onSave, onClos
   };
 
   const save = async (status: LibraryItem['status'], kind: 'draft' | 'publish' | 'unpublish') => {
+    const sent = draft;
     setSaving(kind);
     setMessage(null);
     try {
-      const stored = await onSave({ ...draft, status });
-      setDraft(stored);
+      const stored = await onSave({ ...sent, status });
+      // Edits typed while saving stay, and show as unsaved.
+      setDraft((d) => (d === sent ? stored : { ...d, status: stored.status, updatedAt: stored.updatedAt }));
       setSaved(stored);
       setMessage({
         kind: 'ok',
@@ -296,8 +300,16 @@ export default function ListeningEditor({ item, saved: savedProp, onSave, onClos
     setNotesBusy(true);
     setNotesInfo('');
     try {
-      const out = await suggest(section);
-      setSection(out.section);
+      const before = section;
+      const index = draft.sections.indexOf(before);
+      const out = await suggest(before);
+      // The notes were made for the part as it was; never undo edits made meanwhile.
+      if (draftRef.current.sections[index] !== before) {
+        setNotesInfo('Bạn đã sửa part này trong lúc chờ AI nên ghi chú chưa được điền. Bấm lại để thử lần nữa.');
+        return;
+      }
+      setMessage(null);
+      setDraft((d) => ({ ...d, sections: d.sections.map((x, i) => (i === index ? out.section : x)) }));
       const parts = [out.filled.length ? `Đã điền ghi chú cho ${out.filled.length} câu.` : 'Không có ghi chú mới.'];
       if (out.rejected.length) parts.push(`Câu ${out.rejected.join(', ')}: AI trích câu không có trong lời thoại, bạn tự điền nhé.`);
       parts.push('Hãy đọc lại trước khi xuất bản.');

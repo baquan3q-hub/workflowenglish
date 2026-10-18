@@ -685,6 +685,21 @@ export function filterLibrary(items: readonly LibraryItem[], query: string, stat
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
+/** A database error in words an admin can act on; unknown errors pass through. */
+/** Postgres/PostgREST saying a table or function from migration 011 is not there. */
+export const isMissingTable = (message: string) =>
+  /relation \S+ does not exist|could not find the (table|function) \S+ in the schema cache|function \S*is_app_admin\S* does not exist/i.test(message);
+
+export function libraryErrorText(message: string): string {
+  if (isMissingTable(message)) {
+    return 'Chưa chạy migration 011 (docs/migrations/011_listening_library.sql) trong Supabase SQL Editor.';
+  }
+  if (/row-level security|permission denied/i.test(message)) {
+    return 'Tài khoản này chưa có quyền quản trị (chưa có trong bảng app_admins).';
+  }
+  return message;
+}
+
 export function itemStats(item: LibraryItem) {
   const questions = item.sections.reduce((n, s) => n + s.groups.reduce((m, g) => m + g.questions.length, 0), 0);
   const recorded = item.sections.some(isRecorded);
@@ -707,7 +722,7 @@ export interface LibraryRow {
 
 /** A stored row, or null when it is not a usable test shape. */
 export function rowToLibrary(row: LibraryRow): LibraryItem | null {
-  if (!Array.isArray(row.sections)) return null;
+  if (!Array.isArray(row.sections) || row.sections.length === 0) return null;
   const sections = row.sections as ListeningSection[];
   if (sections.some((s) => !s || typeof s !== 'object' || !Array.isArray(s.segments) || !Array.isArray(s.groups) || !Array.isArray(s.speakers))) return null;
   return {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, ArrowRight, ChevronRight, Clock, Hash, Headphones, Info, Keyboard } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ChevronRight, Clock, Hash, Headphones, Info, Keyboard, ShieldCheck } from 'lucide-react';
 import type { IeltsAttempt } from '../types';
 import {
   GROUP_TYPE_LABELS,
@@ -22,6 +22,8 @@ interface Props {
   onOpenDrill: () => void;
   onOpenAttempt: (attempt: IeltsAttempt) => void;
   onBack: () => void;
+  /** Admins only: opens the test editor. */
+  onOpenAdmin?: () => void;
   /** Generated-part service calls; the real ones by default. */
   generatedApi?: GeneratedSectionsApi;
   /** Published library tests; the real call by default. */
@@ -53,7 +55,7 @@ function readMode(): ListeningMode {
 
 const questionTypes = (test: ListeningTest) => [...new Set(test.sections.flatMap((s) => s.groups.map((g) => GROUP_TYPE_LABELS[g.type])))];
 
-export default function IeltsListeningHub({ userId, onStart, onOpenDictation, onOpenDrill, onOpenAttempt, onBack, generatedApi, loadLibrary }: Props) {
+export default function IeltsListeningHub({ userId, onStart, onOpenDictation, onOpenDrill, onOpenAttempt, onBack, onOpenAdmin, generatedApi, loadLibrary }: Props) {
   const [mode, setModeState] = useState<ListeningMode>(readMode);
   const setMode = (m: ListeningMode) => {
     setModeState(m);
@@ -66,9 +68,16 @@ export default function IeltsListeningHub({ userId, onStart, onOpenDictation, on
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 anim-fade-up">
-      <button type="button" onClick={onBack} className={`${ghostBtn} -ml-3`}>
-        <ArrowLeft className="h-4 w-4" /> IELTS
-      </button>
+      <div className="flex items-center justify-between gap-2">
+        <button type="button" onClick={onBack} className={`${ghostBtn} -ml-3`}>
+          <ArrowLeft className="h-4 w-4" /> IELTS
+        </button>
+        {onOpenAdmin && (
+          <button type="button" onClick={onOpenAdmin} className={ghostBtn}>
+            <ShieldCheck className="h-4 w-4" /> Quản trị
+          </button>
+        )}
+      </div>
 
       <header>
         <p className="text-caption font-medium text-slate-500 dark:text-slate-400">IELTS Academic</p>

@@ -11,7 +11,7 @@ import ListeningEditor from '../components/ielts/admin/ListeningEditor';
 import { hint, panel, secondaryBtn } from '../components/ielts/admin/styles';
 import { Tabs } from '../components/ui/Tabs';
 import { duplicateItem, emptyItem, type LibraryItem } from '../services/listeningLibraryLogic';
-import { deleteLibraryItem, getAllLibrary, isAppAdmin, saveLibraryItem } from '../services/listeningLibraryService';
+import { deleteLibraryItem, getAllLibrary, isAppAdmin, LIBRARY_LIST_LIMIT, saveLibraryItem } from '../services/listeningLibraryService';
 
 export interface AdminApi {
   isAdmin: (userId: string) => Promise<boolean>;
@@ -43,7 +43,8 @@ export interface AdminEditing {
 type Tab = 'tests' | 'health';
 
 const ADMIN_SQL = `insert into public.app_admins (user_id)
-select id from auth.users where email = '<email của bạn>';`;
+select id from auth.users where email = '<email của bạn>'
+on conflict do nothing;`;
 
 export default function IeltsAdmin({ userId, onBack, onPreview, editing: editingProp = null, onEditingChange, api = defaultApi, newId = () => crypto.randomUUID() }: Props) {
   const [admin, setAdmin] = useState<boolean | null>(null);
@@ -187,14 +188,19 @@ export default function IeltsAdmin({ userId, onBack, onPreview, editing: editing
           <Loader2 className="h-4 w-4 animate-spin" /> Đang tải đề…
         </p>
       ) : (
-        <LibraryList
-          items={items}
-          busyId={busyId}
-          onNew={(kind) => setEditing({ item: emptyItem(newId(), kind), saved: null })}
-          onEdit={(item) => setEditing({ item, saved: item })}
-          onDuplicate={duplicate}
-          onDelete={remove}
-        />
+        <>
+          {items.length >= LIBRARY_LIST_LIMIT && (
+            <p className={hint}>Đang hiện {LIBRARY_LIST_LIMIT} đề sửa gần nhất; đề cũ hơn không có trong danh sách.</p>
+          )}
+          <LibraryList
+            items={items}
+            busyId={busyId}
+            onNew={(kind) => setEditing({ item: emptyItem(newId(), kind), saved: null })}
+            onEdit={(item) => setEditing({ item, saved: item })}
+            onDuplicate={duplicate}
+            onDelete={remove}
+          />
+        </>
       )}
     </div>
   );

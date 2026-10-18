@@ -177,6 +177,8 @@ function App() {
   } | null>(null);
   const [ieltsAdmin, setIeltsAdmin] = useState(false);
   const [ieltsAdminEditing, setIeltsAdminEditing] = useState<AdminEditing | null>(null);
+  // Where the admin page was opened from, for its back button.
+  const [ieltsAdminFrom, setIeltsAdminFrom] = useState<AppPhase>(AppPhase.IELTS_HOME);
 
   // Synchronous mirror of currentRecordId so queued saves always update the
   // row created by an earlier save instead of inserting a duplicate.
@@ -265,6 +267,10 @@ function App() {
   ]);
 
   // Admins get a link to the content editor; everyone else never sees it.
+  // Asked again on the screens that show the link, so a grant made in the
+  // SQL Editor shows up without signing out.
+  const adminLinkScreen =
+    phase === AppPhase.IELTS_HOME || phase === AppPhase.IELTS_LISTENING_HUB ? phase : null;
   useEffect(() => {
     if (!currentUser) {
       setIeltsAdmin(false);
@@ -275,7 +281,7 @@ function App() {
     return () => {
       live = false;
     };
-  }, [currentUser?.id]);
+  }, [currentUser?.id, adminLinkScreen]);
 
   // Check for draft on login / user session loaded
   useEffect(() => {
@@ -938,6 +944,11 @@ function App() {
     setPhase(AppPhase.IELTS_LIBRARY);
   };
 
+  const openIeltsAdmin = () => {
+    setIeltsAdminFrom(phase);
+    setPhase(AppPhase.IELTS_ADMIN);
+  };
+
   const startIeltsListening = (testId: string, sectionIds: string[], mode: ListeningMode, preview = false) => {
     setIeltsListening(prev => ({ testId, sectionIds, mode, answers: {}, run: (prev?.run ?? 0) + 1, preview }));
     setPhase(AppPhase.IELTS_LISTENING_PRACTICE);
@@ -1269,7 +1280,7 @@ function App() {
             userId={currentUser?.id ?? ''}
             onOpenPhase={setPhase}
             onOpenLibrary={(id) => openIeltsLibrary(id)}
-            onOpenAdmin={ieltsAdmin ? () => setPhase(AppPhase.IELTS_ADMIN) : undefined}
+            onOpenAdmin={ieltsAdmin ? openIeltsAdmin : undefined}
             onAction={(target) => {
               if (target.kind === 'phase') setPhase(target.phase);
               else if (target.kind === 'lesson') openIeltsLibrary(target.lessonId);
@@ -1315,6 +1326,7 @@ function App() {
             onOpenDrill={() => setPhase(AppPhase.IELTS_LISTENING_DRILL)}
             onOpenAttempt={openIeltsAttempt}
             onBack={() => setPhase(AppPhase.IELTS_HOME)}
+            onOpenAdmin={ieltsAdmin ? openIeltsAdmin : undefined}
           />
         );
 
@@ -1372,7 +1384,7 @@ function App() {
             userId={currentUser?.id ?? ''}
             onBack={() => {
               setIeltsAdminEditing(null);
-              setPhase(AppPhase.IELTS_HOME);
+              setPhase(ieltsAdminFrom);
             }}
             editing={ieltsAdminEditing}
             onEditingChange={setIeltsAdminEditing}

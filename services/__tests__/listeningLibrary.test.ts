@@ -10,6 +10,7 @@ import {
   emptyItem,
   filterLibrary,
   isLibraryTestId,
+  libraryErrorText,
   libraryProblems,
   libraryRow,
   libraryRowId,
@@ -108,6 +109,7 @@ describe('library ids and new tests', () => {
     const row = { ...libraryRow(item), created_at: NOW, updated_at: NOW };
     expect(rowToLibrary(row)).toEqual(item);
     expect(rowToLibrary({ ...row, sections: {} })).toBeNull();
+    expect(rowToLibrary({ ...row, sections: [] })).toBeNull();
     expect(rowToLibrary({ ...row, sections: [{ id: 'x' }] })).toBeNull();
   });
 });
@@ -378,6 +380,16 @@ describe('the admin list', () => {
     expect(filterLibrary([a, b], 'dat phong', 'all').map((i) => i.id)).toEqual(['a']);
     expect(filterLibrary([a, b], '', 'published').map((i) => i.id)).toEqual(['b']);
     expect(filterLibrary([a, b], '', 'draft').map((i) => i.id)).toEqual(['a']);
+  });
+});
+
+describe('database errors', () => {
+  it('names the missing migration and the missing grant', () => {
+    expect(libraryErrorText('relation "public.listening_library" does not exist')).toMatch(/migration 011/);
+    expect(libraryErrorText("Could not find the table 'public.listening_library' in the schema cache")).toMatch(/migration 011/);
+    expect(libraryErrorText('new row violates row-level security policy for table "listening_library"')).toMatch(/app_admins/);
+    expect(libraryErrorText('column listening_library.title does not exist')).toBe('column listening_library.title does not exist');
+    expect(libraryErrorText('network down')).toBe('network down');
   });
 });
 
