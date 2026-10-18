@@ -31,6 +31,7 @@ export enum AppPhase {
   IELTS_WRITING_STUDY = 'IELTS_WRITING_STUDY',
   IELTS_SPEAKING_STUDY = 'IELTS_SPEAKING_STUDY',
   IELTS_SPEAKING_MOCK = 'IELTS_SPEAKING_MOCK',
+  IELTS_ERROR_LOG = 'IELTS_ERROR_LOG',
 }
 
 // ─── IELTS Module Types ────────────────────────────────────────────
@@ -72,7 +73,7 @@ export interface IeltsSentenceCorrection {
   original: string;
   corrected: string;
   explanation: string;
-  /** Writing only, from data/ielts/errorCategories.ts; absent on older attempts. */
+  /** Error label from data/ielts/errorCategories.ts (Speaking never uses punctuation); absent on older attempts. */
   category?: string;
 }
 

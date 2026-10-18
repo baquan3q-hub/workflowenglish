@@ -15,25 +15,6 @@ import {
 } from '../lib.ts';
 import { IELTS_MENTOR_SYSTEM_PROMPT } from './ieltsMentorPrompt.ts';
 
-const criterion = S.obj({ name: S.str(), nameVi: S.str(), score: S.num(), comment: S.str() });
-const correction = S.obj({ original: S.str(), corrected: S.str(), explanation: S.str() });
-const feedbackFields = {
-  estimatedBand: S.num(),
-  criterionScores: S.arr(criterion),
-  strengths: S.arr(S.str()),
-  weaknesses: S.arr(S.str()),
-  sentenceCorrections: S.arr(correction),
-  improvedVersion: S.str(),
-  nextActions: S.arr(S.str()),
-};
-const speakingFields = { ...feedbackFields, pronunciationNotes: S.arr(S.str()), followUpDrill: S.str() };
-const speakingSchema = S.obj(speakingFields);
-const mockSchema = S.obj({
-  ...speakingFields,
-  partBands: S.arr(S.obj({ part: S.num(), band: S.num(), comment: S.str() })),
-  topImprovements: S.arr(S.str()),
-});
-
 /** Same ids as data/ielts/errorCategories.ts (a test keeps them equal). */
 export const WRITING_ERROR_CATEGORIES = [
   'article',
@@ -47,7 +28,35 @@ export const WRITING_ERROR_CATEGORIES = [
   'cohesion',
   'task_response',
 ];
+/** Speech has no punctuation, so Speaking corrections use every other label. */
+export const SPEAKING_ERROR_CATEGORIES = WRITING_ERROR_CATEGORIES.filter((c) => c !== 'punctuation');
 export const TASK1_CHECKS = ['overview', 'key_features', 'comparisons', 'no_opinion'];
+
+const criterion = S.obj({ name: S.str(), nameVi: S.str(), score: S.num(), comment: S.str() });
+const correction = S.obj({ original: S.str(), corrected: S.str(), explanation: S.str() });
+const feedbackFields = {
+  estimatedBand: S.num(),
+  criterionScores: S.arr(criterion),
+  strengths: S.arr(S.str()),
+  weaknesses: S.arr(S.str()),
+  sentenceCorrections: S.arr(correction),
+  improvedVersion: S.str(),
+  nextActions: S.arr(S.str()),
+};
+const speakingFields = {
+  ...feedbackFields,
+  sentenceCorrections: S.arr(
+    S.obj({ original: S.str(), corrected: S.str(), explanation: S.str(), category: S.str(SPEAKING_ERROR_CATEGORIES) }),
+  ),
+  pronunciationNotes: S.arr(S.str()),
+  followUpDrill: S.str(),
+};
+const speakingSchema = S.obj(speakingFields);
+const mockSchema = S.obj({
+  ...speakingFields,
+  partBands: S.arr(S.obj({ part: S.num(), band: S.num(), comment: S.str() })),
+  topImprovements: S.arr(S.str()),
+});
 
 /** Paragraphs as the learner typed them: one per non-empty line. */
 export function splitEssayParagraphs(text: string): string[] {
@@ -294,6 +303,7 @@ Output format (JSON):
    - original: what the user said
    - corrected: better version
    - explanation: explanation in Vietnamese
+   - category: the main problem, one of ${SPEAKING_ERROR_CATEGORIES.join(', ')}
 6. improvedVersion: a natural, corrected version of the full answer or monologue at the target band
 7. nextActions: 3 specific practice suggestions (mix Vietnamese and English)
 8. pronunciationNotes: array of 3-5 highly specific pronunciation tips, each formatted as:

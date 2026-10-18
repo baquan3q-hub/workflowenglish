@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { IeltsAiFeedback, IeltsQuestion } from '../types';
 import { BandScoreDisplay, CriterionScoreBar, FeedbackList, NextActionsList } from '../components/IeltsCommon';
 import { ArrowLeft, RotateCcw, ChevronDown, Sparkles, LayoutList } from 'lucide-react';
+import WordPicker from '../components/ielts/WordPicker';
 import { CorrectionsByCategory, EssayByParagraph, RewriteComparison, Task1Checklist } from '../components/ielts/writing/FeedbackSections';
 
 interface Props {
+  userId: string;
   question: IeltsQuestion;
   userAnswer: string;
   feedback: IeltsAiFeedback;
@@ -20,7 +22,7 @@ const primaryBtn =
 const secondaryBtn =
   'inline-flex min-h-touch flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800';
 
-export default function IeltsWritingFeedback({ question, userAnswer, feedback, previous, onRewrite, onBackToHub }: Props) {
+export default function IeltsWritingFeedback({ userId, question, userAnswer, feedback, previous, onRewrite, onBackToHub }: Props) {
   const [showImproved, setShowImproved] = useState(false);
 
   return (
@@ -97,9 +99,12 @@ export default function IeltsWritingFeedback({ question, userAnswer, feedback, p
           <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform dark:text-slate-400 ${showImproved ? 'rotate-180' : ''}`} />
         </button>
         {showImproved && (
-          <p className="whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-sm leading-relaxed text-slate-800 dark:bg-slate-800/60 dark:text-slate-200">
-            {feedback.improvedVersion}
-          </p>
+          <>
+            <p className="whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-sm leading-relaxed text-slate-800 dark:bg-slate-800/60 dark:text-slate-200">
+              {feedback.improvedVersion}
+            </p>
+            <WordPicker userId={userId} text={feedback.improvedVersion} />
+          </>
         )}
       </section>
 

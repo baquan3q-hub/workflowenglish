@@ -9,12 +9,14 @@ import { getWritingQuestionById, getWritingQuestions } from '../services/ieltsWr
 import { Segmented } from '../components/ui/Segmented';
 import LessonSections from '../components/ielts/LessonSections';
 import SampleEssay from '../components/ielts/writing/SampleEssay';
+import WordPicker from '../components/ielts/WordPicker';
 import IeltsChartRenderer from '../components/IeltsChartRenderer';
 
 export type WritingStudyTab = 'guides' | 'samples' | 'language';
 
 interface Props {
   initialTab?: WritingStudyTab;
+  userId: string;
   onBack: () => void;
   onPractice: (q: IeltsQuestion) => void;
 }
@@ -104,7 +106,7 @@ function GuideView({ guide, onPractice }: { guide: WritingGuide; onPractice: (q:
 
 // ─── Band samples ───────────────────────────────────────────────────
 
-function SampleView({ set, onPractice }: { set: BandSampleSet; onPractice: (q: IeltsQuestion) => void }) {
+function SampleView({ set, userId, onPractice }: { set: BandSampleSet; userId: string; onPractice: (q: IeltsQuestion) => void }) {
   const question = getWritingQuestionById(set.questionId);
   const [band, setBand] = useState<SampleBand>(7);
   const [compareBand, setCompareBand] = useState<SampleBand>(6);
@@ -149,6 +151,9 @@ function SampleView({ set, onPractice }: { set: BandSampleSet; onPractice: (q: I
           <SampleEssay essay={essay(band)} task={set.task} />
         </section>
       )}
+      <section className={`${panel} p-4`}>
+        <WordPicker key={band} userId={userId} text={essay(band).paragraphs.map((p) => p.text).join('\n')} />
+      </section>
     </article>
   );
 }
@@ -216,7 +221,7 @@ function LanguageBank() {
 
 // ─── Screen ─────────────────────────────────────────────────────────
 
-export default function IeltsWritingStudy({ initialTab = 'guides', onBack, onPractice }: Props) {
+export default function IeltsWritingStudy({ initialTab = 'guides', userId, onBack, onPractice }: Props) {
   const [tab, setTab] = useState<WritingStudyTab>(initialTab);
   const [guide, setGuide] = useState<WritingGuide | null>(null);
   const [sample, setSample] = useState<BandSampleSet | null>(null);
@@ -244,7 +249,7 @@ export default function IeltsWritingStudy({ initialTab = 'guides', onBack, onPra
       {guide ? (
         <GuideView guide={guide} onPractice={onPractice} />
       ) : sample ? (
-        <SampleView set={sample} onPractice={onPractice} />
+        <SampleView set={sample} userId={userId} onPractice={onPractice} />
       ) : (
         <>
           <header>

@@ -14,6 +14,7 @@ import LessonSections from '../components/ielts/LessonSections';
 interface Props {
   initialLessonId?: string;
   onBack: () => void;
+  backLabel?: string;
 }
 
 const ghostBtn =
@@ -53,7 +54,7 @@ const LessonView: React.FC<{ lesson: LibraryLesson; onClose: () => void }> = ({ 
   );
 };
 
-export default function IeltsLibrary({ initialLessonId, onBack }: Props) {
+export default function IeltsLibrary({ initialLessonId, onBack, backLabel = 'IELTS' }: Props) {
   const [tab, setTab] = useState<LibrarySkill | 'all'>('all');
   const [query, setQuery] = useState('');
   const [openId, setOpenId] = useState<string | undefined>(initialLessonId);
@@ -68,7 +69,7 @@ export default function IeltsLibrary({ initialLessonId, onBack }: Props) {
   return (
     <div className="mx-auto max-w-3xl space-y-5 anim-fade-up">
       <button type="button" onClick={onBack} className={`${ghostBtn} -ml-3`}>
-        <ArrowLeft className="h-4 w-4" /> IELTS
+        <ArrowLeft className="h-4 w-4" /> {backLabel}
       </button>
       <header>
         <h1 className="text-heading font-bold text-slate-900 dark:text-white">Thư viện IELTS</h1>

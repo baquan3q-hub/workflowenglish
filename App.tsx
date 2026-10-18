@@ -28,6 +28,7 @@ import SentencePractice from './views/SentencePractice';
 import { LessonStepper } from './components/LessonStepper';
 import { lessonStepStates } from './services/lessonSummaryLogic';
 import IeltsHome from './views/IeltsHome';
+import IeltsErrorLog from './views/IeltsErrorLog';
 import IeltsLibrary from './views/IeltsLibrary';
 import IeltsWritingHub from './views/IeltsWritingHub';
 import IeltsWritingStudy, { type WritingStudyTab } from './views/IeltsWritingStudy';
@@ -157,6 +158,7 @@ function App() {
   const [ieltsMockRun, setIeltsMockRun] = useState(0);
   /** Lesson to open in Thư viện IELTS; undefined shows the list. */
   const [ieltsLibraryLessonId, setIeltsLibraryLessonId] = useState<string | undefined>(undefined);
+  const [ieltsLibraryReturn, setIeltsLibraryReturn] = useState<AppPhase>(AppPhase.IELTS_HOME);
   const [ieltsWritingStudyTab, setIeltsWritingStudyTab] = useState<WritingStudyTab>('guides');
   const [ieltsSpeakingStudyTab, setIeltsSpeakingStudyTab] = useState<SpeakingStudyTab>('part1');
   /** Listening session: which test and parts, and the answers once submitted. `run` restarts the sheet on retry. */
@@ -909,8 +911,9 @@ function App() {
     return attempt?.aiFeedback ? { answer: attempt.answerText, feedback: attempt.aiFeedback } : null;
   };
 
-  const openIeltsLibrary = (lessonId?: string) => {
+  const openIeltsLibrary = (lessonId?: string, from: AppPhase = AppPhase.IELTS_HOME) => {
     setIeltsLibraryLessonId(lessonId);
+    setIeltsLibraryReturn(from);
     setPhase(AppPhase.IELTS_LIBRARY);
   };
 
@@ -1229,12 +1232,27 @@ function App() {
           <IeltsHome
             userId={currentUser?.id ?? ''}
             onOpenPhase={setPhase}
-            onOpenLibrary={openIeltsLibrary}
+            onOpenLibrary={(id) => openIeltsLibrary(id)}
           />
         );
 
       case AppPhase.IELTS_LIBRARY:
-        return <IeltsLibrary initialLessonId={ieltsLibraryLessonId} onBack={() => setPhase(AppPhase.IELTS_HOME)} />;
+        return (
+          <IeltsLibrary
+            initialLessonId={ieltsLibraryLessonId}
+            onBack={() => setPhase(ieltsLibraryReturn)}
+            backLabel={ieltsLibraryReturn === AppPhase.IELTS_ERROR_LOG ? 'Sổ lỗi' : 'IELTS'}
+          />
+        );
+
+      case AppPhase.IELTS_ERROR_LOG:
+        return (
+          <IeltsErrorLog
+            userId={currentUser?.id ?? ''}
+            onBack={() => setPhase(AppPhase.IELTS_HOME)}
+            onOpenLibrary={(id) => openIeltsLibrary(id, AppPhase.IELTS_ERROR_LOG)}
+          />
+        );
 
       // ─── IELTS Listening ──────────────────────────────
       case AppPhase.IELTS_LISTENING_HUB:
@@ -1322,6 +1340,7 @@ function App() {
           <IeltsWritingStudy
             key={ieltsWritingStudyTab}
             initialTab={ieltsWritingStudyTab}
+            userId={currentUser?.id ?? ''}
             onBack={() => setPhase(AppPhase.IELTS_WRITING_HUB)}
             onPractice={startIeltsWriting}
           />
@@ -1372,6 +1391,7 @@ function App() {
       case AppPhase.IELTS_WRITING_FEEDBACK:
         return selectedIeltsQuestion && ieltsFeedbackData ? (
           <IeltsWritingFeedback
+            userId={currentUser?.id ?? ''}
             question={selectedIeltsQuestion}
             userAnswer={ieltsUserAnswer}
             feedback={ieltsFeedbackData}
@@ -1443,6 +1463,7 @@ function App() {
       case AppPhase.IELTS_SPEAKING_FEEDBACK:
         return selectedIeltsQuestion && ieltsFeedbackData ? (
           <IeltsSpeakingFeedback
+            userId={currentUser?.id ?? ''}
             question={selectedIeltsQuestion}
             userTranscript={ieltsUserAnswer}
             feedback={ieltsFeedbackData}

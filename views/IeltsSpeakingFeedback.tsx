@@ -2,10 +2,13 @@ import React, { useState } from 'react';
 import { IeltsAiFeedback, IeltsQuestion } from '../types';
 import type { FluencyMetrics } from '../services/fluencyLogic';
 import FluencyPanel from '../components/ielts/speaking/FluencyPanel';
-import { BandScoreDisplay, CriterionScoreBar, FeedbackList, SentenceCorrectionList, NextActionsList } from '../components/IeltsCommon';
+import { BandScoreDisplay, CriterionScoreBar, FeedbackList, NextActionsList } from '../components/IeltsCommon';
+import { CorrectionsByCategory } from '../components/ielts/writing/FeedbackSections';
+import WordPicker from '../components/ielts/WordPicker';
 import { ArrowLeft, RotateCcw, Save, ChevronDown, ChevronUp, FileText, Sparkles, Volume2, Mic, ListChecks, Layers } from 'lucide-react';
 
 interface Props {
+  userId: string;
   question: IeltsQuestion;
   userTranscript: string;
   feedback: IeltsAiFeedback;
@@ -17,7 +20,7 @@ interface Props {
 
 const PART_TITLES: Record<number, string> = { 1: 'Part 1 · Phỏng vấn', 2: 'Part 2 · Nói một mình', 3: 'Part 3 · Thảo luận' };
 
-export default function IeltsSpeakingFeedback({ question, userTranscript, feedback, onRetry, onBackToHub, fluency }: Props) {
+export default function IeltsSpeakingFeedback({ userId, question, userTranscript, feedback, onRetry, onBackToHub, fluency }: Props) {
   const isMock = question.questionType === 'mock_test';
   const [showOriginal, setShowOriginal] = useState(false);
   const [showImproved, setShowImproved] = useState(false);
@@ -131,9 +134,11 @@ export default function IeltsSpeakingFeedback({ question, userTranscript, feedba
       </div>
 
       {/* Sentence Corrections */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5">
-        <SentenceCorrectionList corrections={feedback.sentenceCorrections} />
-      </div>
+      {feedback.sentenceCorrections.length > 0 && (
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5">
+          <CorrectionsByCategory corrections={feedback.sentenceCorrections} />
+        </div>
+      )}
 
       {/* Pronunciation Notes */}
       {feedback.pronunciationNotes && feedback.pronunciationNotes.length > 0 && (
@@ -172,6 +177,9 @@ export default function IeltsSpeakingFeedback({ question, userTranscript, feedba
             <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap bg-rose-50 dark:bg-rose-900/20 rounded-lg p-4">
               {feedback.improvedVersion}
             </p>
+            <div className="mt-3">
+              <WordPicker userId={userId} text={feedback.improvedVersion} />
+            </div>
           </div>
         )}
       </div>

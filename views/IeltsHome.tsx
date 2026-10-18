@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowRight, BookOpen, CalendarDays, Headphones, Library, Mic, PenTool, Target } from 'lucide-react';
+import { ArrowRight, BookOpen, CalendarDays, Headphones, Library, Mic, NotebookPen, PenTool, Target } from 'lucide-react';
 import { AppPhase, type IeltsAttempt, type IeltsSkill } from '../types';
 import { getIeltsAttempts } from '../services/ieltsAttemptService';
 import { bandGap, daysUntil, overallBand, skillProgress, type SkillProgress } from '../services/ieltsProgressLogic';
+import { summarizeErrors } from '../services/ieltsErrorLogic';
 import { getPreferences, IELTS_TARGET_BANDS, setPreferences } from '../services/preferencesService';
 import { LIBRARY_LESSONS } from '../data/ielts/library';
 import { Skeleton } from '../components/ui/States';
@@ -110,6 +111,8 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary }: Props)
     [attempts],
   );
 
+  const topError = useMemo(() => (attempts ? summarizeErrors(attempts).categories.find((c) => c.info) : undefined), [attempts]);
+
   const skillBands = progress ? SKILLS.map((d) => progress[d.skill].current).filter((b): b is number => b != null) : [];
   const overall = overallBand(skillBands);
   const gap = bandGap(overall, prefs.ieltsTargetBand);
@@ -212,6 +215,25 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary }: Props)
             />
           ))}
         </ul>
+      </section>
+
+      <section aria-labelledby="ielts-errors" className={`${panel} flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:p-5`}>
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+          <NotebookPen className="h-5 w-5" />
+        </span>
+        <div className="flex-1">
+          <h2 id="ielts-errors" className="text-sm font-semibold text-slate-900 dark:text-white">
+            Sổ lỗi
+          </h2>
+          <p className="mt-0.5 text-caption text-slate-500 dark:text-slate-400">
+            {topError
+              ? `Lỗi lặp lại nhiều nhất: ${topError.label} (${topError.total} lần). Luyện cho dứt điểm.`
+              : 'Lỗi trong bài Writing và Speaking được gom theo loại, kèm bài luyện sửa.'}
+          </p>
+        </div>
+        <button type="button" onClick={() => onOpenPhase(AppPhase.IELTS_ERROR_LOG)} className={secondaryBtn}>
+          Mở sổ lỗi <ArrowRight className="h-4 w-4" />
+        </button>
       </section>
 
       <section aria-labelledby="ielts-library" className={`${panel} flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:p-5`}>
