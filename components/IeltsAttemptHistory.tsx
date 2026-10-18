@@ -10,6 +10,9 @@ const PART_LABELS: Record<string, string> = {
   part_2: 'Part 2',
   part_3: 'Part 3',
   part_4: 'Part 4',
+  passage_1: 'Passage 1',
+  passage_2: 'Passage 2',
+  passage_3: 'Passage 3',
   full_test: 'Cả đề',
   mock: 'Thi thử',
 };

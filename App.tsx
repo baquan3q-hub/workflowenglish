@@ -44,10 +44,15 @@ import IeltsListeningPractice from './views/IeltsListeningPractice';
 import IeltsListeningResult from './views/IeltsListeningResult';
 import IeltsListeningDictation from './views/IeltsListeningDictation';
 import IeltsListeningDrill from './views/IeltsListeningDrill';
+import IeltsReadingHub from './views/IeltsReadingHub';
+import IeltsReadingPractice from './views/IeltsReadingPractice';
+import IeltsReadingResult from './views/IeltsReadingResult';
+import { getReadingTest, type ReadingAnswers } from './data/ielts/reading';
+import { readingAttemptLabels, scorePassages, sessionPassages as readingSessionPassages, type ReadingMode } from './services/readingLogic';
 import { gradeWritingTask } from './services/ieltsWritingService';
 import { gradeSpeakingAnswer } from './services/ieltsSpeakingService';
 import { fluencySummaryForGrader, isFluencyMetrics, type FluencyMetrics } from './services/fluencyLogic';
-import { saveIeltsAttempt, saveListeningAttempt, resolveAttemptQuestion, isListeningDetails, getPreviousWritingAttempt } from './services/ieltsAttemptService';
+import { saveIeltsAttempt, saveListeningAttempt, saveReadingAttempt, resolveAttemptQuestion, isListeningDetails, isReadingDetails, getPreviousWritingAttempt } from './services/ieltsAttemptService';
 import { getListeningTest, type ListeningAnswers } from './data/ielts/listening';
 import { isGeneratedTestId, loadGeneratedTest } from './services/listeningGenerationService';
 import { isLibraryTestId } from './services/listeningLibraryLogic';
@@ -174,6 +179,15 @@ function App() {
     run: number;
     /** An admin trying out a draft: nothing is saved and leaving goes back to the editor. */
     preview?: boolean;
+  } | null>(null);
+  /** Reading session, like Listening's; `seconds` is time per passage once submitted. */
+  const [ieltsReading, setIeltsReading] = useState<{
+    testId: string;
+    passageIds: string[];
+    mode: ReadingMode;
+    answers: ReadingAnswers;
+    seconds: Record<string, number>;
+    run: number;
   } | null>(null);
   const [ieltsAdmin, setIeltsAdmin] = useState(false);
   const [ieltsAdminEditing, setIeltsAdminEditing] = useState<AdminEditing | null>(null);
@@ -976,7 +990,40 @@ function App() {
     });
   };
 
+  const startIeltsReading = (testId: string, passageIds: string[], mode: ReadingMode) => {
+    setIeltsReading(prev => ({ testId, passageIds, mode, answers: {}, seconds: {}, run: (prev?.run ?? 0) + 1 }));
+    setPhase(AppPhase.IELTS_READING_PRACTICE);
+  };
+
+  const submitIeltsReading = (answers: ReadingAnswers, seconds: Record<string, number>) => {
+    const session = ieltsReading;
+    const test = session && getReadingTest(session.testId);
+    if (!session || !test) return;
+    setIeltsReading({ ...session, answers, seconds });
+    setPhase(AppPhase.IELTS_READING_RESULT);
+    if (!currentUser) return;
+    const passages = readingSessionPassages(test, session.passageIds);
+    const score = scorePassages(passages, answers);
+    void saveReadingAttempt({
+      userId: currentUser.id,
+      ...readingAttemptLabels(test, passages),
+      band: score.band,
+      durationSeconds: Object.values(seconds).reduce((n, s) => n + s, 0),
+      byPart: Object.fromEntries(score.byPassage.map(p => [`Passage ${p.part}`, p.score])),
+      details: { testId: test.id, passageIds: session.passageIds, mode: session.mode, answers, score: score.score, total: score.total, seconds },
+    }).then(saved => {
+      if (!saved) showToast('Chưa lưu được bài vào lịch sử luyện tập.', 'info');
+    });
+  };
+
   const openIeltsAttempt = (attempt: IeltsAttempt) => {
+    if (attempt.skill === 'reading') {
+      const d = attempt.details;
+      if (!isReadingDetails(d) || !getReadingTest(d.testId)) return;
+      setIeltsReading({ testId: d.testId, passageIds: d.passageIds, mode: d.mode, answers: d.answers, seconds: d.seconds, run: 0 });
+      setPhase(AppPhase.IELTS_READING_RESULT);
+      return;
+    }
     if (attempt.skill === 'listening') {
       const d = attempt.details;
       if (!isListeningDetails(d)) return;
@@ -1312,6 +1359,49 @@ function App() {
             onOpenLibrary={(id) => openIeltsLibrary(id, AppPhase.IELTS_ERROR_LOG)}
           />
         );
+
+      // ─── IELTS Reading ────────────────────────────────
+      case AppPhase.IELTS_READING_HUB:
+        return (
+          <IeltsReadingHub
+            userId={currentUser?.id ?? ''}
+            onStart={startIeltsReading}
+            onOpenAttempt={openIeltsAttempt}
+            onBack={() => setPhase(AppPhase.IELTS_HOME)}
+          />
+        );
+
+      case AppPhase.IELTS_READING_PRACTICE: {
+        const test = ieltsReading && getReadingTest(ieltsReading.testId);
+        if (!ieltsReading || !test) return null;
+        return (
+          <IeltsReadingPractice
+            key={`${test.id}:${ieltsReading.passageIds.join('+')}:${ieltsReading.mode}:${ieltsReading.run}`}
+            userId={currentUser?.id ?? ''}
+            test={test}
+            passageIds={ieltsReading.passageIds}
+            mode={ieltsReading.mode}
+            onSubmit={submitIeltsReading}
+            onExit={() => setPhase(AppPhase.IELTS_READING_HUB)}
+          />
+        );
+      }
+
+      case AppPhase.IELTS_READING_RESULT: {
+        const test = ieltsReading && getReadingTest(ieltsReading.testId);
+        if (!ieltsReading || !test) return null;
+        return (
+          <IeltsReadingResult
+            test={test}
+            passageIds={ieltsReading.passageIds}
+            mode={ieltsReading.mode}
+            answers={ieltsReading.answers}
+            seconds={ieltsReading.seconds}
+            onRetry={() => startIeltsReading(test.id, ieltsReading.passageIds, ieltsReading.mode)}
+            onBack={() => setPhase(AppPhase.IELTS_READING_HUB)}
+          />
+        );
+      }
 
       // ─── IELTS Listening ──────────────────────────────
       case AppPhase.IELTS_LISTENING_HUB:

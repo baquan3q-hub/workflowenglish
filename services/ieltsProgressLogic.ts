@@ -66,20 +66,18 @@ export function bandGap(current: number | null, target: number | null): number |
 
 /**
  * Skills learners can practise now: these count towards the overall band,
- * weekly goals and the next action. Reading joins once its practice screen
- * ships (phase R3).
+ * weekly goals and the next action.
  */
-export const PRACTISED_SKILLS: readonly IeltsSkill[] = ['listening', 'writing', 'speaking'];
+export const PRACTISED_SKILLS: readonly IeltsSkill[] = ['listening', 'reading', 'writing', 'speaking'];
 
-/** Line under the overall band: how many skills it comes from, and whether Reading is still missing. */
+/** Line under the overall band: how many skills it comes from. */
 export function overallNote(skillCount: number): string {
-  if (skillCount === 0) return 'Làm một bài Listening, Writing hoặc Speaking để có band ước tính.';
+  if (skillCount === 0) return 'Làm một bài Listening, Reading, Writing hoặc Speaking để có band ước tính.';
   const from =
     skillCount === PRACTISED_SKILLS.length
       ? `từ ${skillCount} kỹ năng`
       : `từ ${skillCount}/${PRACTISED_SKILLS.length} kỹ năng đã luyện`;
-  const missing = PRACTISED_SKILLS.includes('reading') ? '' : ' (chưa có Reading)';
-  return `Ước tính ${from}${missing}, mỗi kỹ năng lấy ${RECENT_ATTEMPTS} bài gần nhất.`;
+  return `Ước tính ${from}, mỗi kỹ năng lấy ${RECENT_ATTEMPTS} bài gần nhất.`;
 }
 
 // ─── Criterion trends ───────────────────────────────────────────────
@@ -302,7 +300,7 @@ export function criterionAction(skill: GradedSkill, key: CriterionKey, topError?
 /**
  * The one thing to do next; the first rule that applies wins:
  * 1. nothing done yet → Listening diagnostic;
- * 2. a skill never tried → try it (Listening, Writing, Speaking);
+ * 2. a skill never tried → try it (Listening, Reading, Writing, Speaking);
  * 3. exam within two weeks → timed mock of the weakest skill;
  * 4. a Writing/Speaking criterion clearly below its skill band, or the lowest one going down → its lesson;
  * 5. a weekly goal still open → practise that skill (largest share left first, then the weakest);

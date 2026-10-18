@@ -190,3 +190,130 @@ export function validateReadingTest(test: ReadingTest): string[] {
   }
   return problems;
 }
+
+// --- Sessions ------------------------------------------------------------------
+
+/** Exam: one 60-minute clock, checked at the end. Practice: a clock per passage and a check per group. */
+export type ReadingMode = 'exam' | 'practice';
+
+/** The passages picked from a test, or all of them when none are. */
+export function sessionPassages(test: ReadingTest, passageIds: readonly string[]): ReadingPassage[] {
+  const picked = test.passages.filter((p) => passageIds.includes(p.id));
+  return picked.length ? picked : test.passages;
+}
+
+/** Labels for saving an attempt: the full test, or one passage of it. */
+export function readingAttemptLabels(test: ReadingTest, passages: readonly ReadingPassage[]) {
+  const whole = passages.length === test.passages.length;
+  return {
+    title: test.title,
+    topic: whole || test.kind === 'practice' ? '' : passages.map((p) => p.title).join(', '),
+    taskOrPart: whole && test.kind === 'full' ? 'full_test' : `passage_${passages[0].part}`,
+  };
+}
+
+/** Seconds a passage is meant to take, from its suggested minutes. */
+export const passageBudget = (passage: Pick<ReadingPassage, 'suggestedMinutes'>) => passage.suggestedMinutes * 60;
+
+/** Seconds spent past the suggested time; 0 when on time. */
+export function overTime(seconds: number, passage: Pick<ReadingPassage, 'suggestedMinutes'>): number {
+  return Math.max(0, Math.round(seconds - passageBudget(passage)));
+}
+
+/**
+ * Question numbers that hold an answer. A choose-two group stores its letters
+ * on the first question, so each chosen letter counts for one question.
+ */
+export function answeredNumbers(passages: readonly ReadingPassage[], answers: ReadingAnswers): Set<number> {
+  const out = new Set<number>();
+  for (const g of passages.flatMap((p) => p.groups)) {
+    if (g.type === 'mcq_multi') {
+      const chosen = (answers[g.questions[0].number] ?? '').split(',').filter(Boolean).length;
+      g.questions.slice(0, chosen).forEach((q) => out.add(q.number));
+    } else for (const q of g.questions) if ((answers[q.number] ?? '').trim()) out.add(q.number);
+  }
+  return out;
+}
+
+// --- Review text -------------------------------------------------------------
+
+/** The line a blank sits in (other blanks as "…"), the paragraph for headings, or the question text. */
+export function readingQuestionContext(group: ReadingGroup, q: ReadingQuestion): string {
+  if (group.type === 'mcq_multi') return group.prompt;
+  if (group.type === 'headings') return `Đoạn ${q.paragraph}`;
+  if (group.type !== 'completion' && group.type !== 'diagram') return q.prompt ?? '';
+  const tag = `{{${q.number}}}`;
+  const lines =
+    group.type === 'diagram'
+      ? group.diagram.shapes.map((s) => (s.text ?? '').replace(/\n/g, ' '))
+      : [...(group.lines ?? []), ...(group.table?.rows.map((r) => r.join(' · ')) ?? [])];
+  const line = lines.find((l) => l.includes(tag)) ?? '';
+  return line.replace(tag, '_____').replace(/\{\{\d+\}\}/g, '…');
+}
+
+/** "B. owned by one family." for a letter, "iv. Heading" for a heading, "Đoạn C"; the text otherwise. */
+export function readingAnswerLabel(group: ReadingGroup, q: ReadingQuestion, value: string): string {
+  if (!value) return '';
+  if (group.type === 'matching' && group.target === 'paragraph') return `Đoạn ${letter(value)}`;
+  const options =
+    group.type === 'mcq'
+      ? q.options
+      : group.type === 'matching' || group.type === 'mcq_multi'
+        ? group.options
+        : group.type === 'headings'
+          ? group.headings
+          : group.type === 'completion'
+            ? group.wordBox
+            : undefined;
+  if (!options?.length) return value;
+  return value
+    .split(',')
+    .map((k) => {
+      const key = k.trim();
+      const option = options.find((o) => o.key.toLowerCase() === key.toLowerCase());
+      return option ? `${option.key}. ${option.text}` : key;
+    })
+    .join('; ');
+}
+
+// --- Highlights ----------------------------------------------------------------
+
+/** Character ranges [start, end) the learner marked in one paragraph, sorted and apart. */
+export type HighlightRange = readonly [number, number];
+
+/** Adds a range, merging it with any it touches or overlaps. */
+export function addRange(ranges: readonly HighlightRange[], range: HighlightRange): HighlightRange[] {
+  let [start, end] = range[0] <= range[1] ? range : [range[1], range[0]];
+  if (start === end) return [...ranges];
+  const out: HighlightRange[] = [];
+  for (const r of ranges) {
+    if (r[1] < start || r[0] > end) out.push(r);
+    else {
+      start = Math.min(start, r[0]);
+      end = Math.max(end, r[1]);
+    }
+  }
+  out.push([start, end]);
+  return out.sort((a, b) => a[0] - b[0]);
+}
+
+/** Removes the range that holds `offset`. */
+export function removeRangeAt(ranges: readonly HighlightRange[], offset: number): HighlightRange[] {
+  return ranges.filter((r) => offset < r[0] || offset >= r[1]);
+}
+
+/** The paragraph text cut into marked and plain pieces, each with its start offset. */
+export function highlightSegments(text: string, ranges: readonly HighlightRange[]): { text: string; start: number; marked: boolean }[] {
+  const out: { text: string; start: number; marked: boolean }[] = [];
+  let at = 0;
+  for (const [s, e] of ranges) {
+    const start = Math.max(at, Math.min(s, text.length));
+    const end = Math.min(e, text.length);
+    if (end <= start) continue;
+    if (start > at) out.push({ text: text.slice(at, start), start: at, marked: false });
+    out.push({ text: text.slice(start, end), start, marked: true });
+    at = end;
+  }
+  if (at < text.length) out.push({ text: text.slice(at), start: at, marked: false });
+  return out;
+}

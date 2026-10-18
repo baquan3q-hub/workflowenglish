@@ -174,20 +174,41 @@ export function isListeningDetails(d: unknown): d is ListeningAttemptDetails {
   return !!o && typeof o.testId === 'string' && Array.isArray(o.sectionIds) && !!o.answers && typeof o.answers === 'object';
 }
 
-/**
- * Save a Listening attempt (graded on the device, no AI feedback). Needs
- * migration 009 for the 'listening' skill and the `details` column.
- */
-export async function saveListeningAttempt(input: {
+/** What a Reading attempt keeps in `details`: enough to grade it again and show time per passage. */
+export interface ReadingAttemptDetails {
+  testId: string;
+  passageIds: string[];
+  mode: 'exam' | 'practice';
+  answers: Record<number, string>;
+  score: number;
+  total: number;
+  /** Seconds spent on each passage, by passage id. */
+  seconds: Record<string, number>;
+}
+
+export function isReadingDetails(d: unknown): d is ReadingAttemptDetails {
+  const o = d as Partial<ReadingAttemptDetails> | null | undefined;
+  return !!o && typeof o.testId === 'string' && Array.isArray(o.passageIds) && !!o.answers && typeof o.answers === 'object';
+}
+
+interface GradedAttemptInput<D extends { mode: string }> {
   userId: string;
   title: string;
   topic: string;
   taskOrPart: string;
   band: number;
   durationSeconds?: number;
+  /** Score per part or passage, as criterion scores. */
   byPart: Record<string, number>;
-  details: ListeningAttemptDetails;
-}): Promise<IeltsAttempt | null> {
+  details: D;
+}
+
+/** Insert an attempt graded on the device (no AI feedback): Listening or Reading. */
+async function saveGradedAttempt<D extends { mode: string }>(
+  skill: 'listening' | 'reading',
+  migration: string,
+  input: GradedAttemptInput<D>,
+): Promise<IeltsAttempt | null> {
   try {
     const { count } = await withTimeout(Promise.resolve(supabase
       .from(TABLE)
@@ -199,7 +220,7 @@ export async function saveListeningAttempt(input: {
       .from(TABLE)
       .insert({
         user_id: input.userId,
-        skill: 'listening',
+        skill,
         task_or_part: input.taskOrPart,
         question_type: input.details.mode,
         topic: input.topic,
@@ -217,14 +238,24 @@ export async function saveListeningAttempt(input: {
       .single()));
 
     if (error) {
-      console.warn('[IELTS Attempts] listening save failed (could be missing migration 009):', error);
+      console.warn(`[IELTS Attempts] ${skill} save failed (could be missing migration ${migration}):`, error);
       return null;
     }
     return rowToAttempt(data as IeltsAttemptRow);
   } catch (err) {
-    console.error('[IELTS Attempts] listening save failed:', err);
+    console.error(`[IELTS Attempts] ${skill} save failed:`, err);
     return null;
   }
+}
+
+/** Save a Listening attempt. Needs migration 009 for the 'listening' skill and the `details` column. */
+export function saveListeningAttempt(input: GradedAttemptInput<ListeningAttemptDetails>): Promise<IeltsAttempt | null> {
+  return saveGradedAttempt('listening', '009', input);
+}
+
+/** Save a Reading attempt; `byPart` holds "Passage N" scores. Needs migration 012 for the 'reading' skill. */
+export function saveReadingAttempt(input: GradedAttemptInput<ReadingAttemptDetails>): Promise<IeltsAttempt | null> {
+  return saveGradedAttempt('reading', '012', input);
 }
 
 /**

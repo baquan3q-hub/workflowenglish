@@ -73,8 +73,7 @@ interface SkillDef {
 
 const SKILLS: readonly SkillDef[] = [
   { skill: 'listening', title: 'Listening', hint: '4 part, 40 câu, chấm tự động', icon: Headphones, phase: AppPhase.IELTS_LISTENING_HUB },
-  // No phase until the practice screen ships (R3): the card says "Sắp ra mắt".
-  { skill: 'reading', title: 'Reading', hint: '3 passage, 40 câu, Academic', icon: BookOpenText },
+  { skill: 'reading', title: 'Reading', hint: '3 passage, 40 câu, Academic', icon: BookOpenText, phase: AppPhase.IELTS_READING_HUB },
   { skill: 'writing', title: 'Writing', hint: 'Task 1, Task 2, AI chấm 4 tiêu chí', icon: PenTool, phase: AppPhase.IELTS_WRITING_HUB },
   { skill: 'speaking', title: 'Speaking', hint: 'Part 1, 2, 3 và thi thử', icon: Mic, phase: AppPhase.IELTS_SPEAKING_HUB },
 ];

@@ -142,9 +142,9 @@ const S = (fc: number, lr: number, gra: number, pr: number, at: string) =>
   scored('speaking', { 'Fluency and Coherence': fc, 'Lexical Resource': lr, 'Grammatical Range and Accuracy': gra, Pronunciation: pr }, at);
 
 describe('overallNote', () => {
-  it('says how many skills and that Reading is missing', () => {
-    expect(overallNote(3)).toBe('Ước tính từ 3 kỹ năng (chưa có Reading), mỗi kỹ năng lấy 3 bài gần nhất.');
-    expect(overallNote(2)).toContain('từ 2/3 kỹ năng đã luyện (chưa có Reading)');
+  it('says how many skills the band comes from', () => {
+    expect(overallNote(4)).toBe('Ước tính từ 4 kỹ năng, mỗi kỹ năng lấy 3 bài gần nhất.');
+    expect(overallNote(2)).toContain('từ 2/4 kỹ năng đã luyện,');
     expect(overallNote(0)).toContain('để có band ước tính');
   });
 });
@@ -220,10 +220,12 @@ describe('weekly goals', () => {
       attempt('speaking', 6, iso(16)),
       attempt('speaking', 6, iso(17)),
       full,
+      { ...attempt('reading', 6, iso(16)), criterionScores: { 'Passage 2': 9 } },
       { ...attempt('writing', 6, iso(14)), createdAt: undefined },
     ];
     expect(weeklyProgress(list, now)).toEqual([
       { skill: 'listening', goal: 1, done: 4, remaining: 0 },
+      { skill: 'reading', goal: 2, done: 1, remaining: 1 },
       { skill: 'writing', goal: 2, done: 1, remaining: 1 },
       { skill: 'speaking', goal: 3, done: 4, remaining: 0 },
     ]);
@@ -235,8 +237,8 @@ describe('weekly goals', () => {
     expect(['listening', 'reading', 'writing', 'speaking'].map((s) => goalUnit(s as never))).toEqual(['part', 'passage', 'bài', 'bài']);
   });
 
-  it('leaves Reading out until it can be practised', () => {
-    expect(PRACTISED_SKILLS).not.toContain('reading');
+  it('counts all four skills', () => {
+    expect(PRACTISED_SKILLS).toEqual(['listening', 'reading', 'writing', 'speaking']);
   });
 });
 
@@ -251,23 +253,26 @@ describe('nextAction', () => {
       weekly: weeklyProgress(list, now),
       ...extra,
     });
+  /** One Reading passage, so Reading counts as tried. */
+  const R = (at: string, band = 6) => ({ ...attempt('reading', band, at), criterionScores: { 'Passage 1': 9 } });
 
   it('starts with a Listening diagnostic, then the untried skill', () => {
     expect(run([])).toMatchObject({ rule: 'start', target: { kind: 'phase', phase: AppPhase.IELTS_LISTENING_HUB } });
-    const a = run([attempt('listening', 6, iso(16)), attempt('speaking', 6, iso(15))]);
+    expect(run([attempt('listening', 6, iso(16))])).toMatchObject({ rule: 'untried', skill: 'reading', target: { phase: AppPhase.IELTS_READING_HUB } });
+    const a = run([attempt('listening', 6, iso(16)), R(iso(16)), attempt('speaking', 6, iso(15))]);
     expect(a).toMatchObject({ rule: 'untried', skill: 'writing', target: { phase: AppPhase.IELTS_WRITING_HUB } });
     expect(a.title).toBe('Làm bài Writing đầu tiên');
   });
 
   it('puts a timed mock of the weakest skill first close to the exam', () => {
-    const list = [attempt('listening', 5, iso(16)), W(6, 6, 6, 6, iso(15)), S(6, 6, 6, 6, iso(15))];
+    const list = [attempt('listening', 5, iso(16)), R(iso(16)), W(6, 6, 6, 6, iso(15)), S(6, 6, 6, 6, iso(15))];
     expect(run(list, { daysToExam: 10 })).toMatchObject({ rule: 'exam_soon', skill: 'listening' });
     expect(run(list, { daysToExam: 30 }).rule).not.toBe('exam_soon');
     expect(run(list, { daysToExam: -2 }).rule).not.toBe('exam_soon');
   });
 
   it('sends a clearly weak criterion to its lesson', () => {
-    const list = [attempt('listening', 7, iso(16)), W(6.5, 6.5, 6.5, 5, iso(15)), S(7, 7, 7, 7, iso(14))];
+    const list = [attempt('listening', 7, iso(16)), R(iso(16)), W(6.5, 6.5, 6.5, 5, iso(15)), S(7, 7, 7, 7, iso(14))];
     const a = run(list);
     expect(a).toMatchObject({ rule: 'weak_criterion', skill: 'writing', target: { kind: 'lesson' } });
     expect(a.reason).toContain('Ngữ pháp (5.0) đang thấp hơn band Writing 6.0');
@@ -279,13 +284,14 @@ describe('nextAction', () => {
   });
 
   it('checks the weaker of Writing and Speaking first', () => {
-    const list = [attempt('listening', 7, iso(16)), W(7, 7, 7, 6, iso(15)), S(5.5, 5.5, 5.5, 4.5, iso(14))];
+    const list = [attempt('listening', 7, iso(16)), R(iso(16)), W(7, 7, 7, 6, iso(15)), S(5.5, 5.5, 5.5, 4.5, iso(14))];
     expect(run(list)).toMatchObject({ skill: 'speaking', target: { kind: 'speakingStudy', tab: 'pronunciation' } });
   });
 
   it('flags the lowest criterion when it is going down', () => {
     const list = [
       attempt('listening', 7, iso(17)),
+      R(iso(17)),
       ...[16, 15, 14].map((d) => S(6, 6, 6, 6, iso(d))),
       ...[13, 12, 11].map((d) => S(7, 6, 6, 6, iso(d))),
       W(6, 6, 6, 6, iso(10)),
@@ -296,8 +302,8 @@ describe('nextAction', () => {
   });
 
   it('then the weekly goal with the largest share left', () => {
-    const a = run([attempt('listening', 6, iso(13)), W(6, 6, 6, 6, iso(14)), S(6, 6, 6, 6, iso(15))]);
-    // Listening 1 of 1 done; Writing 1 of 2 left (50%); Speaking 2 of 3 left (67%).
+    const a = run([attempt('listening', 6, iso(13)), R(iso(13)), W(6, 6, 6, 6, iso(14)), S(6, 6, 6, 6, iso(15))]);
+    // Listening 1 of 1 done; Reading and Writing 1 of 2 left (50%); Speaking 2 of 3 left (67%).
     expect(a).toMatchObject({ rule: 'weekly', skill: 'speaking', title: 'Luyện Speaking: còn 2 bài tuần này' });
   });
 
@@ -309,6 +315,7 @@ describe('nextAction', () => {
       S(6.5, 6.5, 6.5, 6.5, iso(15)),
       W(6.5, 6.5, 6.5, 6.5, iso(15)),
       { ...attempt('listening', 6, iso(13)), criterionScores: { 'Part 1': 7 } },
+      { ...R(iso(14), 7), criterionScores: { 'Passage 1': 9, 'Passage 2': 8 } },
     ];
     expect(run(list)).toMatchObject({ rule: 'mock', skill: 'listening', target: { phase: AppPhase.IELTS_LISTENING_HUB } });
   });
