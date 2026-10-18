@@ -7,6 +7,8 @@ import { isReadingDetails } from '../services/ieltsAttemptService';
 import { GROUP_KINDS } from '../components/ielts/questions/parts';
 import { readingGroupKind } from '../components/ielts/questions/questionLogic';
 import IeltsAttemptHistory from '../components/IeltsAttemptHistory';
+import DrillSection from '../components/ielts/reading/DrillSection';
+import type { ReadingKind } from '../data/ielts/readingLessons';
 import { Segmented } from '../components/ui/Segmented';
 import { IconTile } from '../components/ui/IconTile';
 import { ghostBtn, panel, primaryBtn, secondaryBtn, tag } from '../components/ui/styles';
@@ -15,6 +17,9 @@ interface Props {
   userId: string;
   onStart: (testId: string, passageIds: string[], mode: ReadingMode) => void;
   onOpenAttempt: (attempt: IeltsAttempt) => void;
+  onOpenLesson: (lessonId: string) => void;
+  /** Open "Luyện theo dạng" on this kind. */
+  drillKind?: ReadingKind;
   onBack: () => void;
 }
 
@@ -36,7 +41,7 @@ function readMode(): ReadingMode {
 
 const questionKinds = (test: ReadingTest) => [...new Set(test.passages.flatMap((p) => p.groups.map((g) => GROUP_KINDS[readingGroupKind(g)].label)))];
 
-export default function IeltsReadingHub({ userId, onStart, onOpenAttempt, onBack }: Props) {
+export default function IeltsReadingHub({ userId, onStart, onOpenAttempt, onOpenLesson, drillKind, onBack }: Props) {
   const [mode, setModeState] = useState<ReadingMode>(readMode);
   const setMode = (m: ReadingMode) => {
     setModeState(m);
@@ -155,6 +160,8 @@ export default function IeltsReadingHub({ userId, onStart, onOpenAttempt, onBack
           })}
         </ul>
       </section>
+
+      <DrillSection userId={userId} initialKind={drillKind} onStart={(id) => onStart(id, [], 'practice')} onOpenLesson={onOpenLesson} />
 
       <p className="flex items-start gap-2 text-caption text-slate-600 dark:text-slate-400">
         <Info className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-tone-sky-fg" aria-hidden />

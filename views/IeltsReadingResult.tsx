@@ -5,7 +5,7 @@
  * (blush) in the passage beside the list, or under the card on small screens.
  */
 import React, { useMemo, useState } from 'react';
-import { ArrowLeft, Check, Clock, Quote, RotateCcw, ScanSearch, Target, TriangleAlert, X } from 'lucide-react';
+import { ArrowLeft, BookOpen, Check, Clock, Dumbbell, Quote, RotateCcw, ScanSearch, Target, TriangleAlert, X } from 'lucide-react';
 import type { ReadingAnswers, ReadingGroup, ReadingPassage, ReadingTest } from '../data/ielts/reading';
 import {
   errorBreakdown,
@@ -35,6 +35,7 @@ import { Segmented } from '../components/ui/Segmented';
 import { toneClasses } from '../components/ui/palette';
 import { ghostBtn, panel, primaryBtn, secondaryBtn } from '../components/ui/styles';
 import { clock, READING_STATUS_TONE } from '../components/ielts/reading/readingStatus';
+import { READING_KIND_LESSON, type ReadingKind } from '../data/ielts/readingLessons';
 
 interface Props {
   test: ReadingTest;
@@ -44,6 +45,10 @@ interface Props {
   /** Seconds spent per passage id. */
   seconds: Record<string, number>;
   onRetry: () => void;
+  /** A "Luyện theo dạng" drill: no band, since it is a few questions of one type. */
+  drill?: boolean;
+  onOpenLesson?: (lessonId: string) => void;
+  onDrill?: (kind: ReadingKind) => void;
   onBack: () => void;
 }
 
@@ -223,7 +228,7 @@ function ResultCard({ r, group, passage, selected, onSelect }: CardProps) {
   );
 }
 
-export default function IeltsReadingResult({ test, passageIds, mode, answers, seconds, onRetry, onBack }: Props) {
+export default function IeltsReadingResult({ test, passageIds, mode, answers, seconds, onRetry, onBack, drill, onOpenLesson, onDrill }: Props) {
   const passages = useMemo(() => sessionPassages(test, passageIds), [test, passageIds]);
   const score = useMemo(() => scorePassages(passages, answers), [passages, answers]);
   const groups = useMemo(() => new Map(passages.flatMap((p) => p.groups.map((g) => [g.id, g] as const))), [passages]);
@@ -258,17 +263,19 @@ export default function IeltsReadingResult({ test, passageIds, mode, answers, se
       </button>
 
       <header>
-        <p className="text-caption font-medium text-slate-600 dark:text-slate-400">Kết quả · {mode === 'exam' ? 'Thi thử' : 'Luyện tập'}</p>
+        <p className="text-caption font-medium text-slate-600 dark:text-slate-400">Kết quả · {drill ? 'Luyện theo dạng' : mode === 'exam' ? 'Thi thử' : 'Luyện tập'}</p>
         <h1 className="mt-1 text-heading font-bold text-slate-900 dark:text-white">{title}</h1>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
         <section className={`${panel} p-4 sm:p-5`} aria-label="Điểm">
           <div className="flex flex-wrap items-end gap-6">
-            <div>
-              <p className="text-caption font-medium text-slate-600 dark:text-slate-400">{score.estimated ? 'Band ước lượng' : 'Band'}</p>
-              <p className="text-4xl font-bold tabular-nums text-tone-mint-fg">{score.band.toFixed(1)}</p>
-            </div>
+            {!drill && (
+              <div>
+                <p className="text-caption font-medium text-slate-600 dark:text-slate-400">{score.estimated ? 'Band ước lượng' : 'Band'}</p>
+                <p className="text-4xl font-bold tabular-nums text-tone-mint-fg">{score.band.toFixed(1)}</p>
+              </div>
+            )}
             <div>
               <p className="text-caption font-medium text-slate-600 dark:text-slate-400">Số câu đúng</p>
               <p className="text-2xl font-bold tabular-nums text-slate-900 dark:text-white">
@@ -282,9 +289,11 @@ export default function IeltsReadingResult({ test, passageIds, mode, answers, se
             </div>
           </div>
           <p className="mt-2 text-caption text-slate-600 dark:text-slate-400">
-            {score.estimated
-              ? `Band ước lượng: quy từ ${score.total} câu sang thang 40 câu. Làm cả đề để có band chính xác hơn.`
-              : 'Quy đổi theo bảng điểm Academic Reading 40 câu.'}
+            {drill
+              ? 'Bài luyện theo dạng không tính band và không lưu vào lịch sử, chỉ dùng để xếp thứ tự lần luyện sau.'
+              : score.estimated
+                ? `Band ước lượng: quy từ ${score.total} câu sang thang 40 câu. Làm cả đề để có band chính xác hơn.`
+                : 'Quy đổi theo bảng điểm Academic Reading 40 câu.'}
           </p>
 
           <ul className="mt-4 space-y-3">
@@ -342,8 +351,22 @@ export default function IeltsReadingResult({ test, passageIds, mode, answers, se
               {weakest && (
                 <li className="flex gap-2">
                   <Target className="mt-0.5 h-4 w-4 flex-shrink-0 text-tone-butter-fg" aria-hidden />
-                  <span>
+                  <span className="min-w-0 flex-1">
                     Nên luyện thêm: <span className="font-semibold">{GROUP_KINDS[weakest.key].label}</span>
+                    {weakest.key !== 'map' && (onOpenLesson || onDrill) && (
+                      <span className="mt-1 flex flex-wrap gap-x-1">
+                        {onOpenLesson && (
+                          <button type="button" onClick={() => onOpenLesson(READING_KIND_LESSON[weakest.key as ReadingKind])} className={`${ghostBtn} -ml-3`}>
+                            <BookOpen className="h-4 w-4 text-tone-lavender-fg" aria-hidden /> Bài học
+                          </button>
+                        )}
+                        {onDrill && (
+                          <button type="button" onClick={() => onDrill(weakest.key as ReadingKind)} className={ghostBtn}>
+                            <Dumbbell className="h-4 w-4 text-tone-peach-fg" aria-hidden /> Luyện dạng này
+                          </button>
+                        )}
+                      </span>
+                    )}
                   </span>
                 </li>
               )}

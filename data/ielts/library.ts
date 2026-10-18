@@ -13,6 +13,8 @@ import { WRITING_GUIDES, type WritingGuide } from './writingGuides';
 import { ERROR_CATEGORIES } from './errorCategories';
 import { PRONUNCIATION_ITEMS, type PronunciationItem } from './pronunciation';
 import { OREO_STEPS, PART3_PHRASES, PART3_THEMES, STORY_BANKS } from './speakingTopics';
+import { READING_LESSONS } from './readingLessons';
+import { AWL_LESSONS } from './awlLessons';
 
 export type LibrarySkill = 'general' | IeltsSkill;
 
@@ -22,6 +24,26 @@ export interface LibrarySection {
   bullets?: string[];
   /** Shown as a pre-formatted example block. */
   example?: string;
+  /** Worked example: the learner answers, then sees why. */
+  quiz?: LessonQuiz[];
+  /** Vocabulary list that can go into SRS review. */
+  words?: LessonWord[];
+}
+
+export interface LessonQuiz {
+  /** The bit of passage the question is about. */
+  passage?: string;
+  question: string;
+  options: string[];
+  /** Index into `options`. */
+  answer: number;
+  explanationVi: string;
+}
+
+export interface LessonWord {
+  word: string;
+  meaningVi: string;
+  example: string;
 }
 
 export interface LibraryLesson {
@@ -416,97 +438,6 @@ const WRITTEN_LESSONS: LibraryLesson[] = [
     ],
   },
   {
-    id: 'rd_tfng',
-    skill: 'reading',
-    title: 'TRUE / FALSE / NOT GIVEN và YES / NO / NOT GIVEN',
-    summary: 'Phân biệt "bài nói ngược lại" với "bài không nói tới", dạng người Việt mất điểm nhiều nhất.',
-    minutes: 5,
-    tags: ['tfng', 'ynng', 'not given', 'false', 'paraphrase'],
-    sections: [
-      {
-        heading: 'Ba câu hỏi để chọn',
-        bullets: [
-          'Bài nói cùng ý với câu đề, dù dùng từ khác: TRUE (YES).',
-          'Bài nói một điều không thể cùng đúng với câu đề: FALSE (NO).',
-          'Bài nhắc tới chủ đề nhưng không cho biết điều câu đề khẳng định: NOT GIVEN.',
-        ],
-      },
-      {
-        heading: 'Bẫy hay gặp',
-        bullets: [
-          'Từ chỉ mức độ: all, always, only, the first, most. Bài nói "some" mà đề nói "all" là FALSE.',
-          'So sánh và nguyên nhân: đề thêm "because" hay "more than" mà bài không nêu thì là NOT GIVEN.',
-          'Đừng dùng hiểu biết của bạn. Chỉ xét điều bài đọc viết.',
-        ],
-        example: 'Bài: "Some farmers kept bees in clay hives."\nĐề: "All early farmers kept bees."  →  FALSE\nĐề: "Clay hives produced more honey."  →  NOT GIVEN',
-      },
-      {
-        heading: 'Thứ tự',
-        text: ['Câu hỏi đi theo thứ tự của bài. Nếu tìm thấy câu trước và câu sau mà không thấy câu giữa, nhiều khả năng câu giữa là NOT GIVEN.'],
-      },
-      {
-        heading: 'YES / NO / NOT GIVEN',
-        text: ['Cách làm giống hệt, nhưng xét ý kiến hoặc nhận định của tác giả thay vì thông tin. Tìm các động từ như argue, claim, suggest, believe.'],
-      },
-    ],
-  },
-  {
-    id: 'rd_headings',
-    skill: 'reading',
-    title: 'Matching headings',
-    summary: 'Chọn heading theo ý chính của cả đoạn, không theo từ khoá trùng.',
-    minutes: 4,
-    tags: ['headings', 'main idea', 'skim', 'ý chính'],
-    sections: [
-      {
-        heading: 'Các bước',
-        bullets: [
-          'Đọc lướt câu đầu và câu cuối đoạn để nắm ý chính, rồi mới nhìn danh sách heading.',
-          'Tóm ý đoạn bằng vài từ của bạn, sau đó chọn heading gần nhất với tóm tắt đó.',
-          'Làm đoạn dễ trước, gạch heading đã dùng để danh sách ngắn dần.',
-        ],
-      },
-      {
-        heading: 'Bẫy từ khoá',
-        text: [
-          'Heading bẫy thường lặp lại một từ có trong đoạn nhưng chỉ nói về một chi tiết. Heading đúng bao được cả đoạn, kể cả khi không có từ nào trùng.',
-        ],
-        example: 'Đoạn kể nhiều nguyên nhân khiến đàn ong giảm.\nBẫy: "The cost of honey" (đoạn có nhắc giá mật một lần)\nĐúng: "A threatened future"',
-      },
-      {
-        heading: 'Thứ tự',
-        text: ['Heading không đi theo thứ tự đoạn, và số heading luôn nhiều hơn số đoạn.'],
-      },
-    ],
-  },
-  {
-    id: 'rd_completion',
-    skill: 'reading',
-    title: 'Điền từ: sentence, summary, note, table',
-    summary: 'Chép đúng từ trong bài, giữ đúng giới hạn từ và dạng số nhiều.',
-    minutes: 4,
-    tags: ['completion', 'summary', 'giới hạn từ', 'chính tả', 'số nhiều'],
-    sections: [
-      {
-        heading: 'Trước khi tìm',
-        bullets: [
-          'Đọc kỹ giới hạn: "NO MORE THAN TWO WORDS" nghĩa là 1 hoặc 2 từ; "AND/OR A NUMBER" cho thêm một con số.',
-          'Đoán loại từ cho chỗ trống: danh từ, động từ, tính từ hay con số.',
-          'Câu hỏi đi theo thứ tự của bài, trừ summary có hộp từ có thể lấy ý từ nhiều đoạn.',
-        ],
-      },
-      {
-        heading: 'Khi chép',
-        bullets: [
-          'Chép nguyên văn từ trong bài, đúng chính tả và đúng dạng số ít hoặc số nhiều.',
-          'Bỏ mạo từ và từ thừa nếu vượt giới hạn: "the clay hives" (3 từ) thành "clay hives".',
-          'Đọc lại cả câu sau khi điền để chắc câu đúng ngữ pháp.',
-        ],
-        example: 'Đề: "Early hives were made of ____." (ONE WORD)\nBài: "kept hives made of clay"\nĐáp án: clay',
-      },
-    ],
-  },
-  {
     id: 'wr_task1_overview',
     skill: 'writing',
     title: 'Viết overview cho Task 1',
@@ -717,7 +648,8 @@ function part3DiscussionLesson(): LibraryLesson {
 export const LIBRARY_LESSONS: readonly LibraryLesson[] = [
   ...WRITTEN_LESSONS.filter((l) => l.skill === 'general'),
   ...WRITTEN_LESSONS.filter((l) => l.skill === 'listening'),
-  ...WRITTEN_LESSONS.filter((l) => l.skill === 'reading'),
+  ...READING_LESSONS,
+  ...AWL_LESSONS,
   descriptorLesson('writing'),
   ...WRITTEN_LESSONS.filter((l) => l.skill === 'writing'),
   ...WRITING_GUIDES.map(guideLesson),

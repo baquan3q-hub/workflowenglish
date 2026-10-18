@@ -49,6 +49,8 @@ import IeltsReadingPractice from './views/IeltsReadingPractice';
 import IeltsReadingResult from './views/IeltsReadingResult';
 import { getReadingTest, type ReadingAnswers } from './data/ielts/reading';
 import { readingAttemptLabels, scorePassages, sessionPassages as readingSessionPassages, type ReadingMode } from './services/readingLogic';
+import { appendDrillLog, groupRecords, isDrillTestId, parseDrillTestId, resolveReadingTest } from './services/readingDrill';
+import type { ReadingKind } from './data/ielts/readingLessons';
 import { gradeWritingTask } from './services/ieltsWritingService';
 import { gradeSpeakingAnswer } from './services/ieltsSpeakingService';
 import { fluencySummaryForGrader, isFluencyMetrics, type FluencyMetrics } from './services/fluencyLogic';
@@ -76,6 +78,13 @@ interface AppUser {
   username: string;
   displayName: string;
 }
+
+/** Back button of the IELTS Library, by the screen it was opened from. */
+const LIBRARY_BACK_LABELS: Partial<Record<AppPhase, string>> = {
+  [AppPhase.IELTS_ERROR_LOG]: 'Sổ lỗi',
+  [AppPhase.IELTS_READING_HUB]: 'Reading',
+  [AppPhase.IELTS_READING_RESULT]: 'Kết quả',
+};
 
 function appUserFromAuthUser(user: any): AppUser {
   const emailName = typeof user?.email === 'string' ? user.email.split('@')[0] : '';
@@ -168,6 +177,8 @@ function App() {
   /** Lesson to open in Thư viện IELTS; undefined shows the list. */
   const [ieltsLibraryLessonId, setIeltsLibraryLessonId] = useState<string | undefined>(undefined);
   const [ieltsLibraryReturn, setIeltsLibraryReturn] = useState<AppPhase>(AppPhase.IELTS_HOME);
+  /** Question type "Luyện theo dạng" opens on when the Reading hub is reached from a lesson or a result. */
+  const [ieltsReadingDrillKind, setIeltsReadingDrillKind] = useState<ReadingKind | undefined>(undefined);
   const [ieltsWritingStudyTab, setIeltsWritingStudyTab] = useState<WritingStudyTab>('guides');
   const [ieltsSpeakingStudyTab, setIeltsSpeakingStudyTab] = useState<SpeakingStudyTab>('part1');
   /** Listening session: which test and parts, and the answers once submitted. `run` restarts the sheet on retry. */
@@ -193,6 +204,12 @@ function App() {
   const [ieltsAdminEditing, setIeltsAdminEditing] = useState<AdminEditing | null>(null);
   // Where the admin page was opened from, for its back button.
   const [ieltsAdminFrom, setIeltsAdminFrom] = useState<AppPhase>(AppPhase.IELTS_HOME);
+
+  // The drill kind is for the one hub visit it was set for; the hub is also
+  // reached from IELTS Home and suggestions, which should open it plainly.
+  useEffect(() => {
+    if (phase !== AppPhase.IELTS_READING_HUB) setIeltsReadingDrillKind(undefined);
+  }, [phase]);
 
   // Synchronous mirror of currentRecordId so queued saves always update the
   // row created by an earlier save instead of inserting a duplicate.
@@ -990,6 +1007,11 @@ function App() {
     });
   };
 
+  const openIeltsReadingHub = (drillKind?: ReadingKind) => {
+    setIeltsReadingDrillKind(drillKind);
+    setPhase(AppPhase.IELTS_READING_HUB);
+  };
+
   const startIeltsReading = (testId: string, passageIds: string[], mode: ReadingMode) => {
     setIeltsReading(prev => ({ testId, passageIds, mode, answers: {}, seconds: {}, run: (prev?.run ?? 0) + 1 }));
     setPhase(AppPhase.IELTS_READING_PRACTICE);
@@ -997,12 +1019,18 @@ function App() {
 
   const submitIeltsReading = (answers: ReadingAnswers, seconds: Record<string, number>) => {
     const session = ieltsReading;
-    const test = session && getReadingTest(session.testId);
+    const test = session && resolveReadingTest(session.testId, getReadingTest);
     if (!session || !test) return;
     setIeltsReading({ ...session, answers, seconds });
     setPhase(AppPhase.IELTS_READING_RESULT);
-    if (!currentUser) return;
     const passages = readingSessionPassages(test, session.passageIds);
+    // Drills only order the next drills; they are not attempts.
+    const drill = parseDrillTestId(test.id);
+    if (drill) {
+      appendDrillLog(currentUser?.id ?? '', groupRecords(drill.testId, passages, answers, new Date().toISOString()));
+      return;
+    }
+    if (!currentUser) return;
     const score = scorePassages(passages, answers);
     void saveReadingAttempt({
       userId: currentUser.id,
@@ -1019,7 +1047,7 @@ function App() {
   const openIeltsAttempt = (attempt: IeltsAttempt) => {
     if (attempt.skill === 'reading') {
       const d = attempt.details;
-      if (!isReadingDetails(d) || !getReadingTest(d.testId)) return;
+      if (!isReadingDetails(d) || !resolveReadingTest(d.testId, getReadingTest)) return;
       setIeltsReading({ testId: d.testId, passageIds: d.passageIds, mode: d.mode, answers: d.answers, seconds: d.seconds, run: 0 });
       setPhase(AppPhase.IELTS_READING_RESULT);
       return;
@@ -1347,7 +1375,9 @@ function App() {
           <IeltsLibrary
             initialLessonId={ieltsLibraryLessonId}
             onBack={() => setPhase(ieltsLibraryReturn)}
-            backLabel={ieltsLibraryReturn === AppPhase.IELTS_ERROR_LOG ? 'Sổ lỗi' : 'IELTS'}
+            backLabel={LIBRARY_BACK_LABELS[ieltsLibraryReturn] ?? 'IELTS'}
+            userId={currentUser?.id}
+            onPractice={openIeltsReadingHub}
           />
         );
 
@@ -1367,12 +1397,14 @@ function App() {
             userId={currentUser?.id ?? ''}
             onStart={startIeltsReading}
             onOpenAttempt={openIeltsAttempt}
+            onOpenLesson={(id) => openIeltsLibrary(id, AppPhase.IELTS_READING_HUB)}
+            drillKind={ieltsReadingDrillKind}
             onBack={() => setPhase(AppPhase.IELTS_HOME)}
           />
         );
 
       case AppPhase.IELTS_READING_PRACTICE: {
-        const test = ieltsReading && getReadingTest(ieltsReading.testId);
+        const test = ieltsReading && resolveReadingTest(ieltsReading.testId, getReadingTest);
         if (!ieltsReading || !test) return null;
         return (
           <IeltsReadingPractice
@@ -1382,13 +1414,13 @@ function App() {
             passageIds={ieltsReading.passageIds}
             mode={ieltsReading.mode}
             onSubmit={submitIeltsReading}
-            onExit={() => setPhase(AppPhase.IELTS_READING_HUB)}
+            onExit={() => openIeltsReadingHub()}
           />
         );
       }
 
       case AppPhase.IELTS_READING_RESULT: {
-        const test = ieltsReading && getReadingTest(ieltsReading.testId);
+        const test = ieltsReading && resolveReadingTest(ieltsReading.testId, getReadingTest);
         if (!ieltsReading || !test) return null;
         return (
           <IeltsReadingResult
@@ -1398,7 +1430,10 @@ function App() {
             answers={ieltsReading.answers}
             seconds={ieltsReading.seconds}
             onRetry={() => startIeltsReading(test.id, ieltsReading.passageIds, ieltsReading.mode)}
-            onBack={() => setPhase(AppPhase.IELTS_READING_HUB)}
+            onBack={() => openIeltsReadingHub()}
+            drill={isDrillTestId(test.id)}
+            onOpenLesson={(id) => openIeltsLibrary(id, AppPhase.IELTS_READING_RESULT)}
+            onDrill={openIeltsReadingHub}
           />
         );
       }

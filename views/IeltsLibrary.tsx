@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, BookOpen, ChevronRight, Clock, Search, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpen, ChevronRight, Clock, Search, X } from 'lucide-react';
 import {
   LIBRARY_LESSONS,
   LIBRARY_SKILL_LABELS,
@@ -10,11 +10,18 @@ import {
 } from '../data/ielts/library';
 import { EmptyState } from '../components/ui/States';
 import LessonSections from '../components/ielts/LessonSections';
+import { kindsForLesson, type ReadingKind } from '../data/ielts/readingLessons';
+import { GROUP_KINDS } from '../components/ielts/questions/parts';
+import { secondaryBtn } from '../components/ui/styles';
 
 interface Props {
   initialLessonId?: string;
   onBack: () => void;
   backLabel?: string;
+  /** Signed-in user, for adding a lesson's words to review. */
+  userId?: string;
+  /** Open Reading practice of one question type. */
+  onPractice?: (kind: ReadingKind) => void;
 }
 
 const ghostBtn =
@@ -27,7 +34,12 @@ const panel = 'rounded-2xl border border-slate-200 bg-white dark:border-slate-80
 
 const TABS: ReadonlyArray<LibrarySkill | 'all'> = ['all', 'general', 'listening', 'reading', 'writing', 'speaking'];
 
-const LessonView: React.FC<{ lesson: LibraryLesson; onClose: () => void }> = ({ lesson, onClose }) => {
+const LessonView: React.FC<{ lesson: LibraryLesson; onClose: () => void; userId?: string; onPractice?: (kind: ReadingKind) => void }> = ({
+  lesson,
+  onClose,
+  userId,
+  onPractice,
+}) => {
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     headingRef.current?.focus();
@@ -49,12 +61,22 @@ const LessonView: React.FC<{ lesson: LibraryLesson; onClose: () => void }> = ({ 
         <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">{lesson.summary}</p>
       </header>
 
-      <LessonSections sections={lesson.sections} />
+      <LessonSections key={lesson.id} sections={lesson.sections} userId={userId} />
+
+      {onPractice && kindsForLesson(lesson.id).length > 0 && (
+        <div className="flex flex-col gap-2 border-t border-slate-200 pt-5 sm:flex-row sm:flex-wrap dark:border-slate-800">
+          {kindsForLesson(lesson.id).map((k) => (
+            <button key={k} type="button" onClick={() => onPractice(k)} className={secondaryBtn}>
+              Luyện {GROUP_KINDS[k].label} <ArrowRight className="h-4 w-4" aria-hidden />
+            </button>
+          ))}
+        </div>
+      )}
     </article>
   );
 };
 
-export default function IeltsLibrary({ initialLessonId, onBack, backLabel = 'IELTS' }: Props) {
+export default function IeltsLibrary({ initialLessonId, onBack, backLabel = 'IELTS', userId, onPractice }: Props) {
   const [tab, setTab] = useState<LibrarySkill | 'all'>('all');
   const [query, setQuery] = useState('');
   const [openId, setOpenId] = useState<string | undefined>(initialLessonId);
@@ -64,7 +86,7 @@ export default function IeltsLibrary({ initialLessonId, onBack, backLabel = 'IEL
   const lessons = useMemo(() => searchLessons(LIBRARY_LESSONS, tab, query), [tab, query]);
   const open = openId ? findLesson(openId) : undefined;
 
-  if (open) return <LessonView lesson={open} onClose={() => setOpenId(undefined)} />;
+  if (open) return <LessonView lesson={open} onClose={() => setOpenId(undefined)} userId={userId} onPractice={onPractice} />;
 
   return (
     <div className="mx-auto max-w-3xl space-y-5 anim-fade-up">
