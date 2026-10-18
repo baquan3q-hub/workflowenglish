@@ -10,6 +10,7 @@ import type {
   ListeningTest,
 } from '../data/ielts/listening/types';
 import type { AudioSegment } from './listeningAudioService';
+import { youtubeClipSource } from './youtubeLogic';
 import { countAnswerTokens, sectionProblems, squash, withinWordLimit } from '../supabase/functions/ai-proxy/ops/listeningRules.ts';
 
 export type AnswerStatus = 'correct' | 'spelling' | 'plural' | 'over_limit' | 'wrong' | 'blank';
@@ -278,7 +279,13 @@ export function unansweredCount(groups: readonly ListeningGroup[], answers: List
 
 /** The TTS request for each segment: one voice, or a two-person dialogue. */
 export function sectionAudioSegments(section: ListeningSection): AudioSegment[] {
+  const yt = section.youtube;
   return section.segments.map((seg) => {
+    // A recorded part plays its own video; the voices are never asked for.
+    const source = yt && seg.start !== undefined && seg.end !== undefined ? youtubeClipSource(yt.videoId, seg.start, seg.end) : undefined;
+    if (source) {
+      return { id: seg.id, style: section.style, text: seg.lines.map((l) => l.text).join(' '), voice: section.speakers[0]?.voice ?? 'Kore', source };
+    }
     const names = [...new Set(seg.lines.map((l) => l.speaker))];
     const voiceOf = (name: string) => {
       const sp = section.speakers.find((s) => s.name === name);

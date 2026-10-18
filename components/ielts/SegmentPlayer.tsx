@@ -6,9 +6,16 @@
  * - practice: pause, replay a segment, jump between segments, 0.75–1.25×.
  *
  * The parent can jump to a segment through the ref (review: "Nghe lại đoạn này").
+ *
+ * Clips are TTS files played by an <audio> element, or, for a part recorded on
+ * YouTube, `yt:` sources played by an embedded video (youtubeMedia.ts). One
+ * recording plays straight through its segments, with no gap between them.
  */
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Headphones, Pause, Play, RotateCcw, SkipBack, SkipForward } from 'lucide-react';
+import { AUDIO_ERROR, AudioClipMedia, type ClipEvents, type ClipMedia } from './listening/clipMedia';
+import { YOUTUBE_TAP_HINT, YouTubeClipMedia, type CreatePlayer } from './listening/youtubeMedia';
+import { isYouTubeSource } from '../../services/youtubeLogic';
 
 export const PLAYBACK_RATES = [0.75, 1, 1.25] as const;
 type Rate = (typeof PLAYBACK_RATES)[number];
@@ -34,6 +41,8 @@ interface Props {
   prepSeconds?: number;
   onSegmentChange?: (id: string | null) => void;
   onFinished?: () => void;
+  /** YouTube player factory; swapped out in tests and previews. */
+  createYouTubePlayer?: CreatePlayer;
 }
 
 type Phase = 'idle' | 'prep' | 'playing' | 'paused' | 'done' | 'error';
@@ -53,10 +62,12 @@ const panel = 'rounded-2xl border border-slate-200 bg-white dark:border-slate-80
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.max(0, Math.floor(s % 60))).padStart(2, '0')}`;
 
 const SegmentPlayer = forwardRef<SegmentPlayerHandle, Props>(function SegmentPlayer(
-  { segments, urls, mode, prepSeconds = 0, onSegmentChange, onFinished },
+  { segments, urls, mode, prepSeconds = 0, onSegmentChange, onFinished, createYouTubePlayer },
   ref,
 ) {
   const audioRef = useRef<HTMLAudioElement>(null);
+  const videoRef = useRef<HTMLDivElement>(null);
+  const mediaRef = useRef<ClipMedia | null>(null);
   const gapTimer = useRef<number | undefined>(undefined);
   const indexRef = useRef(0);
   const [index, setIndex] = useState(0);
@@ -64,57 +75,107 @@ const SegmentPlayer = forwardRef<SegmentPlayerHandle, Props>(function SegmentPla
   const [fraction, setFraction] = useState(0);
   const [rate, setRate] = useState<Rate>(1);
   const [prepLeft, setPrepLeft] = useState(prepSeconds);
+  const [errorText, setErrorText] = useState(AUDIO_ERROR);
+  const [hint, setHint] = useState('');
   const phaseRef = useRef<Phase>('idle');
   phaseRef.current = phase;
   const exam = mode === 'exam';
   const effectiveRate: Rate = exam ? 1 : rate;
+  const youtube = useMemo(() => segments.some((s) => isYouTubeSource(urls[s.id])), [segments, urls]);
 
-  // Latest callbacks without re-binding the audio handlers.
+  // Latest callbacks and segments without re-binding the media.
   const callbacks = useRef({ onSegmentChange, onFinished });
   callbacks.current = { onSegmentChange, onFinished };
+  const segmentsRef = useRef(segments);
+  segmentsRef.current = segments;
+  const endedRef = useRef<() => void>(() => undefined);
+  const createRef = useRef(createYouTubePlayer);
+
+  // One media per kind of source.
+  useEffect(() => {
+    const events: ClipEvents = {
+      onProgress: setFraction,
+      onEnded: () => endedRef.current(),
+      onError: (message) => {
+        window.clearTimeout(gapTimer.current);
+        setErrorText(message);
+        setPhase('error');
+      },
+      // Playback started or stopped by a tap on the YouTube video itself.
+      onPlayingChange: (playing) => {
+        const p = phaseRef.current;
+        if (playing) {
+          setHint('');
+          if (p === 'idle' || p === 'prep') callbacks.current.onSegmentChange?.(segmentsRef.current[indexRef.current]?.id ?? null);
+          if (p === 'idle' || p === 'prep' || p === 'paused') setPhase('playing');
+        } else if (p === 'playing') {
+          setPhase('paused');
+        }
+      },
+    };
+    const media: ClipMedia =
+      youtube && videoRef.current
+        ? new YouTubeClipMedia(videoRef.current, events, createRef.current)
+        : new AudioClipMedia(audioRef.current!, events);
+    mediaRef.current = media;
+    return () => {
+      media.destroy();
+      if (mediaRef.current === media) mediaRef.current = null;
+    };
+  }, [youtube]);
+
+  const startPlayback = useCallback((media: ClipMedia) => {
+    setPhase('playing');
+    // Blocked autoplay (no recent tap) leaves a play button to press.
+    media.play().catch((err) => {
+      if (err?.name === 'AbortError') return;
+      setPhase((p) => (p === 'error' ? p : 'paused'));
+      if (err?.name === 'NotAllowedError' && media.kind === 'youtube') setHint(YOUTUBE_TAP_HINT);
+    });
+  }, []);
 
   const load = useCallback(
     (i: number, autoplay: boolean) => {
-      const audio = audioRef.current;
+      const media = mediaRef.current;
       const seg = segments[i];
-      if (!audio || !seg) return;
+      if (!media || !seg) return;
       window.clearTimeout(gapTimer.current);
       indexRef.current = i;
       setIndex(i);
       setFraction(0);
-      audio.src = urls[seg.id] ?? '';
-      audio.defaultPlaybackRate = effectiveRate;
-      audio.playbackRate = effectiveRate;
+      media.load(urls[seg.id] ?? '');
+      media.setRate(effectiveRate);
       callbacks.current.onSegmentChange?.(seg.id);
       if (!autoplay) {
         setPhase('paused');
         return;
       }
-      setPhase('playing');
-      // Blocked autoplay (no recent tap) leaves a play button to press.
-      audio.play().catch((err) => {
-        if (err?.name !== 'AbortError') setPhase('paused');
-      });
+      startPlayback(media);
     },
-    [segments, urls, effectiveRate],
+    [segments, urls, effectiveRate, startPlayback],
   );
 
   // A new part: stop and start over.
   const signature = useMemo(() => segments.map((s) => `${s.id}=${urls[s.id] ?? ''}`).join('|'), [segments, urls]);
   useEffect(() => {
     window.clearTimeout(gapTimer.current);
-    audioRef.current?.pause();
+    const media = mediaRef.current;
+    media?.pause();
     indexRef.current = 0;
     setIndex(0);
     setFraction(0);
     setPhase('idle');
+    setHint('');
     setPrepLeft(prepSeconds);
-  }, [signature, prepSeconds]);
+    const first = segments[0] ? urls[segments[0].id] : undefined;
+    if (media && first) media.cue(first);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature, prepSeconds, youtube]);
 
   useEffect(() => () => window.clearTimeout(gapTimer.current), []);
 
   useEffect(() => {
-    if (audioRef.current) audioRef.current.playbackRate = effectiveRate;
+    mediaRef.current?.setRate(effectiveRate);
   }, [effectiveRate]);
 
   // Exam reading time.
@@ -136,7 +197,7 @@ const SegmentPlayer = forwardRef<SegmentPlayerHandle, Props>(function SegmentPla
         if (i >= 0) load(i, true);
       },
       pause() {
-        audioRef.current?.pause();
+        mediaRef.current?.pause();
         setPhase((p) => (p === 'playing' ? 'paused' : p));
       },
     }),
@@ -147,30 +208,22 @@ const SegmentPlayer = forwardRef<SegmentPlayerHandle, Props>(function SegmentPla
     const i = indexRef.current;
     setFraction(1);
     if (i < segments.length - 1) {
-      gapTimer.current = window.setTimeout(() => load(i + 1, true), SEGMENT_GAP_MS);
+      // A recording has its own pauses: carry straight on.
+      if (mediaRef.current?.kind === 'youtube') load(i + 1, true);
+      else gapTimer.current = window.setTimeout(() => load(i + 1, true), SEGMENT_GAP_MS);
       return;
     }
     setPhase('done');
     callbacks.current.onSegmentChange?.(null);
     callbacks.current.onFinished?.();
   };
+  endedRef.current = handleEnded;
 
   const startExam = () => {
-    const audio = audioRef.current;
-    if (prepSeconds > 0 && audio) {
+    const media = mediaRef.current;
+    if (prepSeconds > 0 && media) {
       // Unlock playback inside this tap so the clip can start after the countdown.
-      audio.src = urls[segments[0]?.id] ?? '';
-      audio.muted = true;
-      audio
-        .play()
-        .then(() => {
-          // Skipped the countdown already: the real clip is playing now.
-          if (phaseRef.current === 'prep') audio.pause();
-        })
-        .catch(() => undefined)
-        .finally(() => {
-          audio.muted = false;
-        });
+      media.unlock(urls[segments[0]?.id] ?? '', () => phaseRef.current === 'prep');
       setPrepLeft(prepSeconds);
       setPhase('prep');
     } else {
@@ -179,15 +232,14 @@ const SegmentPlayer = forwardRef<SegmentPlayerHandle, Props>(function SegmentPla
   };
 
   const toggle = () => {
-    const audio = audioRef.current;
-    if (!audio) return;
+    const media = mediaRef.current;
+    if (!media) return;
     if (phase === 'playing') {
       window.clearTimeout(gapTimer.current);
-      audio.pause();
+      media.pause();
       setPhase('paused');
-    } else if (phase === 'paused' && audio.src) {
-      setPhase('playing');
-      audio.play().catch(() => setPhase('paused'));
+    } else if (phase === 'paused' && media.hasSource()) {
+      startPlayback(media);
     } else {
       load(phase === 'done' ? 0 : indexRef.current, true);
     }
@@ -205,19 +257,14 @@ const SegmentPlayer = forwardRef<SegmentPlayerHandle, Props>(function SegmentPla
 
   return (
     <section aria-label="Trình phát bài nghe" className={`${panel} space-y-3 p-4`}>
-      <audio
-        ref={audioRef}
-        preload="auto"
-        onEnded={handleEnded}
-        onTimeUpdate={(e) => {
-          const a = e.currentTarget;
-          if (a.duration > 0) setFraction(a.currentTime / a.duration);
-        }}
-        onError={() => {
-          // An emptied src (reset) also fires error; only report real failures.
-          if (audioRef.current?.getAttribute('src')) setPhase('error');
-        }}
-      />
+      {youtube ? (
+        // YouTube's terms: the player stays visible and at least 200 px tall.
+        <div className="aspect-video min-h-[200px] w-full overflow-hidden rounded-xl bg-black [&_iframe]:h-full [&_iframe]:w-full">
+          <div ref={videoRef} className="h-full w-full" />
+        </div>
+      ) : (
+        <audio ref={audioRef} preload="auto" />
+      )}
 
       <div className="flex items-center gap-2">
         <Headphones aria-hidden="true" className="h-4 w-4 text-slate-500 dark:text-slate-400" />
@@ -259,7 +306,7 @@ const SegmentPlayer = forwardRef<SegmentPlayerHandle, Props>(function SegmentPla
         <div className="flex flex-wrap items-center gap-3">
           <p className="flex flex-1 items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
             <AlertTriangle aria-hidden="true" className="h-4 w-4 flex-shrink-0" />
-            Không phát được đoạn này.
+            {errorText}
           </p>
           <button type="button" onClick={() => load(indexRef.current, true)} className={secondaryBtn}>
             <RotateCcw className="h-4 w-4" /> Thử lại
@@ -297,6 +344,12 @@ const SegmentPlayer = forwardRef<SegmentPlayerHandle, Props>(function SegmentPla
             ))}
           </div>
         </div>
+      )}
+
+      {hint && phase !== 'error' && (
+        <p role="status" className="text-caption text-amber-700 dark:text-amber-400">
+          {hint}
+        </p>
       )}
     </section>
   );

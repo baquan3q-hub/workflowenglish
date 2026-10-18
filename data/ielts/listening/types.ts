@@ -21,10 +21,17 @@ export interface ScriptLine {
   text: string;
 }
 
-/** One audio clip: up to two speakers, at most ~1500 characters. */
+/**
+ * One audio clip: up to two speakers, at most ~1500 characters. In a part
+ * recorded on YouTube a segment is a stretch of the video instead, any length.
+ */
 export interface ListeningSegment {
   id: string;
   lines: ScriptLine[];
+  /** YouTube part: seconds into the video where this segment starts. */
+  start?: number;
+  /** YouTube part: seconds into the video where it ends. */
+  end?: number;
 }
 
 export interface ChoiceOption {
@@ -126,6 +133,8 @@ export interface ListeningSection {
   groups: ListeningGroup[];
   /** Seconds to read the questions before the audio (exam mode). */
   prepSeconds: number;
+  /** Own recording on YouTube instead of TTS; segments carry start and end. */
+  youtube?: { videoId: string };
 }
 
 export interface ListeningTest {

@@ -9,6 +9,13 @@
 
 export const LISTENING_TEXT_LIMIT = 1500;
 
+/** A YouTube video id: 11 letters, digits, "-" or "_". */
+export const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
+/** Longest video a part may point into: 3 hours. */
+const YOUTUBE_MAX_SECONDS = 3 * 3600;
+/** Shortest segment worth a clip, in seconds. */
+const YOUTUBE_MIN_SEGMENT = 1;
+
 interface CheckLine {
   speaker: string;
   text: string;
@@ -40,8 +47,31 @@ interface CheckGroup {
 export interface CheckSection {
   id: string;
   speakers: { name: string }[];
-  segments: { id: string; lines: CheckLine[] }[];
+  segments: { id: string; lines: CheckLine[]; start?: number; end?: number }[];
   groups: CheckGroup[];
+  /** Own recording on YouTube: each segment then has start and end seconds. */
+  youtube?: { videoId: string };
+}
+
+/** Timing problems of a part whose audio is a YouTube video. */
+export function youtubeProblems(section: CheckSection): string[] {
+  const problems: string[] = [];
+  if (!section.youtube) return problems;
+  if (!YOUTUBE_ID.test(section.youtube.videoId ?? '')) problems.push(`${section.id}: invalid YouTube video id`);
+  let prevEnd = 0;
+  for (const seg of section.segments) {
+    const { start, end } = seg;
+    if (typeof start !== 'number' || typeof end !== 'number' || !Number.isFinite(start) || !Number.isFinite(end)) {
+      problems.push(`${seg.id}: needs a start and an end time`);
+      continue;
+    }
+    if (start < 0) problems.push(`${seg.id}: start is before 0:00`);
+    if (end - start < YOUTUBE_MIN_SEGMENT) problems.push(`${seg.id}: must be at least ${YOUTUBE_MIN_SEGMENT} second long`);
+    if (end > YOUTUBE_MAX_SECONDS) problems.push(`${seg.id}: ends after 3 hours`);
+    if (start < prevEnd - 0.01) problems.push(`${seg.id}: starts before the previous segment ends`);
+    prevEnd = Math.max(prevEnd, end);
+  }
+  return problems;
 }
 
 /** Lowercase letters and digits only, for "does the script contain this answer". */
@@ -83,12 +113,16 @@ export function sectionProblems(section: CheckSection): string[] {
   const at = (q: { number: number }, msg: string) => problems.push(`${section.id} Q${q.number}: ${msg}`);
   const segText = new Map(section.segments.map((s) => [s.id, s.lines.map((l) => l.text).join(' ')]));
   const allText = [...segText.values()].join(' ');
+  // A recorded part has no TTS limits (speakers per clip, text length), only timings.
+  const recorded = !!section.youtube;
+  problems.push(...youtubeProblems(section));
 
   for (const seg of section.segments) {
     const names = new Set(seg.lines.map((l) => l.speaker));
     if (seg.lines.length === 0) problems.push(`${seg.id}: no lines`);
-    if (names.size > 2) problems.push(`${seg.id}: more than two speakers`);
     for (const n of names) if (!section.speakers.some((s) => s.name === n)) problems.push(`${seg.id}: unknown speaker ${n}`);
+    if (recorded) continue;
+    if (names.size > 2) problems.push(`${seg.id}: more than two speakers`);
     const length = segmentAudioText(seg.lines).length;
     if (length > LISTENING_TEXT_LIMIT) problems.push(`${seg.id}: audio text is ${length} characters (max ${LISTENING_TEXT_LIMIT})`);
   }

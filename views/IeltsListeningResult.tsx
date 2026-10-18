@@ -16,6 +16,8 @@ import {
 import { Segmented } from '../components/ui/Segmented';
 import TranscriptView from '../components/ielts/listening/TranscriptView';
 import { useClipPlayer, type ResolveClip } from '../components/ielts/listening/useClipPlayer';
+import YouTubeDock from '../components/ielts/listening/YouTubeDock';
+import type { CreatePlayer } from '../components/ielts/listening/youtubeMedia';
 import type { AudioSegment } from '../services/listeningAudioService';
 
 interface Props {
@@ -29,6 +31,8 @@ interface Props {
   onDictation?: (sectionId: string) => void;
   /** Audio source; swapped out in previews. */
   resolveClip?: ResolveClip;
+  /** YouTube player factory; swapped out in previews. */
+  createYouTubePlayer?: CreatePlayer;
 }
 
 const primaryBtn =
@@ -150,7 +154,7 @@ function ResultCard({ r, group, replay }: { r: QuestionResult; group: ListeningG
   );
 }
 
-export default function IeltsListeningResult({ test, sectionIds, mode, answers, onRetry, onBack, onDictation, resolveClip }: Props) {
+export default function IeltsListeningResult({ test, sectionIds, mode, answers, onRetry, onBack, onDictation, resolveClip, createYouTubePlayer }: Props) {
   const sections = useMemo(() => sessionSections(test, sectionIds), [test, sectionIds]);
   const score = useMemo(() => scoreSections(sections, answers), [sections, answers]);
   const groups = useMemo(() => new Map(sections.flatMap((s) => s.groups.map((g) => [g.id, g] as const))), [sections]);
@@ -159,7 +163,8 @@ export default function IeltsListeningResult({ test, sectionIds, mode, answers, 
   const [filter, setFilter] = useState<Filter>(wrongCount > 0 ? 'wrong' : 'all');
   const shown = filter === 'wrong' ? score.results.filter((r) => r.status !== 'correct') : score.results;
   const clips = useMemo(() => new Map<string, AudioSegment>(sections.flatMap((s) => sectionAudioSegments(s).map((a) => [a.id, a] as const))), [sections]);
-  const clip = useClipPlayer(resolveClip);
+  const clip = useClipPlayer(resolveClip, createYouTubePlayer);
+  const hasVideo = sections.some((s) => s.youtube);
   const toggleClip = (segmentId: string) => {
     const a = clips.get(segmentId);
     if (a) clip.toggle(a);
@@ -315,6 +320,7 @@ export default function IeltsListeningResult({ test, sectionIds, mode, answers, 
           Về Listening
         </button>
       </div>
+      {hasVideo && <YouTubeDock dock={clip.dock} message={clip.error} onClose={clip.stop} />}
     </div>
   );
 }

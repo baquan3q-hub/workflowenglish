@@ -22,6 +22,8 @@ export type { ListeningStyle, ListeningVoice };
 /** One clip: a single voice, or two `speakers` with "Name: line" text. */
 export interface AudioSegment extends ListeningAudioRequest {
   id: string;
+  /** A ready source (a YouTube clip, see youtubeLogic.ts): played as is, no TTS. */
+  source?: string;
 }
 
 export type AudioUrls = Record<string, string>;
@@ -50,6 +52,7 @@ async function exists(url: string, signal?: AbortSignal): Promise<boolean> {
 
 /** URL of a playable clip for one segment, generating it if nobody has yet. */
 export async function segmentAudioUrl(seg: AudioSegment, signal?: AbortSignal): Promise<string> {
+  if (seg.source) return seg.source;
   const key = await segmentKey(seg);
   const known = resolved.get(key);
   if (known) return known;
