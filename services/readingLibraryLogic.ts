@@ -26,6 +26,7 @@ import { passageQuestions, passageWordCount, validateReadingTest } from './readi
 import { isMissingTable } from './listeningLibraryLogic';
 import { foldText } from './vocabLibraryLogic';
 import type { ReadingQuestionNote } from '../supabase/functions/ai-proxy/ops/readingNotes.ts';
+import { PART_MINUTES, PASSAGE_WORDS } from '../supabase/functions/ai-proxy/ops/readingRules.ts';
 
 export { answersText, optionsText, parseAnswers, parseOptions } from './listeningLibraryLogic';
 
@@ -71,11 +72,7 @@ export const SKILL_LABELS_VI: Record<ReadingSkill, string> = {
   main_idea: 'Ý chính',
 };
 
-/** The passage word count the exam uses. */
-export const PASSAGE_WORDS = { min: 700, max: 950 } as const;
-
-/** Suggested minutes per passage: 17 + 20 + 23 = the exam's 60. */
-export const PART_MINUTES: Record<ReadingPart, number> = { 1: 17, 2: 20, 3: 23 };
+export { PART_MINUTES, PASSAGE_WORDS };
 
 // --- Ids ----------------------------------------------------------------------------
 
@@ -97,7 +94,7 @@ function freshGroupId(passage: ReadingPassage): string {
 }
 
 /** A passage under a new id, its group ids moved with it. */
-function rekeyPassage(p: ReadingPassage, id: string): ReadingPassage {
+export function rekeyPassage(p: ReadingPassage, id: string): ReadingPassage {
   return { ...p, id, groups: p.groups.map((g) => ({ ...g, id: g.id.startsWith(`${p.id}-`) ? `${id}-${g.id.slice(p.id.length + 1)}` : g.id })) };
 }
 

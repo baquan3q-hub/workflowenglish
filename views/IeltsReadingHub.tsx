@@ -9,6 +9,7 @@ import { GROUP_KINDS } from '../components/ielts/questions/parts';
 import { readingGroupKind } from '../components/ielts/questions/questionLogic';
 import IeltsAttemptHistory from '../components/IeltsAttemptHistory';
 import DrillSection from '../components/ielts/reading/DrillSection';
+import GeneratedPassages, { type GeneratedPassagesApi } from '../components/ielts/reading/GeneratedPassages';
 import type { ReadingKind } from '../data/ielts/readingLessons';
 import { Segmented } from '../components/ui/Segmented';
 import { IconTile } from '../components/ui/IconTile';
@@ -24,6 +25,8 @@ interface Props {
   onBack: () => void;
   /** Published tests from the admin library; injectable for tests. */
   loadLibrary?: () => Promise<ReadingTest[]>;
+  /** "Đề AI tạo" service calls; injectable for previews and tests. */
+  generatedApi?: GeneratedPassagesApi;
 }
 
 const compactBtn = secondaryBtn.replace('px-4', 'px-3');
@@ -116,7 +119,7 @@ function PassageCard({ test, mode, onStart }: CardProps) {
 
 const questionKinds = (test: ReadingTest) => [...new Set(test.passages.flatMap((p) => p.groups.map((g) => GROUP_KINDS[readingGroupKind(g)].label)))];
 
-export default function IeltsReadingHub({ userId, onStart, onOpenAttempt, onOpenLesson, drillKind, onBack, loadLibrary = getPublishedReadingLibrary }: Props) {
+export default function IeltsReadingHub({ userId, onStart, onOpenAttempt, onOpenLesson, drillKind, onBack, loadLibrary = getPublishedReadingLibrary, generatedApi }: Props) {
   const [library, setLibrary] = useState<ReadingTest[]>([]);
   useEffect(() => {
     let live = true;
@@ -215,6 +218,8 @@ export default function IeltsReadingHub({ userId, onStart, onOpenAttempt, onOpen
           )}
         </section>
       )}
+
+      <GeneratedPassages userId={userId} api={generatedApi} onStart={(testId, passageId) => onStart(testId, [passageId], mode)} />
 
       <DrillSection userId={userId} initialKind={drillKind} onStart={(id) => onStart(id, [], 'practice')} onOpenLesson={onOpenLesson} />
 

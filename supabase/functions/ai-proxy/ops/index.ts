@@ -6,6 +6,7 @@ import { listeningAudio } from './listening.ts';
 import { generateListeningSection } from './listeningGenerate.ts';
 import { listeningNotes } from './listeningNotes.ts';
 import { readingExplain } from './readingExplain.ts';
+import { generateReadingPassage } from './readingGenerate.ts';
 import { readingNotes } from './readingNotes.ts';
 import { generateSentences, gradeSentence } from './sentences.ts';
 
@@ -46,6 +47,7 @@ export const OPS: Record<string, OpSpec> = {
   listeningNotes,
   readingExplain,
   readingNotes,
+  generateReadingPassage,
 };
 
 export type OpName = keyof typeof OPS;

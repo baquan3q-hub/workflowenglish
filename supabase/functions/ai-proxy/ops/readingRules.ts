@@ -10,6 +10,15 @@ import { squash, withinWordLimit } from './listeningRules.ts';
 
 export const READING_SKILLS = ['scan', 'skim', 'detail', 'inference', 'main_idea'] as const;
 
+/** The passage word count the exam uses. */
+export const PASSAGE_WORDS = { min: 700, max: 950 } as const;
+
+/** Fewest and most questions one passage may carry (the exam has 13 or 14). */
+export const PASSAGE_QUESTIONS = { min: 12, max: 15 } as const;
+
+/** Suggested minutes per passage: 17 + 20 + 23 = the exam's 60. */
+export const PART_MINUTES: Record<1 | 2 | 3, number> = { 1: 17, 2: 20, 3: 23 };
+
 /** Accepted answers of a TRUE/FALSE/NOT GIVEN or YES/NO/NOT GIVEN group. */
 export const TFNG_VALUES = {
   tfng: ['TRUE', 'FALSE', 'NOT GIVEN'],

@@ -61,6 +61,8 @@ import { isLibraryTestId } from './services/listeningLibraryLogic';
 import { isAppAdmin, loadLibraryTest, registerPreview } from './services/listeningLibraryService';
 import { loadReadingLibraryTest, registerReadingPreview } from './services/readingLibraryService';
 import { isReadingLibraryTestId } from './services/readingLibraryLogic';
+import { isGeneratedReadingTestId } from './services/readingGenerationLogic';
+import { loadGeneratedReadingTest } from './services/readingGenerationService';
 import IeltsAdmin, { type AdminEditing } from './views/IeltsAdmin';
 import { attemptLabels, scoreSections, sessionSections, type ListeningMode } from './services/listeningLogic';
 import { Toast, type ToastAction, type ToastType } from './components/Common';
@@ -1062,6 +1064,12 @@ function App() {
         void loadReadingLibraryTest(d.testId).then(test => {
           if (test) open();
           else showToast('Không mở được bài này: đề đã bị gỡ khỏi thư viện.', 'info');
+        });
+      } else if (isGeneratedReadingTestId(d.testId)) {
+        // A passage the AI wrote for this learner: load it from reading_generated first.
+        void loadGeneratedReadingTest(d.testId).then(test => {
+          if (test) open();
+          else showToast('Không mở được bài này: đề AI tạo đã bị xoá.', 'info');
         });
       }
       return;

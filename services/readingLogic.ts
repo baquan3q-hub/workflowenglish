@@ -11,7 +11,7 @@ import type {
   ReadingTest,
 } from '../data/ielts/reading/types';
 import { ANSWER_STATUS_LABELS, classifyTextAnswer, letter, multiChoiceMarks, type AnswerStatus } from './ieltsAnswerLogic';
-import { passageProblems, passageWordCount, TFNG_VALUES } from '../supabase/functions/ai-proxy/ops/readingRules.ts';
+import { PASSAGE_QUESTIONS, passageProblems, passageWordCount, TFNG_VALUES } from '../supabase/functions/ai-proxy/ops/readingRules.ts';
 
 export { errorBreakdown, unansweredCount } from './ieltsAnswerLogic';
 export { passageWordCount, TFNG_VALUES };
@@ -167,8 +167,7 @@ export function passageQuestions(passage: ReadingPassage): ReadingQuestion[] {
 
 // --- Data checks ---------------------------------------------------------------
 
-/** Fewest and most questions one passage may carry (the exam has 13 or 14). */
-export const PASSAGE_QUESTIONS = { min: 12, max: 15 } as const;
+export { PASSAGE_QUESTIONS };
 
 /** Problems in one passage; empty when it is usable. Same rules as the AI ops. */
 export function validatePassage(passage: ReadingPassage): string[] {
