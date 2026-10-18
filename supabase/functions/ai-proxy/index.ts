@@ -9,12 +9,18 @@
  * Ops with `storage` write their output to a public Storage file and answer
  * { url }; a file that already exists is returned without calling Gemini.
  *
- * Errors are JSON { error, message, retryAt? } with error one of
- * bad_request (400), auth (401), rate_limit (429), server (502), timeout (504).
+ * Errors are JSON { error, message, retryAt?, reason? } with error one of
+ * bad_request (400), auth (401), rate_limit (429), server (500/502), timeout (504).
+ * `reason` says why a server error happened: not_configured (no key),
+ * model_unavailable, key_invalid, quota, blocked or unknown.
+ *
+ * op "aiHealth" checks the setup (key, each model, ai_usage, the audio
+ * bucket) and reports per item; see the admin page.
  */
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { BadRequest } from './lib.ts';
 import { callWithFallback, streamWithFallback, UpstreamError } from './gemini.ts';
+import { resolveModels, TEXT_MODELS, TTS_MODELS, upstreamReason } from './models.ts';
 import { OPS } from './ops/index.ts';
 
 const CORS = {
@@ -35,6 +41,74 @@ const fail = (status: number, error: string, message: string, extra: Record<stri
   json(status, { error, message, ...extra });
 
 const HOUR_MS = 60 * 60 * 1000;
+
+const modelEnv = () => ({ text: Deno.env.get('GEMINI_TEXT_MODELS'), tts: Deno.env.get('GEMINI_TTS_MODELS') });
+
+interface ModelCheck {
+  model: string;
+  group: 'text' | 'tts';
+  ok: boolean;
+  status: number | 'timeout' | null;
+  reason: string | null;
+  ms: number;
+}
+
+/** One tiny call per model, so the admin sees which ones this key can use. */
+async function checkModel(apiKey: string, model: string, group: 'text' | 'tts'): Promise<ModelCheck> {
+  const started = Date.now();
+  const spec = {
+    hourlyLimit: 1,
+    models: [model],
+    timeoutMs: 30_000,
+    kind: group === 'tts' ? ('audio' as const) : ('text' as const),
+    build: () => ({ contents: [], generationConfig: {} }),
+  };
+  const req =
+    group === 'tts'
+      ? {
+          contents: [{ role: 'user' as const, parts: [{ text: 'OK.' }] }],
+          generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } } },
+          speech: { text: 'OK.', speakers: [{ voice: 'Kore' }] },
+        }
+      : { contents: [{ role: 'user' as const, parts: [{ text: 'Reply with the single word OK.' }] }], generationConfig: { maxOutputTokens: 16 } };
+  try {
+    await callWithFallback(apiKey, spec, req, [model]);
+    return { model, group, ok: true, status: 200, reason: null, ms: Date.now() - started };
+  } catch (err) {
+    const up = err instanceof UpstreamError ? err : null;
+    return {
+      model,
+      group,
+      ok: false,
+      status: up?.status ?? null,
+      reason: up ? (up.status === 'timeout' ? 'timeout' : upstreamReason(up.status, up.body)) : String(err).slice(0, 120),
+      ms: Date.now() - started,
+    };
+  }
+}
+
+async function health(): Promise<Response> {
+  const apiKey = Deno.env.get('GEMINI_API_KEY');
+  const usage = await admin.from('ai_usage').select('id', { head: true, count: 'exact' }).limit(1);
+  const bucket = await admin.storage.getBucket('ielts-audio');
+  const report: Record<string, unknown> = {
+    checkedAt: new Date().toISOString(),
+    keyConfigured: Boolean(apiKey),
+    usageTable: !usage.error,
+    audioBucket: !bucket.error,
+    models: [] as ModelCheck[],
+  };
+  if (apiKey) {
+    const env = modelEnv();
+    const text = resolveModels(TEXT_MODELS, env);
+    const tts = resolveModels(TTS_MODELS, env);
+    report.models = await Promise.all([
+      ...text.map((m) => checkModel(apiKey, m, 'text')),
+      ...tts.map((m) => checkModel(apiKey, m, 'tts')),
+    ]);
+  }
+  return json(200, { data: report, model: null });
+}
 
 /** null when under the limit, otherwise when the oldest call in the window expires. */
 async function rateLimited(userId: string, op: string, limit: number): Promise<Date | null> {
@@ -92,6 +166,12 @@ Deno.serve(async (req) => {
     return fail(400, 'bad_request', 'Yêu cầu không hợp lệ.');
   }
   const op = typeof body.op === 'string' ? body.op : '';
+  if (op === 'aiHealth') {
+    const wait = await rateLimited(userId, op, 10);
+    if (wait) return fail(429, 'rate_limit', 'Bạn đã kiểm tra quá nhiều lần trong giờ này.', { retryAt: wait.toISOString() });
+    void logUsage(userId, op, null, Date.now(), true);
+    return health();
+  }
   const spec = Object.hasOwn(OPS, op) ? OPS[op] : undefined;
   if (!spec) return fail(400, 'bad_request', `Thao tác không được hỗ trợ: ${op || '(trống)'}`);
 
@@ -119,19 +199,20 @@ Deno.serve(async (req) => {
   }
 
   const apiKey = Deno.env.get('GEMINI_API_KEY');
-  if (!apiKey) return fail(500, 'server', 'Máy chủ AI chưa được cấu hình.');
+  if (!apiKey) return fail(500, 'server', 'Máy chủ AI chưa được cấu hình.', { reason: 'not_configured' });
   const startedAt = Date.now();
+  const models = resolveModels(spec.models, modelEnv());
 
   try {
     if (spec.kind === 'stream') {
       const stream = await streamWithFallback(apiKey, spec, request, (model, ok) => {
         void logUsage(userId, op, model, startedAt, ok);
-      });
+      }, models);
       return new Response(stream, {
         headers: { ...CORS, 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
       });
     }
-    const { model, data } = await callWithFallback(apiKey, spec, request);
+    const { model, data } = await callWithFallback(apiKey, spec, request, models);
     if (spec.storage && storagePath) {
       const { body: file, contentType } = spec.storage.encode(data);
       const bucket = admin.storage.from(spec.storage.bucket);
@@ -148,6 +229,7 @@ Deno.serve(async (req) => {
     if (err instanceof UpstreamError && err.status === 'timeout') {
       return fail(504, 'timeout', 'AI phản hồi quá lâu. Vui lòng thử lại.');
     }
-    return fail(502, 'server', 'AI đang bận hoặc gặp sự cố. Vui lòng thử lại sau ít phút.');
+    const reason = err instanceof UpstreamError ? upstreamReason(err.status, err.body) : 'unknown';
+    return fail(502, 'server', 'AI đang bận hoặc gặp sự cố. Vui lòng thử lại sau ít phút.', { reason });
   }
 });

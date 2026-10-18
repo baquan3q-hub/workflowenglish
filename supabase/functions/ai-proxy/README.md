@@ -12,6 +12,29 @@ Edge Function that holds the Gemini key. The app calls it through
 | transcribeAudio | 30 |
 | tts | 120 |
 | listeningAudio | 80 (cached files are free) |
+| generateListeningSection | 10 |
+| aiHealth | 10 |
+
+## Models
+
+The lists live in `models.ts`. Google retired `gemini-2.0-flash` (June 2026) and
+limits `gemini-2.5-*` to projects that already used them, so a new key gets 404
+for both: that is why every AI feature failed with "AI đang bận".
+
+- Text: `gemini-3.6-flash`, then `gemini-3.5-flash-lite`, then `gemini-2.5-flash`
+  (lessons start with `gemini-3.8-flash`).
+- Speech: `gemini-2.5-flash-preview-tts` (until 17 Nov 2026), then
+  `gemini-3.8-flash-lite-tts` / `gemini-3.8-flash-tts` through the Interactions API.
+
+When Google moves on again, replace a list without a code change:
+
+```
+supabase secrets set GEMINI_TEXT_MODELS=gemini-x-flash,gemini-y-flash-lite
+supabase secrets set GEMINI_TTS_MODELS=gemini-x-tts
+```
+
+Failures now carry a `reason` (`not_configured`, `key_invalid`, `model_unavailable`,
+`quota`, `blocked`, `unknown`) that the app turns into a clear message.
 
 ## Deploy (one time, then after every change in this folder)
 
@@ -29,5 +52,7 @@ provided to the function automatically.
 
 ## Check
 
+- Admin page → "Kiểm tra AI" (op `aiHealth`): tests the key, every model, the
+  `ai_usage` table and the `ielts-audio` bucket, and says how to fix each failure.
 - No JWT gives 401, an unknown op gives 400.
 - Latency per op: see the query at the end of `007_ai_usage.sql`.

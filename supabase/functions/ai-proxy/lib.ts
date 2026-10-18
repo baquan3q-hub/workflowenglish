@@ -14,6 +14,20 @@ export interface GeminiRequest {
   contents: Content[];
   systemInstruction?: { parts: { text: string }[] };
   generationConfig: Record<string, unknown>;
+  /**
+   * TTS ops only: the same speech as plain parts, for models that take it
+   * through the Interactions API (3.x TTS). Never sent to generateContent.
+   */
+  speech?: SpeechRequest;
+}
+
+export interface SpeechRequest {
+  /** Spoken word for word. Dialogue uses "Name: line" turns. */
+  text: string;
+  /** Delivery direction (accent, pace), kept out of the spoken text. */
+  style?: string;
+  /** One voice, or one per speaker name in the text. */
+  speakers: { speaker?: string; voice: string }[];
 }
 
 export type OpKind = 'json' | 'text' | 'audio' | 'stream';
@@ -48,7 +62,8 @@ export interface StorageSpec {
 
 export class BadRequest extends Error {}
 
-export const FLASH_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash'] as const;
+/** The everyday model list; see models.ts. */
+export { TEXT_MODELS as FLASH_MODELS } from './models.ts';
 
 // --- Payload validation ------------------------------------------------------
 

@@ -2,11 +2,18 @@
  * Gemini REST calls with model fallback. Uses only fetch, no SDK.
  */
 import type { GeminiRequest, OpSpec } from './lib.ts';
+import { generateBody, interactionAudio, interactionsBody, usesInteractions, wavToPcm } from './models.ts';
 
-const BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
+const API = 'https://generativelanguage.googleapis.com/v1beta';
+const BASE = `${API}/models`;
 
 export class UpstreamError extends Error {
-  constructor(message: string, readonly status: number | 'timeout') {
+  constructor(
+    message: string,
+    readonly status: number | 'timeout',
+    /** Start of Gemini's error body, used to tell the app why. */
+    readonly body = '',
+  ) {
     super(message);
   }
 }
@@ -17,24 +24,29 @@ export interface CallResult {
   data: unknown;
 }
 
-/** Thinking is off for 2.5+ text models; older models reject the field. */
-function withThinking(model: string, config: Record<string, unknown>): Record<string, unknown> {
-  if (/tts/.test(model) || !/gemini-(2\.5|3)/.test(model)) return config;
-  return { thinkingConfig: { thinkingBudget: 0 }, ...config };
-}
-
-function post(apiKey: string, model: string, req: GeminiRequest, method: string, timeoutMs: number): Promise<Response> {
-  const body = { ...req, generationConfig: withThinking(model, req.generationConfig) };
-  return fetch(`${BASE}/${model}:${method}`, {
+function send(apiKey: string, url: string, body: unknown, label: string, timeoutMs: number): Promise<Response> {
+  return fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(timeoutMs),
   }).catch((err) => {
     const timeout = err instanceof DOMException && (err.name === 'TimeoutError' || err.name === 'AbortError');
-    throw new UpstreamError(`${model}: ${err}`, timeout ? 'timeout' : 0);
+    throw new UpstreamError(`${label}: ${err}`, timeout ? 'timeout' : 0);
   });
 }
+
+function post(apiKey: string, model: string, req: GeminiRequest, method: string, timeoutMs: number): Promise<Response> {
+  if (usesInteractions(model)) return send(apiKey, `${API}/interactions`, interactionsBody(model, req), model, timeoutMs);
+  return send(apiKey, `${BASE}/${model}:${method}`, generateBody(model, req), model, timeoutMs);
+}
+
+const bytesToBase64 = (bytes: Uint8Array) => {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+};
+const base64ToBytes = (b64: string) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 
 type GeminiJson = { candidates?: { content?: { parts?: { text?: string; inlineData?: { data?: string } }[] } }[] };
 
@@ -42,7 +54,11 @@ function textOf(json: GeminiJson): string {
   return (json.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? '').join('');
 }
 
-function extract(spec: OpSpec, json: GeminiJson): unknown {
+function extract(spec: OpSpec, model: string, json: GeminiJson): unknown {
+  if (spec.kind === 'audio' && usesInteractions(model)) {
+    // WAV from the Interactions API; the app expects bare PCM.
+    return bytesToBase64(wavToPcm(base64ToBytes(interactionAudio(json as never))));
+  }
   if (spec.kind === 'audio') {
     const data = json.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data)?.inlineData?.data;
     if (!data) throw new Error('no audio returned');
@@ -59,19 +75,26 @@ function extract(spec: OpSpec, json: GeminiJson): unknown {
  * Tries each model in turn. A response that fails JSON parsing or the op's
  * own check is retried once on the same model before moving on.
  */
-export async function callWithFallback(apiKey: string, spec: OpSpec, req: GeminiRequest): Promise<CallResult> {
+export async function callWithFallback(
+  apiKey: string,
+  spec: OpSpec,
+  req: GeminiRequest,
+  models: readonly string[] = spec.models,
+): Promise<CallResult> {
   let last: UpstreamError = new UpstreamError('no model tried', 0);
-  for (const model of spec.models) {
+  for (const model of models) {
+    if (usesInteractions(model) && !req.speech) continue;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const res = await post(apiKey, model, req, 'generateContent', spec.timeoutMs);
         if (!res.ok) {
-          last = new UpstreamError(`${model}: HTTP ${res.status} ${(await res.text()).slice(0, 300)}`, res.status);
+          const text = (await res.text()).slice(0, 500);
+          last = new UpstreamError(`${model}: HTTP ${res.status} ${text}`, res.status, text);
           break; // next model
         }
         const json = (await res.json()) as GeminiJson;
         try {
-          return { model, data: extract(spec, json) };
+          return { model, data: extract(spec, model, json) };
         } catch (err) {
           last = new UpstreamError(`${model}: invalid output (${err})`, 502);
           continue; // same model once more
@@ -95,16 +118,19 @@ export async function streamWithFallback(
   spec: OpSpec,
   req: GeminiRequest,
   onDone: (model: string, ok: boolean) => void,
+  models: readonly string[] = spec.models,
 ): Promise<ReadableStream<Uint8Array>> {
   let last: UpstreamError = new UpstreamError('no model tried', 0);
-  for (const model of spec.models) {
+  for (const model of models) {
+    if (usesInteractions(model)) continue;
     const res = await post(apiKey, model, req, 'streamGenerateContent?alt=sse', spec.timeoutMs).catch((err) => {
       last = err;
       return null;
     });
     if (!res) continue;
     if (!res.ok || !res.body) {
-      last = new UpstreamError(`${model}: HTTP ${res.status} ${(await res.text()).slice(0, 300)}`, res.status);
+      const text = (await res.text()).slice(0, 500);
+      last = new UpstreamError(`${model}: HTTP ${res.status} ${text}`, res.status, text);
       continue;
     }
 

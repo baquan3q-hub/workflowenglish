@@ -10,6 +10,7 @@
  * bucket before calling this op; keep `listeningAudioKey` in step with it.
  */
 import { asObject, BadRequest, oneOf, str, userText, type OpSpec } from '../lib.ts';
+import { TTS_MODELS } from '../models.ts';
 
 /** Gemini prebuilt voices used as distinct speakers. */
 export const LISTENING_VOICES = ['Kore', 'Aoede', 'Leda', 'Puck', 'Charon', 'Orus'] as const;
@@ -110,7 +111,7 @@ const voiceConfig = (voiceName: string) => ({ prebuiltVoiceConfig: { voiceName }
 
 export const listeningAudio: OpSpec = {
   hourlyLimit: 80,
-  models: ['gemini-2.5-flash-preview-tts'],
+  models: TTS_MODELS,
   timeoutMs: 90_000,
   kind: 'audio',
   build(payload) {
@@ -127,6 +128,7 @@ export const listeningAudio: OpSpec = {
             },
           },
         },
+        speech: { text, style: intro, speakers: speakers.map((s) => ({ speaker: s.name, voice: s.voice })) },
       };
     }
     return {
@@ -135,6 +137,7 @@ export const listeningAudio: OpSpec = {
         responseModalities: ['AUDIO'],
         speechConfig: { voiceConfig: voiceConfig(voice!) },
       },
+      speech: { text, style: intro, speakers: [{ voice: voice! }] },
     };
   },
   storage: {

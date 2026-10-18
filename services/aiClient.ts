@@ -9,11 +9,16 @@ import { getCachedSession, supabase } from './supabaseClient';
 
 export type AiErrorKind = 'rate_limit' | 'timeout' | 'network' | 'server' | 'auth' | 'bad_request';
 
+/** Why the server failed, when ai-proxy knows (see its index.ts). */
+export type AiErrorReason = 'not_configured' | 'model_unavailable' | 'key_invalid' | 'quota' | 'blocked' | 'unknown';
+const REASONS: readonly AiErrorReason[] = ['not_configured', 'model_unavailable', 'key_invalid', 'quota', 'blocked', 'unknown'];
+
 export class AiError extends Error {
   constructor(
     readonly kind: AiErrorKind,
     message: string,
     readonly retryAt?: Date,
+    readonly reason?: AiErrorReason,
   ) {
     super(message);
     this.name = 'AiError';
@@ -31,7 +36,7 @@ const FUNCTION_URL = `${process.env.SUPABASE_URL}/functions/v1/ai-proxy`;
 
 /** Maps an HTTP error from the proxy to an AiError. */
 export function aiErrorFromResponse(status: number, body: unknown): AiError {
-  const b = (body && typeof body === 'object' ? body : {}) as { error?: string; message?: string; retryAt?: string };
+  const b = (body && typeof body === 'object' ? body : {}) as { error?: string; message?: string; retryAt?: string; reason?: string };
   const message = typeof b.message === 'string' ? b.message : `HTTP ${status}`;
   if (status === 429) {
     const retryAt = b.retryAt ? new Date(b.retryAt) : undefined;
@@ -40,7 +45,8 @@ export function aiErrorFromResponse(status: number, body: unknown): AiError {
   if (status === 401) return new AiError('auth', message);
   if (status === 400) return new AiError('bad_request', message);
   if (status === 504) return new AiError('timeout', message);
-  return new AiError('server', message);
+  const reason = REASONS.find((r) => r === b.reason);
+  return new AiError('server', message, undefined, reason);
 }
 
 const clock = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -66,7 +72,19 @@ export function aiErrorMessage(err: unknown): string {
     case 'bad_request':
       return 'Yêu cầu chưa hợp lệ. Vui lòng kiểm tra nội dung rồi thử lại.';
     default:
-      return 'AI đang bận hoặc gặp sự cố. Vui lòng thử lại sau ít phút.';
+      switch (err instanceof AiError ? err.reason : undefined) {
+        // Setup problems: retrying will not help, so say so.
+        case 'not_configured':
+        case 'key_invalid':
+        case 'model_unavailable':
+          return 'Tính năng AI đang tạm ngưng do cấu hình máy chủ. Quản trị viên cần kiểm tra lại.';
+        case 'quota':
+          return 'AI đã dùng hết hạn mức hôm nay. Vui lòng thử lại sau.';
+        case 'blocked':
+          return 'AI từ chối xử lý nội dung này. Hãy thử nội dung khác.';
+        default:
+          return 'AI đang bận hoặc gặp sự cố. Vui lòng thử lại sau ít phút.';
+      }
   }
 }
 

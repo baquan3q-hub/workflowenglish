@@ -1,4 +1,5 @@
 import { asObject, BadRequest, FLASH_MODELS, jsonConfig, list, oneOf, str, S, userText, type OpSpec } from '../lib.ts';
+import { STRONG_TEXT_MODELS } from '../models.ts';
 
 const LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] as const;
 
@@ -189,7 +190,7 @@ Requirements:
 /** Five-word lessons from the analytics page: a weakness pattern, or the hardest words. */
 export const generateRemedialLesson: OpSpec = {
   hourlyLimit: 10,
-  models: ['gemini-3-flash-preview', 'gemini-2.5-flash'],
+  models: STRONG_TEXT_MODELS,
   timeoutMs: 60_000,
   kind: 'json',
   finalize: checkLesson,
@@ -209,7 +210,7 @@ const recommendationSchema = S.arr(
 /** Ten new words for the dashboard, excluding words already learnt. */
 export const recommendWords: OpSpec = {
   hourlyLimit: 10,
-  models: ['gemini-3-flash-preview', 'gemini-2.5-flash'],
+  models: STRONG_TEXT_MODELS,
   timeoutMs: 30_000,
   kind: 'json',
   finalize(data) {
