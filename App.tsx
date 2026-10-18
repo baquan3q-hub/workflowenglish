@@ -1233,6 +1233,17 @@ function App() {
             userId={currentUser?.id ?? ''}
             onOpenPhase={setPhase}
             onOpenLibrary={(id) => openIeltsLibrary(id)}
+            onAction={(target) => {
+              if (target.kind === 'phase') setPhase(target.phase);
+              else if (target.kind === 'lesson') openIeltsLibrary(target.lessonId);
+              else if (target.kind === 'writingStudy') {
+                setIeltsWritingStudyTab(target.tab);
+                setPhase(AppPhase.IELTS_WRITING_STUDY);
+              } else {
+                setIeltsSpeakingStudyTab(target.tab);
+                setPhase(AppPhase.IELTS_SPEAKING_STUDY);
+              }
+            }}
           />
         );
 
