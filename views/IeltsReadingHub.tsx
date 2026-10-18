@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { ArrowLeft, ArrowRight, BookOpenText, Clock, FileText, Info } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { ArrowLeft, ArrowRight, BookOpenText, Clock, FileText, Info, Library } from 'lucide-react';
 import type { IeltsAttempt } from '../types';
 import { DIFFICULTY_LABELS, READING_EXAM_MINUTES, READING_FULL_TESTS, READING_PRACTICE_TESTS, type ReadingTest } from '../data/ielts/reading';
 import { passageQuestions, passageWordCount, type ReadingMode } from '../services/readingLogic';
 import { isReadingDetails } from '../services/ieltsAttemptService';
+import { getPublishedReadingLibrary } from '../services/readingLibraryService';
 import { GROUP_KINDS } from '../components/ielts/questions/parts';
 import { readingGroupKind } from '../components/ielts/questions/questionLogic';
 import IeltsAttemptHistory from '../components/IeltsAttemptHistory';
@@ -21,6 +22,8 @@ interface Props {
   /** Open "Luyện theo dạng" on this kind. */
   drillKind?: ReadingKind;
   onBack: () => void;
+  /** Published tests from the admin library; injectable for tests. */
+  loadLibrary?: () => Promise<ReadingTest[]>;
 }
 
 const compactBtn = secondaryBtn.replace('px-4', 'px-3');
@@ -39,9 +42,94 @@ function readMode(): ReadingMode {
   }
 }
 
+interface CardProps {
+  test: ReadingTest;
+  mode: ReadingMode;
+  onStart: Props['onStart'];
+}
+
+function FullTestCard({ test, mode, onStart }: CardProps) {
+  return (
+    <li className={`${panel} group p-4 sm:p-5`}>
+      <div className="flex items-start gap-3">
+        <IconTile icon={BookOpenText} tone="mint" />
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{test.title}</h3>
+          <p className="mt-0.5 text-caption text-slate-600 dark:text-slate-400">{test.descriptionVi}</p>
+          <p className="mt-1.5 flex items-center gap-1 text-caption text-slate-600 dark:text-slate-400">
+            <Clock className="h-3.5 w-3.5 text-tone-sky-fg" aria-hidden /> 40 câu, {READING_EXAM_MINUTES} phút
+          </p>
+        </div>
+      </div>
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+        <button type="button" onClick={() => onStart(test.id, [], mode)} className={primaryBtn}>
+          Làm cả đề <ArrowRight className="h-4 w-4" aria-hidden />
+        </button>
+        <div className="grid grid-cols-3 gap-2 sm:flex">
+          {test.passages.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => onStart(test.id, [p.id], mode)}
+              className={compactBtn}
+              title={`${p.title} · ${DIFFICULTY_LABELS[p.difficulty]}`}
+            >
+              Passage {p.part}
+            </button>
+          ))}
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function PassageCard({ test, mode, onStart }: CardProps) {
+  const p = test.passages[0];
+  return (
+    <li className={`${panel} group flex flex-col p-4`}>
+      <div className="flex items-start gap-3">
+        <IconTile icon={FileText} tone="mint" size="sm" />
+        <div className="min-w-0 flex-1">
+          <p className="text-caption font-semibold text-slate-600 dark:text-slate-400">
+            Passage {p.part} · {DIFFICULTY_LABELS[p.difficulty]} · {passageQuestions(p).length} câu
+          </p>
+          <h3 className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-white">{test.title}</h3>
+        </div>
+      </div>
+      <p className="mt-2 flex-1 text-caption text-slate-600 dark:text-slate-400">{test.descriptionVi}</p>
+      <p className="mt-1.5 text-caption text-slate-600 dark:text-slate-400">
+        {passageWordCount(p)} từ · gợi ý {p.suggestedMinutes} phút
+      </p>
+      <div className="mt-2 flex flex-wrap gap-1">
+        {questionKinds(test).map((t) => (
+          <span key={t} className={tag}>
+            {t}
+          </span>
+        ))}
+      </div>
+      <button type="button" onClick={() => onStart(test.id, [], mode)} className={`${secondaryBtn} mt-4 w-full`}>
+        Bắt đầu <ArrowRight className="h-4 w-4" aria-hidden />
+      </button>
+    </li>
+  );
+}
+
 const questionKinds = (test: ReadingTest) => [...new Set(test.passages.flatMap((p) => p.groups.map((g) => GROUP_KINDS[readingGroupKind(g)].label)))];
 
-export default function IeltsReadingHub({ userId, onStart, onOpenAttempt, onOpenLesson, drillKind, onBack }: Props) {
+export default function IeltsReadingHub({ userId, onStart, onOpenAttempt, onOpenLesson, drillKind, onBack, loadLibrary = getPublishedReadingLibrary }: Props) {
+  const [library, setLibrary] = useState<ReadingTest[]>([]);
+  useEffect(() => {
+    let live = true;
+    loadLibrary().then(
+      (tests) => live && setLibrary(tests),
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [loadLibrary]);
+  const libraryFull = library.filter((t) => t.kind === 'full');
+  const libraryPassages = library.filter((t) => t.kind === 'practice');
   const [mode, setModeState] = useState<ReadingMode>(readMode);
   const setMode = (m: ReadingMode) => {
     setModeState(m);
@@ -89,36 +177,7 @@ export default function IeltsReadingHub({ userId, onStart, onOpenAttempt, onOpen
         </h2>
         <ul className="mt-3 space-y-3">
           {READING_FULL_TESTS.map((test) => (
-            <li key={test.id} className={`${panel} group p-4 sm:p-5`}>
-              <div className="flex items-start gap-3">
-                <IconTile icon={BookOpenText} tone="mint" />
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{test.title}</h3>
-                  <p className="mt-0.5 text-caption text-slate-600 dark:text-slate-400">{test.descriptionVi}</p>
-                  <p className="mt-1.5 flex items-center gap-1 text-caption text-slate-600 dark:text-slate-400">
-                    <Clock className="h-3.5 w-3.5 text-tone-sky-fg" aria-hidden /> 40 câu, {READING_EXAM_MINUTES} phút
-                  </p>
-                </div>
-              </div>
-              <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
-                <button type="button" onClick={() => onStart(test.id, [], mode)} className={primaryBtn}>
-                  Làm cả đề <ArrowRight className="h-4 w-4" aria-hidden />
-                </button>
-                <div className="grid grid-cols-3 gap-2 sm:flex">
-                  {test.passages.map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => onStart(test.id, [p.id], mode)}
-                      className={compactBtn}
-                      title={`${p.title} · ${DIFFICULTY_LABELS[p.difficulty]}`}
-                    >
-                      Passage {p.part}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </li>
+            <FullTestCard key={test.id} test={test} mode={mode} onStart={onStart} />
           ))}
         </ul>
       </section>
@@ -128,38 +187,34 @@ export default function IeltsReadingHub({ userId, onStart, onOpenAttempt, onOpen
           Luyện từng passage
         </h2>
         <ul className="mt-3 grid gap-3 sm:grid-cols-2">
-          {READING_PRACTICE_TESTS.map((test) => {
-            const p = test.passages[0];
-            return (
-              <li key={test.id} className={`${panel} group flex flex-col p-4`}>
-                <div className="flex items-start gap-3">
-                  <IconTile icon={FileText} tone="mint" size="sm" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-caption font-semibold text-slate-600 dark:text-slate-400">
-                      Passage {p.part} · {DIFFICULTY_LABELS[p.difficulty]} · {passageQuestions(p).length} câu
-                    </p>
-                    <h3 className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-white">{test.title}</h3>
-                  </div>
-                </div>
-                <p className="mt-2 flex-1 text-caption text-slate-600 dark:text-slate-400">{test.descriptionVi}</p>
-                <p className="mt-1.5 text-caption text-slate-600 dark:text-slate-400">
-                  {passageWordCount(p)} từ · gợi ý {p.suggestedMinutes} phút
-                </p>
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {questionKinds(test).map((t) => (
-                    <span key={t} className={tag}>
-                      {t}
-                    </span>
-                  ))}
-                </div>
-                <button type="button" onClick={() => onStart(test.id, [], mode)} className={`${secondaryBtn} mt-4 w-full`}>
-                  Bắt đầu <ArrowRight className="h-4 w-4" aria-hidden />
-                </button>
-              </li>
-            );
-          })}
+          {READING_PRACTICE_TESTS.map((test) => (
+            <PassageCard key={test.id} test={test} mode={mode} onStart={onStart} />
+          ))}
         </ul>
       </section>
+
+      {library.length > 0 && (
+        <section aria-labelledby="reading-library">
+          <h2 id="reading-library" className="flex items-center gap-2 text-title font-semibold text-slate-900 dark:text-white">
+            <Library className="h-5 w-5 text-tone-lavender-fg" aria-hidden /> Đề luyện thêm
+          </h2>
+          <p className="mt-1 text-caption text-slate-600 dark:text-slate-400">Đề do giáo viên soạn và cập nhật thường xuyên.</p>
+          {libraryFull.length > 0 && (
+            <ul className="mt-3 space-y-3">
+              {libraryFull.map((test) => (
+                <FullTestCard key={test.id} test={test} mode={mode} onStart={onStart} />
+              ))}
+            </ul>
+          )}
+          {libraryPassages.length > 0 && (
+            <ul className="mt-3 grid gap-3 sm:grid-cols-2">
+              {libraryPassages.map((test) => (
+                <PassageCard key={test.id} test={test} mode={mode} onStart={onStart} />
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       <DrillSection userId={userId} initialKind={drillKind} onStart={(id) => onStart(id, [], 'practice')} onOpenLesson={onOpenLesson} />
 

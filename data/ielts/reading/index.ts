@@ -20,7 +20,18 @@ export const READING_PRACTICE_TESTS: ReadingTest[] = [
 ];
 export const READING_TESTS: ReadingTest[] = [...READING_FULL_TESTS, ...READING_PRACTICE_TESTS];
 
-export const getReadingTest = (id: string): ReadingTest | undefined => READING_TESTS.find((t) => t.id === id);
+/** Tests that are not bundled (the admin library), added once loaded so getReadingTest finds them. */
+const extraTests = new Map<string, ReadingTest>();
+
+export function registerReadingTests(tests: ReadingTest[]): void {
+  for (const t of tests) if (!READING_TESTS.some((b) => b.id === t.id)) extraTests.set(t.id, t);
+}
+
+export function unregisterReadingTest(id: string): void {
+  extraTests.delete(id);
+}
+
+export const getReadingTest = (id: string): ReadingTest | undefined => READING_TESTS.find((t) => t.id === id) ?? extraTests.get(id);
 
 export const DIFFICULTY_LABELS: Record<ReadingDifficulty, string> = {
   easy: 'Dễ',

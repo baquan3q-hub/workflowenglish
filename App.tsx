@@ -45,7 +45,7 @@ import IeltsListeningResult from './views/IeltsListeningResult';
 import IeltsListeningDictation from './views/IeltsListeningDictation';
 import IeltsListeningDrill from './views/IeltsListeningDrill';
 import IeltsReadingHub from './views/IeltsReadingHub';
-import IeltsReadingPractice from './views/IeltsReadingPractice';
+import IeltsReadingPractice, { clearReadingDraft } from './views/IeltsReadingPractice';
 import IeltsReadingResult from './views/IeltsReadingResult';
 import { getReadingTest, type ReadingAnswers } from './data/ielts/reading';
 import { readingAttemptLabels, scorePassages, sessionPassages as readingSessionPassages, type ReadingMode } from './services/readingLogic';
@@ -59,6 +59,8 @@ import { getListeningTest, type ListeningAnswers } from './data/ielts/listening'
 import { isGeneratedTestId, loadGeneratedTest } from './services/listeningGenerationService';
 import { isLibraryTestId } from './services/listeningLibraryLogic';
 import { isAppAdmin, loadLibraryTest, registerPreview } from './services/listeningLibraryService';
+import { loadReadingLibraryTest, registerReadingPreview } from './services/readingLibraryService';
+import { isReadingLibraryTestId } from './services/readingLibraryLogic';
 import IeltsAdmin, { type AdminEditing } from './views/IeltsAdmin';
 import { attemptLabels, scoreSections, sessionSections, type ListeningMode } from './services/listeningLogic';
 import { Toast, type ToastAction, type ToastType } from './components/Common';
@@ -199,6 +201,8 @@ function App() {
     answers: ReadingAnswers;
     seconds: Record<string, number>;
     run: number;
+    /** An admin trying out a draft: nothing is saved and leaving goes back to the editor. */
+    preview?: boolean;
   } | null>(null);
   const [ieltsAdmin, setIeltsAdmin] = useState(false);
   const [ieltsAdminEditing, setIeltsAdminEditing] = useState<AdminEditing | null>(null);
@@ -1012,8 +1016,8 @@ function App() {
     setPhase(AppPhase.IELTS_READING_HUB);
   };
 
-  const startIeltsReading = (testId: string, passageIds: string[], mode: ReadingMode) => {
-    setIeltsReading(prev => ({ testId, passageIds, mode, answers: {}, seconds: {}, run: (prev?.run ?? 0) + 1 }));
+  const startIeltsReading = (testId: string, passageIds: string[], mode: ReadingMode, preview = false) => {
+    setIeltsReading(prev => ({ testId, passageIds, mode, answers: {}, seconds: {}, run: (prev?.run ?? 0) + 1, preview }));
     setPhase(AppPhase.IELTS_READING_PRACTICE);
   };
 
@@ -1030,7 +1034,7 @@ function App() {
       appendDrillLog(currentUser?.id ?? '', groupRecords(drill.testId, passages, answers, new Date().toISOString()));
       return;
     }
-    if (!currentUser) return;
+    if (!currentUser || session.preview) return;
     const score = scorePassages(passages, answers);
     void saveReadingAttempt({
       userId: currentUser.id,
@@ -1047,9 +1051,19 @@ function App() {
   const openIeltsAttempt = (attempt: IeltsAttempt) => {
     if (attempt.skill === 'reading') {
       const d = attempt.details;
-      if (!isReadingDetails(d) || !resolveReadingTest(d.testId, getReadingTest)) return;
-      setIeltsReading({ testId: d.testId, passageIds: d.passageIds, mode: d.mode, answers: d.answers, seconds: d.seconds, run: 0 });
-      setPhase(AppPhase.IELTS_READING_RESULT);
+      if (!isReadingDetails(d)) return;
+      const open = () => {
+        setIeltsReading({ testId: d.testId, passageIds: d.passageIds, mode: d.mode, answers: d.answers, seconds: d.seconds, run: 0 });
+        setPhase(AppPhase.IELTS_READING_RESULT);
+      };
+      if (resolveReadingTest(d.testId, getReadingTest)) open();
+      else if (isReadingLibraryTestId(d.testId)) {
+        // A test from the admin library: load it from reading_library first.
+        void loadReadingLibraryTest(d.testId).then(test => {
+          if (test) open();
+          else showToast('Không mở được bài này: đề đã bị gỡ khỏi thư viện.', 'info');
+        });
+      }
       return;
     }
     if (attempt.skill === 'listening') {
@@ -1414,7 +1428,7 @@ function App() {
             passageIds={ieltsReading.passageIds}
             mode={ieltsReading.mode}
             onSubmit={submitIeltsReading}
-            onExit={() => openIeltsReadingHub()}
+            onExit={() => (ieltsReading.preview ? setPhase(AppPhase.IELTS_ADMIN) : openIeltsReadingHub())}
           />
         );
       }
@@ -1429,8 +1443,8 @@ function App() {
             mode={ieltsReading.mode}
             answers={ieltsReading.answers}
             seconds={ieltsReading.seconds}
-            onRetry={() => startIeltsReading(test.id, ieltsReading.passageIds, ieltsReading.mode)}
-            onBack={() => openIeltsReadingHub()}
+            onRetry={() => startIeltsReading(test.id, ieltsReading.passageIds, ieltsReading.mode, ieltsReading.preview)}
+            onBack={() => (ieltsReading.preview ? setPhase(AppPhase.IELTS_ADMIN) : openIeltsReadingHub())}
             drill={isDrillTestId(test.id)}
             onOpenLesson={(id) => openIeltsLibrary(id, AppPhase.IELTS_READING_RESULT)}
             onDrill={openIeltsReadingHub}
@@ -1515,6 +1529,13 @@ function App() {
             onEditingChange={setIeltsAdminEditing}
             onPreview={(editing) => {
               setIeltsAdminEditing(editing);
+              if (editing.skill === 'reading') {
+                const test = registerReadingPreview(editing.item);
+                // A preview left halfway must not bring back answers and highlights from an older version.
+                clearReadingDraft(currentUser?.id ?? '', test.id, [], 'practice');
+                startIeltsReading(test.id, [], 'practice', true);
+                return;
+              }
               const test = registerPreview(editing.item);
               startIeltsListening(test.id, [], 'practice', true);
             }}

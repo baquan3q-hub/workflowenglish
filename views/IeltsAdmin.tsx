@@ -1,26 +1,40 @@
 /**
- * Admin page (IELTS phase I13): the Listening library and the AI check.
- * Only users listed in `app_admins` get past the gate; RLS and the ai-proxy
- * enforce the same rule on the server.
+ * Admin page (IELTS phases I13 and R7): the Listening and Reading libraries
+ * and the AI check. Only users listed in `app_admins` get past the gate; RLS
+ * and the ai-proxy enforce the same rule on the server.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, CircleAlert, Loader2, ShieldCheck } from 'lucide-react';
 import AiHealthPanel from '../components/ielts/admin/AiHealthPanel';
-import LibraryList from '../components/ielts/admin/LibraryList';
+import LibraryList, { LISTENING_LIST, READING_LIST } from '../components/ielts/admin/LibraryList';
 import ListeningEditor from '../components/ielts/admin/ListeningEditor';
+import ReadingEditor from '../components/ielts/admin/ReadingEditor';
 import { hint, panel, secondaryBtn } from '../components/ielts/admin/styles';
 import { Tabs } from '../components/ui/Tabs';
 import { duplicateItem, emptyItem, type LibraryItem } from '../services/listeningLibraryLogic';
 import { deleteLibraryItem, getAllLibrary, isAppAdmin, LIBRARY_LIST_LIMIT, saveLibraryItem } from '../services/listeningLibraryService';
+import { duplicateReadingItem, emptyReadingItem, type ReadingLibraryItem } from '../services/readingLibraryLogic';
+import { deleteReadingLibraryItem, getAllReadingLibrary, READING_LIST_LIMIT, saveReadingLibraryItem } from '../services/readingLibraryService';
 
-export interface AdminApi {
-  isAdmin: (userId: string) => Promise<boolean>;
-  list: () => Promise<LibraryItem[]>;
-  save: (item: LibraryItem) => Promise<LibraryItem>;
+/** Reads and writes one skill's library. */
+export interface LibraryApi<T> {
+  list: () => Promise<T[]>;
+  save: (item: T) => Promise<T>;
   remove: (id: string) => Promise<void>;
 }
 
-const defaultApi: AdminApi = { isAdmin: isAppAdmin, list: getAllLibrary, save: saveLibraryItem, remove: deleteLibraryItem };
+export interface AdminApi extends LibraryApi<LibraryItem> {
+  isAdmin: (userId: string) => Promise<boolean>;
+  reading: LibraryApi<ReadingLibraryItem>;
+}
+
+const defaultApi: AdminApi = {
+  isAdmin: isAppAdmin,
+  list: getAllLibrary,
+  save: saveLibraryItem,
+  remove: deleteLibraryItem,
+  reading: { list: getAllReadingLibrary, save: saveReadingLibraryItem, remove: deleteReadingLibraryItem },
+};
 
 interface Props {
   userId: string;
@@ -35,26 +49,77 @@ interface Props {
 }
 
 /** The test open in the editor: its draft and what is stored (null when never saved). */
-export interface AdminEditing {
-  item: LibraryItem;
-  saved: LibraryItem | null;
-}
+export type AdminEditing =
+  | { skill: 'listening'; item: LibraryItem; saved: LibraryItem | null }
+  | { skill: 'reading'; item: ReadingLibraryItem; saved: ReadingLibraryItem | null };
 
-type Tab = 'tests' | 'health';
+type Tab = 'listening' | 'reading' | 'health';
 
 const ADMIN_SQL = `insert into public.app_admins (user_id)
 select id from auth.users where email = '<email của bạn>'
 on conflict do nothing;`;
 
+const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
+
+/**
+ * One skill's list: loading, errors, duplicate and delete. The parent keeps
+ * the items so a save in the editor shows up when the list comes back.
+ */
+function useLibrary<T extends { id: string }>(api: LibraryApi<T>, enabled: boolean) {
+  const [items, setItems] = useState<T[] | null>(null);
+  const [error, setError] = useState('');
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setError('');
+    try {
+      setItems(await api.list());
+    } catch (err) {
+      setError(errorText(err));
+      setItems([]);
+    }
+  }, [api]);
+
+  useEffect(() => {
+    if (enabled) void load();
+  }, [enabled, load]);
+
+  const stored = (item: T) => setItems((list) => [item, ...(list ?? []).filter((i) => i.id !== item.id)]);
+
+  const busy = async (item: T, what: string, run: () => Promise<void>) => {
+    setBusyId(item.id);
+    setError('');
+    try {
+      await run();
+    } catch (err) {
+      setError(`${what}: ${errorText(err)}`);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return {
+    items,
+    error,
+    busyId,
+    stored,
+    duplicate: (item: T, copy: T) => busy(item, 'Không nhân bản được', async () => stored(await api.save(copy))),
+    remove: (item: T) =>
+      busy(item, 'Không xoá được', async () => {
+        await api.remove(item.id);
+        setItems((list) => (list ?? []).filter((i) => i.id !== item.id));
+      }),
+  };
+}
+
 export default function IeltsAdmin({ userId, onBack, onPreview, editing: editingProp = null, onEditingChange, api = defaultApi, newId = () => crypto.randomUUID() }: Props) {
   const [admin, setAdmin] = useState<boolean | null>(null);
-  const [items, setItems] = useState<LibraryItem[] | null>(null);
-  const [error, setError] = useState('');
-  const [tab, setTab] = useState<Tab>('tests');
+  const [tab, setTab] = useState<Tab>(editingProp?.skill ?? 'listening');
   const [editingLocal, setEditingLocal] = useState(editingProp);
-  const [busyId, setBusyId] = useState<string | null>(null);
   const editing = onEditingChange ? editingProp : editingLocal;
   const setEditing = (e: AdminEditing | null) => (onEditingChange ? onEditingChange(e) : setEditingLocal(e));
+  const listening = useLibrary(api, !!admin);
+  const reading = useLibrary(api.reading, !!admin);
 
   useEffect(() => {
     let live = true;
@@ -64,61 +129,28 @@ export default function IeltsAdmin({ userId, onBack, onPreview, editing: editing
     };
   }, [api, userId]);
 
-  const load = useCallback(async () => {
-    setError('');
-    try {
-      setItems(await api.list());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setItems([]);
-    }
-  }, [api]);
-
-  useEffect(() => {
-    if (admin) load();
-  }, [admin, load]);
-
-  const save = async (item: LibraryItem) => {
+  const saveListening = async (item: LibraryItem) => {
     const stored = await api.save(item);
-    setItems((list) => [stored, ...(list ?? []).filter((i) => i.id !== stored.id)]);
-    setEditing({ item: stored, saved: stored });
+    listening.stored(stored);
+    setEditing({ skill: 'listening', item: stored, saved: stored });
     return stored;
   };
 
-  const duplicate = async (item: LibraryItem) => {
-    setBusyId(item.id);
-    setError('');
-    try {
-      const copy = await api.save(duplicateItem(item, newId()));
-      setItems((list) => [copy, ...(list ?? [])]);
-    } catch (err) {
-      setError(`Không nhân bản được: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const remove = async (item: LibraryItem) => {
-    setBusyId(item.id);
-    setError('');
-    try {
-      await api.remove(item.id);
-      setItems((list) => (list ?? []).filter((i) => i.id !== item.id));
-    } catch (err) {
-      setError(`Không xoá được: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setBusyId(null);
-    }
+  const saveReading = async (item: ReadingLibraryItem) => {
+    const stored = await api.reading.save(item);
+    reading.stored(stored);
+    setEditing({ skill: 'reading', item: stored, saved: stored });
+    return stored;
   };
 
   const header = (
     <header className="flex items-start gap-2">
-      <button type="button" onClick={onBack} className={`${secondaryBtn} !px-3`} aria-label="Quay lại IELTS">
+      <button type="button" onClick={onBack} className={secondaryBtn.replace('px-4', 'px-3')} aria-label="Quay lại IELTS">
         <ArrowLeft className="h-4 w-4" />
       </button>
       <div>
         <p className="flex items-center gap-1.5 text-caption font-medium text-slate-500 dark:text-slate-400">
-          <ShieldCheck className="h-3.5 w-3.5" /> Quản trị
+          <ShieldCheck className="h-3.5 w-3.5 text-tone-periwinkle-fg" /> Quản trị
         </p>
         <h1 className="text-heading font-bold text-slate-900 dark:text-white">Quản lý nội dung IELTS</h1>
       </div>
@@ -152,6 +184,12 @@ export default function IeltsAdmin({ userId, onBack, onPreview, editing: editing
     );
   }
 
+  const lib = tab === 'reading' ? reading : listening;
+  const error = editing ? '' : tab === 'health' ? '' : lib.error;
+  const limit = tab === 'reading' ? READING_LIST_LIMIT : LIBRARY_LIST_LIMIT;
+  const loading = <p className={`flex items-center gap-2 ${hint}`}><Loader2 className="h-4 w-4 animate-spin" /> Đang tải đề…</p>;
+  const limitNote = (n: number) => n >= limit && <p className={hint}>Đang hiện {limit} đề sửa gần nhất; đề cũ hơn không có trong danh sách.</p>;
+
   return (
     <div className="mx-auto max-w-5xl space-y-6 anim-fade-up">
       {!editing && header}
@@ -161,7 +199,8 @@ export default function IeltsAdmin({ userId, onBack, onPreview, editing: editing
           value={tab}
           onChange={setTab}
           items={[
-            { id: 'tests', label: 'Đề Listening', count: items?.length },
+            { id: 'listening', label: 'Đề Listening', count: listening.items?.length },
+            { id: 'reading', label: 'Đề Reading', count: reading.items?.length },
             { id: 'health', label: 'Kiểm tra AI' },
           ]}
         />
@@ -174,31 +213,56 @@ export default function IeltsAdmin({ userId, onBack, onPreview, editing: editing
         </p>
       )}
 
-      {editing ? (
-        <ListeningEditor key={editing.item.id} item={editing.item}
+      {editing?.skill === 'listening' ? (
+        <ListeningEditor
+          key={editing.item.id}
+          item={editing.item}
           saved={editing.saved}
-          onSave={save}
+          onSave={saveListening}
           onClose={() => setEditing(null)}
-          onPreview={(item, saved) => onPreview({ item, saved })}
+          onPreview={(item, saved) => onPreview({ skill: 'listening', item, saved })}
+        />
+      ) : editing?.skill === 'reading' ? (
+        <ReadingEditor
+          key={editing.item.id}
+          item={editing.item}
+          saved={editing.saved}
+          onSave={saveReading}
+          onClose={() => setEditing(null)}
+          onPreview={(item, saved) => onPreview({ skill: 'reading', item, saved })}
         />
       ) : tab === 'health' ? (
         <AiHealthPanel />
-      ) : items === null ? (
-        <p className={`flex items-center gap-2 ${hint}`}>
-          <Loader2 className="h-4 w-4 animate-spin" /> Đang tải đề…
-        </p>
+      ) : tab === 'reading' ? (
+        reading.items === null ? (
+          loading
+        ) : (
+          <>
+            {limitNote(reading.items.length)}
+            <LibraryList
+              config={READING_LIST}
+              items={reading.items}
+              busyId={reading.busyId}
+              onNew={(kind) => setEditing({ skill: 'reading', item: emptyReadingItem(newId(), kind), saved: null })}
+              onEdit={(item) => setEditing({ skill: 'reading', item, saved: item })}
+              onDuplicate={(item) => reading.duplicate(item, duplicateReadingItem(item, newId()))}
+              onDelete={reading.remove}
+            />
+          </>
+        )
+      ) : listening.items === null ? (
+        loading
       ) : (
         <>
-          {items.length >= LIBRARY_LIST_LIMIT && (
-            <p className={hint}>Đang hiện {LIBRARY_LIST_LIMIT} đề sửa gần nhất; đề cũ hơn không có trong danh sách.</p>
-          )}
+          {limitNote(listening.items.length)}
           <LibraryList
-            items={items}
-            busyId={busyId}
-            onNew={(kind) => setEditing({ item: emptyItem(newId(), kind), saved: null })}
-            onEdit={(item) => setEditing({ item, saved: item })}
-            onDuplicate={duplicate}
-            onDelete={remove}
+            config={LISTENING_LIST}
+            items={listening.items}
+            busyId={listening.busyId}
+            onNew={(kind) => setEditing({ skill: 'listening', item: emptyItem(newId(), kind), saved: null })}
+            onEdit={(item) => setEditing({ skill: 'listening', item, saved: item })}
+            onDuplicate={(item) => listening.duplicate(item, duplicateItem(item, newId()))}
+            onDelete={listening.remove}
           />
         </>
       )}
