@@ -3,6 +3,7 @@ import {
   generateBody,
   interactionAudio,
   interactionsBody,
+  LIGHT_TEXT_MODELS,
   modelsFromEnv,
   resolveModels,
   STRONG_TEXT_MODELS,
@@ -62,6 +63,7 @@ describe('model lists', () => {
     const env = { text: 'gemini-x', tts: 'gemini-y-tts' };
     expect(resolveModels(TEXT_MODELS, env)).toEqual(['gemini-x']);
     expect(resolveModels(STRONG_TEXT_MODELS, env)).toEqual(['gemini-x']);
+    expect(resolveModels(LIGHT_TEXT_MODELS, env)).toEqual(['gemini-x']);
     expect(resolveModels(TTS_MODELS, env)).toEqual(['gemini-y-tts']);
     expect(resolveModels(['custom'], env)).toEqual(['custom']);
   });

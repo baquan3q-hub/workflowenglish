@@ -1,4 +1,4 @@
-import { asObject, BadRequest, FLASH_MODELS, jsonConfig, list, oneOf, q, str, S, userText, type OpSpec } from '../lib.ts';
+import { asObject, BadRequest, FLASH_MODELS, LIGHT_TEXT_MODELS, jsonConfig, list, oneOf, q, str, S, userText, type OpSpec } from '../lib.ts';
 
 const LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] as const;
 export const VERDICTS = ['correct', 'acceptable', 'incorrect'] as const;
@@ -91,7 +91,7 @@ const gradeSchema = S.obj({
 /** Grades one learner sentence against the Vietnamese prompt and references. */
 export const gradeSentence: OpSpec = {
   hourlyLimit: 60,
-  models: FLASH_MODELS,
+  models: LIGHT_TEXT_MODELS,
   timeoutMs: 10_000,
   kind: 'json',
   finalize(data) {

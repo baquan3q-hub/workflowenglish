@@ -13,6 +13,7 @@ import {
   normalizeAnswer,
   wordFormsOf,
   buildWordFormIndex,
+  generateMultipleChoiceOptions,
   SAME_SESSION_WINDOW_MS,
   type ReviewableState,
 } from '../reviewLogic';
@@ -199,3 +200,28 @@ describe('spellingDiff', () => {
     );
   });
 });
+
+describe('generateMultipleChoiceOptions', () => {
+  it('generates 4 options with exactly 1 correct answer', () => {
+    const pool = [
+      { word: 'apple', meaning_vi: 'quả táo' },
+      { word: 'banana', meaning_vi: 'quả chuối' },
+      { word: 'orange', meaning_vi: 'quả cam' },
+      { word: 'grape', meaning_vi: 'quả nho' },
+    ];
+    const opts = generateMultipleChoiceOptions('quả táo', pool);
+    expect(opts).toHaveLength(4);
+    const correct = opts.filter((o) => o.isCorrect);
+    expect(correct).toHaveLength(1);
+    expect(correct[0].text).toBe('quả táo');
+  });
+
+  it('backfills from fallback meanings if pool is small', () => {
+    const opts = generateMultipleChoiceOptions('đơn độc', []);
+    expect(opts).toHaveLength(4);
+    const correct = opts.filter((o) => o.isCorrect);
+    expect(correct).toHaveLength(1);
+    expect(correct[0].text).toBe('đơn độc');
+  });
+});
+

@@ -7,14 +7,14 @@ import { MasteryLevel, type ConfidenceRating, type WordMasteryRecord } from '../
 import type { ReviewMode } from './preferencesService';
 import { SUCCESSFUL_RATING_THRESHOLD } from './masteryService';
 
-export type CardMode = 'flip' | 'typing';
+export type CardMode = 'flip' | 'typing' | 'multiple_choice';
 
 /** Average time per card, used for the "~N phút" estimate. */
 export const SECONDS_PER_CARD = 8;
 
 /**
- * How a card is answered. Typing needs the stored Vietnamese meaning, so a
- * word without one is always flipped. `auto` types only words the learner
+ * How a card is answered. Typing/Multiple choice needs the stored Vietnamese meaning,
+ * so a word without one is always flipped. `auto` types only words the learner
  * has already met several times (active recall once recognition is easy).
  */
 export function resolveCardMode(
@@ -22,6 +22,7 @@ export function resolveCardMode(
   mode: ReviewMode,
 ): CardMode {
   if (!record.meaning_vi) return 'flip';
+  if (mode === 'multiple_choice') return 'multiple_choice';
   if (mode === 'typing') return 'typing';
   if (mode === 'flip' || mode === 'handwriting') return 'flip';
   return record.mastery_level === MasteryLevel.REVIEWING ||

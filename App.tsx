@@ -21,6 +21,7 @@ import QuizMode from './views/QuizMode';
 import FillBlankMode from './views/FillBlankMode';
 import LearningHistory from './views/LearningHistory';
 import ReviewSession from './views/ReviewSession';
+import VocabTestView from './views/VocabTestView';
 import AnalyticsDashboard from './views/AnalyticsDashboard';
 import VocabLibrary from './views/VocabLibrary';
 import LessonSummary from './views/LessonSummary';
@@ -1195,6 +1196,7 @@ function App() {
               setSentenceDrill(items);
               setPhase(AppPhase.SENTENCE_DRILL);
             }}
+            onStartVocabTest={() => setPhase(AppPhase.VOCAB_TEST)}
           />
         );
 
@@ -1207,6 +1209,7 @@ function App() {
             onShowToast={showToast}
             onStartLesson={() => setPhase(AppPhase.DASHBOARD)}
             onReviewWords={reviewSelectedWords}
+            onStartVocabTest={() => setPhase(AppPhase.VOCAB_TEST)}
           />
         ) : null;
 
@@ -1289,6 +1292,16 @@ function App() {
             setGoalCelebrated={setReviewGoalCelebrated}
             nextReviewIso={reviewNextReviewIso}
             setNextReviewIso={setReviewNextReviewIso}
+            onStartVocabTest={() => setPhase(AppPhase.VOCAB_TEST)}
+          />
+        ) : null;
+
+      case AppPhase.VOCAB_TEST:
+        return currentUser ? (
+          <VocabTestView
+            userId={currentUser.id}
+            onBack={() => setPhase(AppPhase.DASHBOARD)}
+            onShowToast={showToast}
           />
         ) : null;
 

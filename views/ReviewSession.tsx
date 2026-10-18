@@ -12,8 +12,10 @@ import {
   computeReviewUpdate,
   findWordForm,
   formatIpa,
+  generateMultipleChoiceOptions,
   gradeTypedAnswer,
   type GradeResult,
+  type MultipleChoiceOption,
 } from '../services/reviewLogic';
 import { applyRating, undoRating } from '../services/reviewService';
 import {
@@ -40,6 +42,8 @@ interface ReviewSessionProps {
    * above the header on any phase.
    */
   onShowToast?: (message: string, type?: 'success' | 'info') => void;
+  /** Start vocabulary mastery test (testing reviewing & mastered words). */
+  onStartVocabTest?: () => void;
 
   /** `null` until a session is started from the start screen. */
   dueWords: WordMasteryRecord[] | null;
@@ -63,6 +67,7 @@ const MAX_APPEARANCES = 3;
 /** Modes offered on the start screen (handwriting arrives with the handwriting pad). */
 const MODE_OPTIONS: ReadonlyArray<{ value: ReviewMode; label: string; help: string }> = [
   { value: 'auto', label: 'Tự động', help: 'Từ mới lật thẻ, từ đã quen thì gõ lại từ nghĩa.' },
+  { value: 'multiple_choice', label: 'Trắc nghiệm', help: 'Chọn nghĩa đúng trong 4 đáp án và nhận phản hồi tức thì.' },
   { value: 'flip', label: 'Lật thẻ', help: 'Nhìn từ, nhớ nghĩa rồi tự chấm.' },
   { value: 'typing', label: 'Gõ từ', help: 'Nhìn nghĩa tiếng Việt, gõ lại từ tiếng Anh.' },
 ];
@@ -135,6 +140,7 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
   setGoalCelebrated,
   nextReviewIso,
   setNextReviewIso,
+  onStartVocabTest,
 }) => {
   const initialPrefs = useMemo(() => getPreferences(userId), [userId]);
   const [sessionSize, setSessionSize] = useState<ReviewSessionSize>(initialPrefs.reviewSessionSize);
@@ -161,6 +167,9 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
   const [check, setCheck] = useState<GradeResult | null>(null);
   const [hintShown, setHintShown] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Multiple-choice state (reset for every card)
+  const [mcSelected, setMcSelected] = useState<string | null>(null);
 
   const started = propDueWords !== null;
   const dueWords = propDueWords || [];
@@ -214,7 +223,27 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
   };
 
   const currentCard: WordMasteryRecord | undefined = dueWords[currentIndex];
-  const typingMode = currentCard ? resolveCardMode(currentCard, mode) === 'typing' : false;
+  const cardMode = currentCard ? resolveCardMode(currentCard, mode) : 'flip';
+  const typingMode = cardMode === 'typing';
+  const multipleChoiceMode = cardMode === 'multiple_choice';
+
+  const mcOptions: MultipleChoiceOption[] = useMemo(() => {
+    if (!currentCard?.meaning_vi || !multipleChoiceMode) return [];
+    return generateMultipleChoiceOptions(currentCard.meaning_vi, dueWords);
+  }, [currentCard?.word, currentCard?.meaning_vi, multipleChoiceMode, dueWords]);
+
+  const handleSelectOption = (optionText: string) => {
+    if (!currentCard || mcSelected) return;
+    setMcSelected(optionText);
+    setRevealed(true);
+    speakText(currentCard.word);
+    const isCorrect = optionText.trim().toLowerCase() === currentCard.meaning_vi?.trim().toLowerCase();
+    if (isCorrect) {
+      const audio = new Audio('https://codeskulptor-demos.commondatastorage.googleapis.com/pang/pop.mp3');
+      audio.volume = 0.2;
+      audio.play().catch(() => {});
+    }
+  };
 
   // Reset per-card UI whenever the card changes
   useEffect(() => {
@@ -222,6 +251,7 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
     setTyped('');
     setCheck(null);
     setHintShown(false);
+    setMcSelected(null);
   }, [currentIndex, propDueWords === null]);
 
   useEffect(() => {
@@ -247,23 +277,33 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
   }, [currentIndex]);
 
   /**
-   * Highest rating the learner may pick. In typing mode the result of the
-   * check caps it: a wrong answer can't be rated "Easy".
+   * Highest rating the learner may pick. In typing / multiple choice mode the
+   * result of the check caps it: a wrong answer can't be rated "Easy".
    */
   const maxRating: ConfidenceRating = useMemo(() => {
+    if (multipleChoiceMode) {
+      if (!mcSelected) return 3;
+      const isCorrect = mcSelected.trim().toLowerCase() === currentCard?.meaning_vi?.trim().toLowerCase();
+      return isCorrect ? 3 : 0;
+    }
     if (!typingMode || !check) return 3;
     if (check.grade === 'wrong') return 0;
     if (check.grade === 'close' || hintShown) return 1;
     return 3;
-  }, [typingMode, check, hintShown]);
+  }, [typingMode, multipleChoiceMode, check, hintShown, mcSelected, currentCard?.meaning_vi]);
 
-  /** Rating pre-selected for Enter, derived from the typing check. */
+  /** Rating pre-selected for Enter, derived from typing check or MC selection. */
   const suggestedRating: ConfidenceRating | null = useMemo(() => {
+    if (multipleChoiceMode) {
+      if (!mcSelected) return null;
+      const isCorrect = mcSelected.trim().toLowerCase() === currentCard?.meaning_vi?.trim().toLowerCase();
+      return isCorrect ? 2 : 0;
+    }
     if (!typingMode || !check) return null;
     if (check.grade === 'wrong') return 0;
     if (check.grade === 'close' || hintShown) return 1;
     return 2;
-  }, [typingMode, check, hintShown]);
+  }, [typingMode, multipleChoiceMode, check, hintShown, mcSelected, currentCard?.meaning_vi]);
 
   /**
    * Predicted next-review label for each rating, using the same rules as
@@ -303,6 +343,7 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
     async (rating: ConfidenceRating) => {
       if (!currentCard || submitting) return;
       if (typingMode && !check) return;
+      if (multipleChoiceMode && !mcSelected) return;
       if (rating > maxRating) return;
       setSubmitting(true);
       const now = new Date();
@@ -356,7 +397,7 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
         setSubmitting(false);
       }
     },
-    [currentCard, currentIndex, dueWords, submitting, typingMode, check, maxRating, userId, goalCelebrated, onShowToast, setDueWords, setRatings, setCurrentIndex, setGoalCelebrated],
+    [currentCard, currentIndex, dueWords, submitting, typingMode, multipleChoiceMode, mcSelected, check, maxRating, userId, goalCelebrated, onShowToast, setDueWords, setRatings, setCurrentIndex, setGoalCelebrated],
   );
 
   /** Revert the last rating: restore the word's previous state and go back to its card. */
@@ -379,7 +420,7 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
     }
   }, [history, submitting, userId, setRatings, setDueWords, setCurrentIndex]);
 
-  // Keyboard: Space/Enter reveal (or confirm), 1–4 rate, Z undo
+  // Keyboard: Space/Enter reveal (or confirm), 1–4 choose or rate, Z undo
   useEffect(() => {
     if (!started || loading) return;
     const onKey = (e: KeyboardEvent) => {
@@ -392,8 +433,19 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
       }
       if (finished || !currentCard) return;
       if (e.target instanceof HTMLButtonElement && (e.key === ' ' || e.key === 'Enter')) return;
-      const answered = typingMode ? !!check : revealed;
-      if ((e.key === ' ' || e.key === 'Enter') && !typingMode && !revealed) {
+      const answered = typingMode ? !!check : multipleChoiceMode ? !!mcSelected : revealed;
+
+      // In multiple-choice mode before selecting, 1-4 chooses the option
+      if (!answered && multipleChoiceMode && !mcSelected && ['1', '2', '3', '4'].includes(e.key)) {
+        const idx = Number(e.key) - 1;
+        if (mcOptions[idx]) {
+          e.preventDefault();
+          handleSelectOption(mcOptions[idx].text);
+        }
+        return;
+      }
+
+      if ((e.key === ' ' || e.key === 'Enter') && !typingMode && !multipleChoiceMode && !revealed) {
         e.preventDefault();
         setRevealed(true);
       } else if (e.key === 'Enter' && answered && suggestedRating !== null) {
@@ -406,7 +458,7 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [started, finished, loading, currentCard, typingMode, check, revealed, suggestedRating, handleRate, handleUndo, history.length]);
+  }, [started, finished, loading, currentCard, typingMode, multipleChoiceMode, mcSelected, mcOptions, check, revealed, suggestedRating, handleRate, handleUndo, history.length]);
 
   const shell = 'mx-auto flex w-full max-w-xl flex-col gap-6';
 
@@ -459,13 +511,24 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
               Lượt ôn tiếp theo: {formatNextReviewDate(nextReviewIso)}.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onBack}
-            className="inline-flex min-h-touch items-center rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
-          >
-            Về trang chủ
-          </button>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex min-h-touch items-center rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+            >
+              Về trang chủ
+            </button>
+            {onStartVocabTest && (
+              <button
+                type="button"
+                onClick={onStartVocabTest}
+                className="inline-flex min-h-touch items-center rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+              >
+                Kiểm tra từ vựng →
+              </button>
+            )}
+          </div>
         </div>
       );
     }
@@ -502,6 +565,24 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
             <p className="text-sm text-slate-600 dark:text-slate-400">{modeHelp}</p>
           </div>
         </section>
+
+        {onStartVocabTest && (
+          <div className="flex items-center justify-between rounded-2xl border border-blue-200 bg-blue-50/70 p-4 dark:border-blue-900/50 dark:bg-blue-950/30">
+            <div className="space-y-0.5">
+              <p className="text-sm font-semibold text-blue-900 dark:text-blue-200">Kiểm tra từ vựng</p>
+              <p className="text-xs text-blue-700 dark:text-blue-300">
+                Làm bài trắc nghiệm, điền từ & nghe hiểu các từ "Ôn tập" & "Thành thạo"
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onStartVocabTest}
+              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+            >
+              Vào kiểm tra →
+            </button>
+          </div>
+        )}
 
         <div className="space-y-2">
           <button
@@ -674,10 +755,10 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
       {/* Card */}
       <article
         className={`relative flex min-h-[320px] flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-card dark:border-slate-800 dark:bg-slate-900 sm:p-8 ${
-          !typingMode && !revealed ? 'cursor-pointer' : ''
+          !typingMode && !multipleChoiceMode && !revealed ? 'cursor-pointer' : ''
         }`}
         onClick={() => {
-          if (!typingMode && !revealed) setRevealed(true);
+          if (!typingMode && !multipleChoiceMode && !revealed) setRevealed(true);
         }}
         aria-live="polite"
       >
@@ -766,9 +847,79 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
           </form>
         )}
 
+        {/* Multiple Choice Options */}
+        {multipleChoiceMode && currentCard && (
+          <div className="mt-4 flex flex-col gap-2.5" onClick={(e) => e.stopPropagation()}>
+            <p className="text-center text-xs font-medium text-slate-500 dark:text-slate-400">
+              {mcSelected ? 'Kết quả lựa chọn:' : 'Chọn nghĩa tiếng Việt chính xác (hoặc phím 1–4):'}
+            </p>
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              {mcOptions.map((opt, idx) => {
+                const isTargetCorrect = opt.isCorrect;
+                const isUserPicked = mcSelected === opt.text;
+                let btnStyle =
+                  'border-slate-200 bg-white hover:border-slate-400 hover:bg-slate-50 text-slate-800 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-100 dark:hover:border-slate-500';
+                let icon = null;
+
+                if (mcSelected) {
+                  if (isTargetCorrect) {
+                    btnStyle =
+                      'border-emerald-500 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-500/20 dark:border-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-200';
+                    icon = <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />;
+                  } else if (isUserPicked) {
+                    btnStyle =
+                      'border-rose-500 bg-rose-50 text-rose-900 ring-2 ring-rose-500/20 dark:border-rose-600 dark:bg-rose-950/40 dark:text-rose-200';
+                    icon = <X className="h-4 w-4 text-rose-600 dark:text-rose-400 flex-shrink-0" />;
+                  } else {
+                    btnStyle =
+                      'border-slate-200 bg-slate-50/50 text-slate-400 opacity-60 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-500';
+                  }
+                }
+
+                return (
+                  <button
+                    key={`${opt.text}-${idx}`}
+                    type="button"
+                    disabled={!!mcSelected}
+                    onClick={() => handleSelectOption(opt.text)}
+                    className={`flex min-h-[52px] items-center justify-between gap-3 rounded-xl border p-3.5 text-left text-sm font-medium transition-all ${btnStyle}`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                        {String.fromCharCode(65 + idx)}
+                      </span>
+                      <span className="truncate">{opt.text}</span>
+                    </div>
+                    {icon}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Answer */}
         {answered && currentCard && (
           <div className="space-y-4 border-t border-slate-200 pt-5 dark:border-slate-800">
+            {multipleChoiceMode && mcSelected && (
+              <div className="flex items-center gap-2">
+                <span
+                  className={`text-sm font-semibold ${
+                    mcSelected.trim().toLowerCase() === currentCard.meaning_vi?.trim().toLowerCase()
+                      ? 'text-rate-easy-fg'
+                      : 'text-rate-again-fg'
+                  }`}
+                >
+                  {mcSelected.trim().toLowerCase() === currentCard.meaning_vi?.trim().toLowerCase()
+                    ? 'Chính xác! 🎉'
+                    : 'Chưa chính xác'}
+                </span>
+                {mcSelected.trim().toLowerCase() !== currentCard.meaning_vi?.trim().toLowerCase() && (
+                  <span className="text-sm text-slate-500 line-through dark:text-slate-400">{mcSelected}</span>
+                )}
+              </div>
+            )}
+
             {typingMode && check && (
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <span

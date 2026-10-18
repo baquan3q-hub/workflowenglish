@@ -65,7 +65,7 @@ export interface StorageSpec {
 export class BadRequest extends Error {}
 
 /** The everyday model list; see models.ts. */
-export { TEXT_MODELS as FLASH_MODELS } from './models.ts';
+export { TEXT_MODELS as FLASH_MODELS, LIGHT_TEXT_MODELS } from './models.ts';
 
 // --- Payload validation ------------------------------------------------------
 

@@ -231,6 +231,35 @@ export async function getDueWords(
 }
 
 /**
+ * Words eligible for vocabulary testing.
+ * By default retrieves words with mastery_level IN (REVIEWING, MASTERED)
+ * and excludes suspended words.
+ */
+export async function getTestableWords(
+  userId: string,
+  options: {
+    levels?: MasteryLevel[];
+    limit?: number;
+  } = {},
+): Promise<WordMasteryRecord[]> {
+  const { levels = [MasteryLevel.REVIEWING, MasteryLevel.MASTERED], limit } = options;
+  const { data, error } = await withoutSuspended((filter) => {
+    let query = supabase
+      .from(TABLE)
+      .select('*')
+      .eq('user_id', userId)
+      .in('mastery_level', levels);
+    if (filter) query = query.eq('is_suspended', false);
+    query = query.order('updated_at', { ascending: false });
+    if (limit && limit > 0) query = query.limit(limit);
+    return query;
+  });
+
+  if (error) throw error;
+  return (data ?? []) as WordMasteryRecord[];
+}
+
+/**
  * When the learner's next not-yet-due word becomes due (ISO string), or
  * `null` if nothing is scheduled. Used for the "all caught up" message.
  */

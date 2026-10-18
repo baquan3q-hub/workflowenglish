@@ -13,6 +13,7 @@ import {
   RotateCcw,
   Search,
   Tags,
+  Trophy,
   Volume2,
   X,
 } from 'lucide-react';
@@ -64,6 +65,8 @@ interface VocabLibraryProps {
   /** Start a review of these word_mastery ids. */
   onReviewWords: (ids: string[]) => void;
   onStartLesson: () => void;
+  /** Start vocabulary mastery test. */
+  onStartVocabTest?: () => void;
   /** Open with this lesson selected (from the dashboard's recent lessons). */
   initialLessonId?: string | null;
 }
@@ -586,7 +589,14 @@ const LoadingSkeleton: React.FC = () => (
   </LoadingRegion>
 );
 
-const VocabLibrary: React.FC<VocabLibraryProps> = ({ userId, onShowToast, onReviewWords, onStartLesson, initialLessonId = null }) => {
+const VocabLibrary: React.FC<VocabLibraryProps> = ({
+  userId,
+  onShowToast,
+  onReviewWords,
+  onStartLesson,
+  onStartVocabTest,
+  initialLessonId = null,
+}) => {
   const [words, setWords] = useState<LibraryWord[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -856,6 +866,16 @@ const VocabLibrary: React.FC<VocabLibraryProps> = ({ userId, onShowToast, onRevi
             <span className="tabular-nums">{statusCounts(words, now).due}</span> từ đến hạn ôn
           </p>
         </div>
+        {onStartVocabTest && (
+          <button
+            type="button"
+            onClick={onStartVocabTest}
+            className="inline-flex min-h-touch items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/50"
+          >
+            <Trophy className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            Kiểm tra từ vựng
+          </button>
+        )}
       </header>
 
       <Segmented<Scope>

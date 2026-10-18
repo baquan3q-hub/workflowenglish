@@ -24,6 +24,7 @@ describe('resolveCardMode', () => {
   it('honours an explicit mode', () => {
     expect(resolveCardMode({ meaning_vi: 'x', mastery_level: MasteryLevel.LEARNING }, 'typing')).toBe('typing');
     expect(resolveCardMode({ meaning_vi: 'x', mastery_level: MasteryLevel.MASTERED }, 'flip')).toBe('flip');
+    expect(resolveCardMode({ meaning_vi: 'x', mastery_level: MasteryLevel.LEARNING }, 'multiple_choice')).toBe('multiple_choice');
   });
 });
 

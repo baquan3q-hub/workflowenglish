@@ -633,3 +633,72 @@ export function shuffle<T>(items: readonly T[], rand: () => number = Math.random
   }
   return out;
 }
+
+/** Built-in fallback Vietnamese meanings when pool has fewer than 3 distractors. */
+export const FALLBACK_MEANINGS: readonly string[] = [
+  'duy trì, giữ vững',
+  'phát triển, mở rộng',
+  'nhận thức, hiểu biết',
+  'thực hiện, tiến hành',
+  'đạt được, hoàn thành',
+  'quan sát, theo dõi',
+  'ảnh hưởng, tác động',
+  'xác định, định rõ',
+  'cải thiện, nâng cao',
+  'chuẩn bị, sẵn sàng',
+  'giải thích, làm rõ',
+  'bảo vệ, gìn giữ',
+];
+
+export interface MultipleChoiceOption {
+  text: string;
+  isCorrect: boolean;
+}
+
+/**
+ * Generate 4 multiple-choice options for a target meaning.
+ * Selects 3 distinct distractors from candidate `pool`, backfilling from
+ * `FALLBACK_MEANINGS` if needed, and shuffles the resulting 4 options.
+ */
+export function generateMultipleChoiceOptions(
+  targetMeaning: string,
+  pool: ReadonlyArray<{ meaning_vi?: string | null; word?: string }>,
+  rand: () => number = Math.random,
+): MultipleChoiceOption[] {
+  const normTarget = targetMeaning.trim().toLowerCase();
+  const seen = new Set<string>([normTarget]);
+  const distractors: string[] = [];
+
+  // 1. Pick from candidate pool
+  const candidatePool = shuffle(pool, rand);
+  for (const item of candidatePool) {
+    if (!item.meaning_vi) continue;
+    const m = item.meaning_vi.trim();
+    const norm = m.toLowerCase();
+    if (!seen.has(norm) && m.length > 0) {
+      seen.add(norm);
+      distractors.push(m);
+      if (distractors.length >= 3) break;
+    }
+  }
+
+  // 2. Backfill from FALLBACK_MEANINGS if necessary
+  if (distractors.length < 3) {
+    const fallbackCandidates = shuffle(FALLBACK_MEANINGS, rand);
+    for (const fb of fallbackCandidates) {
+      const norm = fb.toLowerCase();
+      if (!seen.has(norm)) {
+        seen.add(norm);
+        distractors.push(fb);
+        if (distractors.length >= 3) break;
+      }
+    }
+  }
+
+  const choices: MultipleChoiceOption[] = [
+    { text: targetMeaning.trim(), isCorrect: true },
+    ...distractors.slice(0, 3).map((d) => ({ text: d, isCorrect: false })),
+  ];
+
+  return shuffle(choices, rand);
+}

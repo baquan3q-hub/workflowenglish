@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Repeat,
   Sparkles,
+  Trophy,
   X,
 } from 'lucide-react';
 import { DifficultyLevel, SentenceItem, UserGoals, UserSettings, VocabularyTemplate, WordRecommendation } from '../types';
@@ -48,6 +49,7 @@ interface DashboardProps {
   onOpenLesson?: (lessonListId: string) => void;
   /** Practise sentences answered "Cần sửa" earlier. */
   onPracticeSentences?: (items: SentenceItem[]) => void;
+  onStartVocabTest?: () => void;
 }
 
 /** Sent to the AI as the lesson context; the label is what the learner sees. */
@@ -153,6 +155,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   onContinueLesson,
   onOpenLesson,
   onPracticeSentences,
+  onStartVocabTest,
 }) => {
   const [inputText, setInputText] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -260,7 +263,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         console.error('Failed to load recommendations:', err);
         setRecsError(aiErrorMessage(err));
         setRecommendations(null);
-        setFallbackTopicsActive(false);
+        setFallbackTopicsActive(true);
       } finally {
         setRecsLoading(false);
       }
@@ -418,17 +421,30 @@ const Dashboard: React.FC<DashboardProps> = ({
             )}
           </div>
         </div>
-        {action.kind !== 'review' && (dueCount ?? 0) > 0 && (
-          <button
-            type="button"
-            onClick={onStartReview}
-            className="mt-4 inline-flex min-h-touch items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
-          >
-            <Repeat className="h-4 w-4" aria-hidden="true" />
-            Còn {dueCount} từ đến hạn ôn
-            <ChevronRight className="h-4 w-4" aria-hidden="true" />
-          </button>
-        )}
+        <div className="mt-4 flex flex-wrap items-center gap-4">
+          {action.kind !== 'review' && (dueCount ?? 0) > 0 && (
+            <button
+              type="button"
+              onClick={onStartReview}
+              className="inline-flex min-h-touch items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+            >
+              <Repeat className="h-4 w-4" aria-hidden="true" />
+              Còn {dueCount} từ đến hạn ôn
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
+          {onStartVocabTest && (
+            <button
+              type="button"
+              onClick={onStartVocabTest}
+              className="inline-flex min-h-touch items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+            >
+              <Trophy className="h-4 w-4" aria-hidden="true" />
+              Kiểm tra từ vựng
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
+        </div>
       </section>
 
       {/* New lesson */}

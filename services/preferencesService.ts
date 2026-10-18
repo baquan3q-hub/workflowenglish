@@ -8,7 +8,7 @@
 export const REVIEW_SESSION_SIZES = [10, 20, 30, 50] as const;
 export type ReviewSessionSize = (typeof REVIEW_SESSION_SIZES)[number];
 
-export const REVIEW_MODES = ['auto', 'flip', 'typing', 'handwriting'] as const;
+export const REVIEW_MODES = ['auto', 'flip', 'typing', 'handwriting', 'multiple_choice'] as const;
 export type ReviewMode = (typeof REVIEW_MODES)[number];
 
 export interface UserPreferences {

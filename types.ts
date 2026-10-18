@@ -37,6 +37,62 @@ export enum AppPhase {
   IELTS_ERROR_LOG = 'IELTS_ERROR_LOG',
   /** Admins only: the Listening library editor and the AI check. */
   IELTS_ADMIN = 'IELTS_ADMIN',
+  /** Vocabulary Mastery Test (Reviewing & Mastered words) */
+  VOCAB_TEST = 'VOCAB_TEST',
+}
+
+// ─── Vocabulary Test (Kiểm tra từ vựng) ───────────────────────────
+
+export type VocabTestQuestionType =
+  | 'word_to_meaning'
+  | 'meaning_to_word'
+  | 'fill_blank'
+  | 'listening';
+
+export interface VocabTestExplanation {
+  meaningVi: string;
+  ipa?: string;
+  exampleSentence?: string;
+  exampleSentenceVi?: string;
+  definitionEn?: string;
+}
+
+export interface VocabTestQuestion {
+  id: string;
+  targetWord: string;
+  type: VocabTestQuestionType;
+  prompt: string;
+  subPrompt?: string;
+  audioText?: string;
+  options: string[];
+  correctAnswer: string;
+  explanation: VocabTestExplanation;
+}
+
+export interface VocabTestWrongItem {
+  targetWord: string;
+  questionType: VocabTestQuestionType;
+  questionPrompt: string;
+  userAnswer: string;
+  correctAnswer: string;
+  meaningVi: string;
+  ipa?: string;
+  exampleSentence?: string;
+}
+
+export interface VocabTestSummary {
+  totalQuestions: number;
+  correctCount: number;
+  wrongCount: number;
+  scorePercentage: number;
+  durationSeconds: number;
+  wrongItems: VocabTestWrongItem[];
+}
+
+export interface VocabTestConfig {
+  sourceLevels: MasteryLevel[];
+  questionCount: number;
+  questionTypes: VocabTestQuestionType[];
 }
 
 // ─── IELTS Module Types ────────────────────────────────────────────

@@ -11,10 +11,13 @@
 import type { GeminiRequest } from './lib.ts';
 
 /** Everyday text and JSON: grading, generation, chat. */
-export const TEXT_MODELS = ['gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-flash'] as const;
+export const TEXT_MODELS = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-flash-latest'] as const;
 
-/** Longer, harder generations (lessons): the strongest flash model first. */
-export const STRONG_TEXT_MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-2.5-flash'] as const;
+/** Longer, harder generations (lessons): stable and fast flash models first. */
+export const STRONG_TEXT_MODELS = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.8-flash'] as const;
+
+/** Fast, lightweight text & micro-evaluations (sentence grading, word suggestions): low latency, minimal token consumption. */
+export const LIGHT_TEXT_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-3.5-flash'] as const;
 
 /**
  * Speech. 2.5 preview TTS still speaks through generateContent until its
@@ -36,7 +39,7 @@ export function modelsFromEnv(value: string | undefined, fallback: readonly stri
  * the matching secret, ops with their own list keep it.
  */
 export function resolveModels(models: readonly string[], env: { text?: string; tts?: string }): readonly string[] {
-  if (models === TEXT_MODELS || models === STRONG_TEXT_MODELS) return modelsFromEnv(env.text, models);
+  if (models === TEXT_MODELS || models === STRONG_TEXT_MODELS || models === LIGHT_TEXT_MODELS) return modelsFromEnv(env.text, models);
   if (models === TTS_MODELS) return modelsFromEnv(env.tts, models);
   return models;
 }
