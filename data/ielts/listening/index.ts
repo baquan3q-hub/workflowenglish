@@ -8,7 +8,19 @@ export const LISTENING_FULL_TESTS: ListeningTest[] = [LISTENING_TEST_1];
 export { LISTENING_PRACTICE_TESTS };
 export const LISTENING_TESTS: ListeningTest[] = [...LISTENING_FULL_TESTS, ...LISTENING_PRACTICE_TESTS];
 
-export const getListeningTest = (id: string): ListeningTest | undefined => LISTENING_TESTS.find((t) => t.id === id);
+/** Tests that are not bundled (AI-generated parts), added once they are loaded so getListeningTest finds them. */
+const extraTests = new Map<string, ListeningTest>();
+
+export function registerListeningTests(tests: ListeningTest[]): void {
+  for (const t of tests) if (!LISTENING_TESTS.some((b) => b.id === t.id)) extraTests.set(t.id, t);
+}
+
+export function unregisterListeningTest(id: string): void {
+  extraTests.delete(id);
+}
+
+export const getListeningTest = (id: string): ListeningTest | undefined =>
+  LISTENING_TESTS.find((t) => t.id === id) ?? extraTests.get(id);
 
 export const GROUP_TYPE_LABELS: Record<ListeningGroup['type'], string> = {
   completion: 'Điền từ',

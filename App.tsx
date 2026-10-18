@@ -49,6 +49,7 @@ import { gradeSpeakingAnswer } from './services/ieltsSpeakingService';
 import { fluencySummaryForGrader, isFluencyMetrics, type FluencyMetrics } from './services/fluencyLogic';
 import { saveIeltsAttempt, saveListeningAttempt, resolveAttemptQuestion, isListeningDetails, getPreviousWritingAttempt } from './services/ieltsAttemptService';
 import { getListeningTest, type ListeningAnswers } from './data/ielts/listening';
+import { isGeneratedTestId, loadGeneratedTest } from './services/listeningGenerationService';
 import { attemptLabels, scoreSections, sessionSections, type ListeningMode } from './services/listeningLogic';
 import { Toast, type ToastAction, type ToastType } from './components/Common';
 import { Loader2, LogOut, History, BookOpen, Save, Sun, Moon } from 'lucide-react';
@@ -947,9 +948,19 @@ function App() {
   const openIeltsAttempt = (attempt: IeltsAttempt) => {
     if (attempt.skill === 'listening') {
       const d = attempt.details;
-      if (!isListeningDetails(d) || !getListeningTest(d.testId)) return;
-      setIeltsListening({ testId: d.testId, sectionIds: d.sectionIds, mode: d.mode, answers: d.answers, run: 0 });
-      setPhase(AppPhase.IELTS_LISTENING_RESULT);
+      if (!isListeningDetails(d)) return;
+      const open = () => {
+        setIeltsListening({ testId: d.testId, sectionIds: d.sectionIds, mode: d.mode, answers: d.answers, run: 0 });
+        setPhase(AppPhase.IELTS_LISTENING_RESULT);
+      };
+      if (getListeningTest(d.testId)) open();
+      else if (isGeneratedTestId(d.testId)) {
+        // An AI-generated part: load it from listening_sections first.
+        void loadGeneratedTest(d.testId).then(test => {
+          if (test) open();
+          else showToast('Không mở được bài này: đề AI tạo đã bị xoá hoặc chưa được lưu.', 'info');
+        });
+      }
       return;
     }
     if (!attempt.aiFeedback) return;

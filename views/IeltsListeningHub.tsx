@@ -12,6 +12,7 @@ import type { ListeningMode } from '../services/listeningLogic';
 import { isListeningDetails } from '../services/ieltsAttemptService';
 import IeltsAttemptHistory from '../components/IeltsAttemptHistory';
 import { Segmented } from '../components/ui/Segmented';
+import GeneratedSections, { type GeneratedSectionsApi } from '../components/ielts/listening/GeneratedSections';
 
 interface Props {
   userId: string;
@@ -20,6 +21,8 @@ interface Props {
   onOpenDrill: () => void;
   onOpenAttempt: (attempt: IeltsAttempt) => void;
   onBack: () => void;
+  /** Generated-part service calls; the real ones by default. */
+  generatedApi?: GeneratedSectionsApi;
 }
 
 const primaryBtn =
@@ -47,7 +50,7 @@ function readMode(): ListeningMode {
 
 const questionTypes = (test: ListeningTest) => [...new Set(test.sections.flatMap((s) => s.groups.map((g) => GROUP_TYPE_LABELS[g.type])))];
 
-export default function IeltsListeningHub({ userId, onStart, onOpenDictation, onOpenDrill, onOpenAttempt, onBack }: Props) {
+export default function IeltsListeningHub({ userId, onStart, onOpenDictation, onOpenDrill, onOpenAttempt, onBack, generatedApi }: Props) {
   const [mode, setModeState] = useState<ListeningMode>(readMode);
   const setMode = (m: ListeningMode) => {
     setModeState(m);
@@ -160,6 +163,8 @@ export default function IeltsListeningHub({ userId, onStart, onOpenDictation, on
           })}
         </ul>
       </section>
+
+      <GeneratedSections userId={userId} onStart={(testId) => onStart(testId, [], mode)} api={generatedApi} />
 
       <section aria-labelledby="listening-skills">
         <h2 id="listening-skills" className="text-title font-semibold text-slate-900 dark:text-white">

@@ -10,6 +10,7 @@ import type {
   ListeningTest,
 } from '../data/ielts/listening/types';
 import type { AudioSegment } from './listeningAudioService';
+import { countAnswerTokens, sectionProblems, squash, withinWordLimit } from '../supabase/functions/ai-proxy/ops/listeningRules.ts';
 
 export type AnswerStatus = 'correct' | 'spelling' | 'plural' | 'over_limit' | 'wrong' | 'blank';
 
@@ -100,29 +101,7 @@ export function normalizeAnswer(raw: string): string {
   return tokens.join(' ');
 }
 
-/** Lowercase letters and digits only, for "does the script contain this answer". */
-export const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-/** Words and numbers in an answer as written; runs of digit groups ("07946 382115") count as one number. */
-export function countAnswerTokens(raw: string): { words: number; numbers: number } {
-  const tokens = raw.trim().split(/\s+/).filter(Boolean);
-  let words = 0;
-  let numbers = 0;
-  let prevNumber = false;
-  for (const t of tokens) {
-    const isNumber = /\d/.test(t);
-    if (isNumber) {
-      if (!prevNumber) numbers++;
-    } else words++;
-    prevNumber = isNumber;
-  }
-  return { words, numbers };
-}
-
-export function withinWordLimit(raw: string, wordLimit: number, numberAllowed: boolean): boolean {
-  const { words, numbers } = countAnswerTokens(raw);
-  return numberAllowed ? words <= wordLimit && numbers <= 1 : words + numbers <= wordLimit;
-}
+export { countAnswerTokens, squash, withinWordLimit };
 
 export function levenshtein(a: string, b: string): number {
   if (a === b) return 0;
@@ -324,73 +303,9 @@ export function sectionQuestions(section: ListeningSection): ListeningQuestion[]
 
 // --- Data checks ---------------------------------------------------------------
 
-const BLANK = /\{\{(\d+)\}\}/g;
-const flat = (s: string) => s.toLowerCase().replace(/\s+/g, ' ');
-
-/** Problems in one section; empty when it is usable. */
+/** Problems in one section; empty when it is usable. Same rules as the generateListeningSection op. */
 export function validateSection(section: ListeningSection): string[] {
-  const problems: string[] = [];
-  const at = (q: ListeningQuestion | { number: number }, msg: string) => problems.push(`${section.id} Q${q.number}: ${msg}`);
-  const segText = new Map(section.segments.map((s) => [s.id, s.lines.map((l) => l.text).join(' ')]));
-  const allText = [...segText.values()].join(' ');
-
-  for (const seg of section.segments) {
-    const names = new Set(seg.lines.map((l) => l.speaker));
-    if (names.size > 2) problems.push(`${seg.id}: more than two speakers`);
-    for (const n of names) if (!section.speakers.some((s) => s.name === n)) problems.push(`${seg.id}: unknown speaker ${n}`);
-  }
-  try {
-    for (const a of sectionAudioSegments(section)) if (a.text.length > 1500) problems.push(`${a.id}: audio text is ${a.text.length} characters (max 1500)`);
-  } catch (err) {
-    problems.push(String(err));
-  }
-
-  const questions = sectionQuestions(section);
-  questions.forEach((q, i) => {
-    if (i > 0 && q.number !== questions[i - 1].number + 1) at(q, 'numbers are not consecutive');
-  });
-
-  for (const g of section.groups) {
-    for (const q of g.questions) {
-      const text = segText.get(q.segmentId);
-      if (text === undefined) {
-        at(q, `unknown segment ${q.segmentId}`);
-        continue;
-      }
-      if (!q.answers.length) at(q, 'no answer');
-      if (!flat(text).includes(flat(q.evidence))) at(q, 'evidence is not in its segment');
-      if (q.distractor && !flat(allText).includes(flat(q.distractor))) at(q, 'distractor is not in the script');
-      if (!q.explanationVi.trim()) at(q, 'no explanation');
-
-      if (g.type === 'completion' || g.type === 'short_answer') {
-        for (const a of q.answers) if (!withinWordLimit(a, g.wordLimit, g.numberAllowed)) at(q, `answer "${a}" breaks the word limit`);
-        if (!q.answers.some((a) => squash(text).includes(squash(a)))) at(q, 'answer is not in its segment');
-        if (!q.answers.some((a) => squash(q.evidence).includes(squash(a)))) at(q, 'evidence does not contain the answer');
-        if (g.type === 'short_answer' && !q.prompt) at(q, 'no prompt');
-      } else if (g.type === 'mcq') {
-        if (!q.prompt || (q.options?.length ?? 0) < 3) at(q, 'needs a prompt and at least 3 options');
-        if (!q.options?.some((o) => o.key === q.answers[0])) at(q, 'answer is not an option');
-      } else if (g.type === 'mcq_multi') {
-        if (q.answers.join() !== g.questions[0].answers.join()) at(q, 'questions in a multi-choice group must share answers');
-        if (q.answers.length !== g.questions.length) at(q, 'number of answers must match the number of questions');
-        for (const a of q.answers) if (!g.options.some((o) => o.key === a)) at(q, `answer ${a} is not an option`);
-      } else if (g.type === 'matching') {
-        if (!q.prompt) at(q, 'no prompt');
-        if (!g.options.some((o) => o.key === q.answers[0])) at(q, 'answer is not an option');
-      } else if (g.type === 'map') {
-        if (!q.prompt) at(q, 'no prompt');
-        if (!g.map.shapes.some((s) => s.key === q.answers[0])) at(q, 'answer is not a letter on the map');
-      }
-    }
-
-    if (g.type === 'completion') {
-      const template = [...(g.lines ?? []), ...(g.table ? [...g.table.header, ...g.table.rows.flat()] : [])].join('\n');
-      const blanks = [...template.matchAll(BLANK)].map((m) => Number(m[1]));
-      const numbers = g.questions.map((q) => q.number);
-      if (blanks.join() !== numbers.join()) problems.push(`${section.id} ${g.id}: blanks ${blanks.join(',')} do not match questions ${numbers.join(',')}`);
-    }
-  }
-  return problems;
+  return sectionProblems(section);
 }
 
 export function validateTest(test: ListeningTest): string[] {
