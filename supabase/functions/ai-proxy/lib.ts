@@ -19,6 +19,11 @@ export interface GeminiRequest {
    * through the Interactions API (3.x TTS). Never sent to generateContent.
    */
   speech?: SpeechRequest;
+  /**
+   * How much the model may think first: 'minimal' (default) for fast replies,
+   * 'low' for harder answers such as reviewing an essay. Never sent as is.
+   */
+  thinking?: 'minimal' | 'low';
 }
 
 export interface SpeechRequest {
@@ -40,6 +45,12 @@ export interface OpSpec {
   /** Per model attempt. */
   timeoutMs: number;
   kind: OpKind;
+  /**
+   * Per-request model list (for example a lighter model for short chat
+   * questions). Defaults to `models`. Return one of the shared lists so the
+   * GEMINI_TEXT_MODELS secret still applies.
+   */
+  modelsFor?(payload: unknown): readonly string[];
   /** Validates the client payload and builds the request. Throws BadRequest. */
   build(payload: unknown): GeminiRequest;
   /** Checks parsed JSON output; throwing triggers one retry. */

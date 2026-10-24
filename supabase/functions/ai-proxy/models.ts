@@ -54,18 +54,18 @@ export const usesInteractions = (model: string) => isTtsModel(model) && /^gemini
  * sensitive calls. 2.5 takes a budget, 3.x a level (3.8 Flash's lowest is
  * "low"), and older or TTS models reject the field.
  */
-export function thinkingConfig(model: string): Record<string, unknown> | null {
+export function thinkingConfig(model: string, effort: 'minimal' | 'low' = 'minimal'): Record<string, unknown> | null {
   if (isTtsModel(model)) return null;
-  if (/^gemini-2\.5-/.test(model)) return { thinkingBudget: 0 };
+  if (/^gemini-2\.5-/.test(model)) return { thinkingBudget: effort === 'low' ? 1024 : 0 };
   if (/^gemini-3\.8-flash/.test(model)) return { thinkingLevel: 'low' };
-  if (/^gemini-3/.test(model)) return { thinkingLevel: 'minimal' };
+  if (/^gemini-3/.test(model)) return { thinkingLevel: effort };
   return null;
 }
 
 /** The generateContent body for a model: the op's request plus its thinking setting. */
 export function generateBody(model: string, req: GeminiRequest): Record<string, unknown> {
-  const { speech: _speech, ...rest } = req;
-  const thinking = thinkingConfig(model);
+  const { speech: _speech, thinking: effort, ...rest } = req;
+  const thinking = thinkingConfig(model, effort);
   const generationConfig = thinking ? { thinkingConfig: thinking, ...req.generationConfig } : req.generationConfig;
   return { ...rest, generationConfig };
 }
