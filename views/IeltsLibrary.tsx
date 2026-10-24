@@ -12,7 +12,7 @@ import { EmptyState } from '../components/ui/States';
 import LessonSections from '../components/ielts/LessonSections';
 import { kindsForLesson, type ReadingKind } from '../data/ielts/readingLessons';
 import { GROUP_KINDS } from '../components/ielts/questions/parts';
-import { secondaryBtn } from '../components/ui/styles';
+import { ghostBtn, panel, secondaryBtn } from '../components/ui/styles';
 
 interface Props {
   initialLessonId?: string;
@@ -24,13 +24,10 @@ interface Props {
   onPractice?: (kind: ReadingKind) => void;
 }
 
-const ghostBtn =
-  'inline-flex min-h-touch min-w-touch items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50 dark:text-slate-200 dark:hover:bg-slate-800';
 const chipBase = 'inline-flex min-h-touch flex-shrink-0 items-center rounded-xl border px-3 text-sm font-medium transition-colors';
-const chipOn = 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900';
+const chipOn = 'border-slate-900 border border-tone-periwinkle-border bg-tone-periwinkle-soft text-tone-periwinkle-fg dark:border-white';
 const chipOff =
-  'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800';
-const panel = 'rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900';
+  'border-slate-200 bg-white text-slate-700 hover:border-tone-periwinkle-border hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200';
 
 const TABS: ReadonlyArray<LibrarySkill | 'all'> = ['all', 'general', 'listening', 'reading', 'writing', 'speaking'];
 

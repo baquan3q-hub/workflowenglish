@@ -200,8 +200,8 @@ export default function LibraryList<T extends ListItem>({ config, items, onNew, 
                   </div>
                 </div>
                 {confirming && (
-                  <div role="alert" className="mt-3 flex flex-col gap-2 rounded-xl bg-red-50 p-3 dark:bg-red-950/40 sm:flex-row sm:items-center">
-                    <p className="flex-1 text-sm text-red-800 dark:text-red-200">
+                  <div role="alert" className="mt-3 flex flex-col gap-2 rounded-xl bg-tone-blush p-3 sm:flex-row sm:items-center">
+                    <p className="flex-1 text-sm text-tone-blush-fg">
                       Xoá hẳn đề này? Học viên sẽ không mở lại được các bài đã làm trên đề.
                     </p>
                     <div className="flex gap-2">

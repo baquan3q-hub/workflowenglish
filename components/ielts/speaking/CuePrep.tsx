@@ -52,7 +52,7 @@ export default function CuePrep({
           <h2 className="flex items-center gap-2 text-heading text-slate-900 dark:text-white">
             <NotebookPen className="h-4 w-4 text-slate-500" /> Ghi chú 1 phút
           </h2>
-          <span className="inline-flex items-center gap-1.5 text-sm font-semibold tabular-nums text-amber-700 dark:text-amber-300" aria-live="off">
+          <span className="inline-flex items-center gap-1.5 text-sm font-semibold tabular-nums text-tone-butter-fg" aria-live="off">
             <Clock className="h-4 w-4" /> {left} giây
           </span>
         </div>

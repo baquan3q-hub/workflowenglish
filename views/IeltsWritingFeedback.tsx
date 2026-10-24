@@ -4,6 +4,7 @@ import { BandScoreDisplay, CriterionScoreBar, FeedbackList, NextActionsList } fr
 import { ArrowLeft, RotateCcw, ChevronDown, Sparkles, LayoutList } from 'lucide-react';
 import WordPicker from '../components/ielts/WordPicker';
 import { CorrectionsByCategory, EssayByParagraph, RewriteComparison, Task1Checklist } from '../components/ielts/writing/FeedbackSections';
+import { panel as sharedPanel, primaryBtn as sharedPrimary, secondaryBtn as sharedSecondary } from '../components/ui/styles';
 
 interface Props {
   userId: string;
@@ -16,11 +17,9 @@ interface Props {
   onBackToHub: () => void;
 }
 
-const panel = 'rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 sm:p-5';
-const primaryBtn =
-  'inline-flex min-h-touch flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200';
-const secondaryBtn =
-  'inline-flex min-h-touch flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800';
+const panel = `${sharedPanel} p-4 sm:p-5`;
+const primaryBtn = `${sharedPrimary} flex-1`;
+const secondaryBtn = `${sharedSecondary.replace('px-4', 'px-5')} flex-1`;
 
 export default function IeltsWritingFeedback({ userId, question, userAnswer, feedback, previous, onRewrite, onBackToHub }: Props) {
   const [showImproved, setShowImproved] = useState(false);

@@ -64,9 +64,9 @@ export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttemp
     <div className="space-y-6 anim-fade-up">
       {/* Header */}
       <div className="text-center space-y-2">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-gradient-to-r from-blue-100 to-indigo-100 dark:from-blue-900/30 dark:to-indigo-900/30 rounded-full">
-          <PenTool className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-          <span className="text-sm font-bold text-blue-700 dark:text-blue-300">IELTS Writing Assistant</span>
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-tone-lavender-soft border border-tone-lavender-border rounded-full">
+          <PenTool className="w-4 h-4 text-tone-lavender-fg" />
+          <span className="text-sm font-bold text-tone-lavender-fg">IELTS Writing Assistant</span>
         </div>
         <h1 className="text-2xl sm:text-3xl font-black text-slate-800 dark:text-white">
           Luyện viết IELTS Writing
@@ -82,7 +82,7 @@ export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttemp
           onClick={() => { setActiveTab('task_1'); setFilters({}); }}
           className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all
             ${activeTab === 'task_1'
-              ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+              ? 'bg-white dark:bg-slate-700 text-tone-lavender-fg shadow-sm'
               : 'text-slate-500 hover:text-slate-850 dark:text-slate-450 dark:hover:text-slate-300'
             }`}
         >
@@ -92,7 +92,7 @@ export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttemp
           onClick={() => { setActiveTab('task_2'); setFilters({}); }}
           className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all
             ${activeTab === 'task_2'
-              ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+              ? 'bg-white dark:bg-slate-700 text-tone-lavender-fg shadow-sm'
               : 'text-slate-500 hover:text-slate-850 dark:text-slate-450 dark:hover:text-slate-300'
             }`}
         >
@@ -103,17 +103,17 @@ export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttemp
       {/* Stats Cards */}
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-white dark:bg-slate-800 rounded-xl p-3 border border-slate-200 dark:border-slate-700 text-center">
-          <BookOpen className="w-5 h-5 text-blue-500 mx-auto mb-1" />
+          <BookOpen className="w-5 h-5 text-tone-lavender-fg mx-auto mb-1" />
           <p className="text-lg font-black text-slate-800 dark:text-white">{questions.length}</p>
           <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Đề bài {activeTab === 'task_1' ? 'Task 1' : 'Task 2'}</p>
         </div>
         <div className="bg-white dark:bg-slate-800 rounded-xl p-3 border border-slate-200 dark:border-slate-700 text-center">
-          <Lightbulb className="w-5 h-5 text-purple-500 mx-auto mb-1" />
+          <Lightbulb className="w-5 h-5 text-tone-lavender-fg mx-auto mb-1" />
           <p className="text-lg font-black text-slate-800 dark:text-white">{writingFrameworks.length}</p>
           <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Frameworks</p>
         </div>
         <div className="bg-white dark:bg-slate-800 rounded-xl p-3 border border-slate-200 dark:border-slate-700 text-center">
-          <TrendingUp className="w-5 h-5 text-emerald-500 mx-auto mb-1" />
+          <TrendingUp className="w-5 h-5 text-tone-mint-fg mx-auto mb-1" />
           <p className="text-lg font-black text-slate-800 dark:text-white">4</p>
           <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Tiêu chí chấm</p>
         </div>
@@ -130,7 +130,7 @@ export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttemp
                 onClick={() => onOpenStudy(tab)}
                 className="flex h-full min-h-touch w-full items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600"
               >
-                <Icon className="h-5 w-5 flex-shrink-0 text-blue-600 dark:text-blue-400" />
+                <Icon className="h-5 w-5 flex-shrink-0 text-tone-lavender-fg" />
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold text-slate-900 dark:text-white">{title}</span>
                   <span className="block text-caption text-slate-500 dark:text-slate-400">{subtitle}</span>
@@ -146,18 +146,18 @@ export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttemp
       <IeltsAttemptHistory userId={userId} skill="writing" onOpenAttempt={onOpenAttempt} />
 
       {/* Framework Section */}
-      <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-xl border border-indigo-200 dark:border-indigo-800/40 overflow-hidden">
+      <div className="bg-tone-lavender rounded-xl border border-tone-lavender-border overflow-hidden">
         <button
           onClick={() => setShowFrameworks(!showFrameworks)}
-          className="w-full px-4 py-3 flex items-center justify-between hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 transition-colors"
+          className="w-full px-4 py-3 flex items-center justify-between hover:bg-tone-lavender-soft transition-colors"
         >
           <div className="flex items-center gap-2">
-            <Lightbulb className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-            <span className="text-sm font-bold text-indigo-700 dark:text-indigo-300">
+            <Lightbulb className="w-4 h-4 text-tone-lavender-fg" />
+            <span className="text-sm font-bold text-tone-lavender-fg">
               Framework hướng dẫn viết
             </span>
           </div>
-          {showFrameworks ? <ChevronUp className="w-4 h-4 text-indigo-400" /> : <ChevronDown className="w-4 h-4 text-indigo-400" />}
+          {showFrameworks ? <ChevronUp className="w-4 h-4 text-tone-lavender-fg" /> : <ChevronDown className="w-4 h-4 text-tone-lavender-fg" />}
         </button>
         {showFrameworks && (
           <div className="px-4 pb-4 space-y-2">

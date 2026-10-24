@@ -31,15 +31,15 @@ export default function RecordControls({ rec, part, maxSeconds, startLabel, disa
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-3">
             <button type="button" onClick={() => void rec.stop()} className={secondaryBtn}>
-              <Square className="h-4 w-4 text-rose-600" /> Dừng
+              <Square className="h-4 w-4 text-tone-blush-fg" /> Dừng
             </button>
             <span className="inline-flex items-center gap-2 text-sm font-semibold tabular-nums text-slate-900 dark:text-white">
-              <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-rose-600" aria-hidden="true" />
+              <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-tone-blush-accent" aria-hidden="true" />
               {formatDuration(rec.seconds)} / {formatDuration(maxSeconds)}
             </span>
           </div>
           <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" aria-hidden="true">
-            <div className="h-full rounded-full bg-rose-500 transition-[width] duration-500" style={{ width: `${progress}%` }} />
+            <div className="h-full rounded-full bg-tone-blush-accent transition-[width] duration-500" style={{ width: `${progress}%` }} />
           </div>
         </div>
       ) : (

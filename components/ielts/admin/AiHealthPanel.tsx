@@ -10,9 +10,9 @@ interface Props {
 }
 
 const LEVEL_ICON: Record<HealthLevel, React.ReactNode> = {
-  ok: <CircleCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-label="Ổn" />,
-  warn: <TriangleAlert className="h-4 w-4 text-amber-600 dark:text-amber-400" aria-label="Cảnh báo" />,
-  error: <CircleAlert className="h-4 w-4 text-red-600 dark:text-red-400" aria-label="Lỗi" />,
+  ok: <CircleCheck className="h-4 w-4 text-tone-mint-fg" aria-label="Ổn" />,
+  warn: <TriangleAlert className="h-4 w-4 text-tone-butter-fg" aria-label="Cảnh báo" />,
+  error: <CircleAlert className="h-4 w-4 text-tone-blush-fg" aria-label="Lỗi" />,
 };
 
 const time = (iso: string) => {
@@ -58,7 +58,7 @@ export default function AiHealthPanel({ check = () => checkAiHealth() }: Props) 
       </div>
 
       {error && (
-        <div role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">
+        <div role="alert" className="mt-4 rounded-xl bg-tone-blush p-3 text-sm text-tone-blush-fg">
           <p className="flex items-start gap-2">
             <CircleAlert className="mt-0.5 h-4 w-4 flex-shrink-0" />
             {error}

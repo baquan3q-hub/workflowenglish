@@ -21,10 +21,10 @@ const COLLAPSED_COUNT = 5;
 
 function bandColor(band?: number) {
   if (band == null) return 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400';
-  if (band >= 7.0) return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400';
-  if (band >= 6.0) return 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400';
-  if (band >= 5.0) return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400';
-  return 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400';
+  if (band >= 7.0) return 'bg-tone-mint-soft text-tone-mint-fg';
+  if (band >= 6.0) return 'bg-tone-sky-soft text-tone-sky-fg';
+  if (band >= 5.0) return 'bg-tone-butter-soft text-tone-butter-fg';
+  return 'bg-tone-blush-soft text-tone-blush-fg';
 }
 
 function formatDate(iso?: string) {
@@ -77,10 +77,10 @@ export default function IeltsAttemptHistory({ userId, skill, onOpenAttempt, canO
   const visible = showAll ? attempts || [] : (attempts || []).slice(0, COLLAPSED_COUNT);
   const accent =
     skill === 'writing'
-      ? 'text-blue-600 dark:text-blue-400'
+      ? 'text-tone-sky-fg'
       : skill === 'speaking'
-        ? 'text-rose-600 dark:text-rose-400'
-        : 'text-emerald-600 dark:text-emerald-400';
+        ? 'text-tone-blush-fg'
+        : 'text-tone-mint-fg';
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
@@ -113,7 +113,7 @@ export default function IeltsAttemptHistory({ userId, skill, onOpenAttempt, canO
             </div>
           )}
 
-          {error && <p className="text-xs text-red-500 py-2">{error}</p>}
+          {error && <p className="text-xs text-tone-blush-fg py-2">{error}</p>}
 
           {attempts && attempts.length === 0 && (
             <p className="text-xs text-slate-500 dark:text-slate-400 py-4 text-center">
@@ -130,14 +130,14 @@ export default function IeltsAttemptHistory({ userId, skill, onOpenAttempt, canO
                 </div>
                 <div className="rounded-lg bg-slate-50 dark:bg-slate-900/40 p-2 text-center">
                   <p className="text-base font-black text-slate-800 dark:text-white flex items-center justify-center gap-1">
-                    <Award className="w-3.5 h-3.5 text-amber-500" />
+                    <Award className="w-3.5 h-3.5 text-tone-butter-fg" />
                     {best != null ? best.toFixed(1) : '–'}
                   </p>
                   <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Cao nhất</p>
                 </div>
                 <div className="rounded-lg bg-slate-50 dark:bg-slate-900/40 p-2 text-center">
                   <p className={`text-base font-black flex items-center justify-center gap-1 ${
-                    trend == null || trend === 0 ? 'text-slate-800 dark:text-white' : trend > 0 ? 'text-emerald-600' : 'text-red-500'
+                    trend == null || trend === 0 ? 'text-slate-800 dark:text-white' : trend > 0 ? 'text-tone-mint-fg' : 'text-tone-blush-fg'
                   }`}>
                     {trend != null && trend > 0 && <TrendingUp className="w-3.5 h-3.5" />}
                     {trend != null && trend < 0 && <TrendingDown className="w-3.5 h-3.5" />}

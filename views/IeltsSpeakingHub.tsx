@@ -71,9 +71,9 @@ export default function IeltsSpeakingHub({ userId, onSelectQuestion, onStartMock
     <div className="space-y-6 anim-fade-up">
       {/* Header */}
       <div className="text-center space-y-2">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-gradient-to-r from-rose-100 to-orange-100 dark:from-rose-900/30 dark:to-orange-900/30 rounded-full">
-          <Mic className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-          <span className="text-sm font-bold text-rose-700 dark:text-rose-300">IELTS Speaking Assistant</span>
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-tone-peach-soft border border-tone-peach-border rounded-full">
+          <Mic className="w-4 h-4 text-tone-peach-fg" />
+          <span className="text-sm font-bold text-tone-peach-fg">IELTS Speaking Assistant</span>
         </div>
         <h1 className="text-2xl sm:text-3xl font-black text-slate-800 dark:text-white">
           Luyện nói IELTS Speaking
@@ -84,19 +84,19 @@ export default function IeltsSpeakingHub({ userId, onSelectQuestion, onStartMock
       </div>
 
       {/* Mock Test Banner */}
-      <div className="bg-gradient-to-r from-rose-500 to-orange-500 rounded-2xl p-5 sm:p-6 text-white shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="group lift bg-tone-peach border border-tone-peach-border rounded-2xl p-5 sm:p-6 text-slate-800 dark:text-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="space-y-1 text-center sm:text-left">
-          <div className="inline-flex items-center gap-1 bg-white/20 px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider">
+          <div className="inline-flex items-center gap-1 bg-tone-peach-soft text-tone-peach-fg px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider">
             <Star className="w-3.5 h-3.5 fill-current" /> Thi thử
           </div>
           <h3 className="text-lg sm:text-xl font-black">Thi thử đủ 3 phần, 11–14 phút</h3>
-          <p className="text-xs text-white/80 max-w-md">
+          <p className="text-xs text-slate-600 dark:text-slate-300 max-w-md">
             Giám khảo đọc câu hỏi, micro tự bật sau mỗi câu. Chấm một lần cho cả bài: band từng phần, band tổng và 3 việc cần cải thiện.
           </p>
         </div>
         <button
           onClick={onStartMockTest}
-          className="px-6 py-3 bg-white text-rose-600 hover:bg-rose-50 rounded-xl text-sm font-black shadow-lg transform active:scale-95 transition-all w-full sm:w-auto"
+          className="press px-6 py-3 border border-tone-peach-border bg-tone-peach-soft text-tone-peach-fg hover:bg-tone-peach-border rounded-xl text-sm font-black transition-all w-full sm:w-auto"
         >
           Bắt đầu Thi thử
         </button>
@@ -116,7 +116,7 @@ export default function IeltsSpeakingHub({ userId, onSelectQuestion, onStartMock
               onClick={() => { setActiveTab(part); setFilters({}); }}
               className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all
                 ${activeTab === part
-                  ? 'bg-white dark:bg-slate-700 text-rose-600 dark:text-rose-450 shadow-sm'
+                  ? 'bg-white dark:bg-slate-700 text-tone-peach-fg shadow-sm'
                   : 'text-slate-500 hover:text-slate-850 dark:text-slate-450 dark:hover:text-slate-300'
                 }`}
             >
@@ -129,12 +129,12 @@ export default function IeltsSpeakingHub({ userId, onSelectQuestion, onStartMock
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-white dark:bg-slate-800 rounded-xl p-3 border border-slate-200 dark:border-slate-700 text-center">
-          <BookOpen className="w-5 h-5 text-rose-500 mx-auto mb-1" />
+          <BookOpen className="w-5 h-5 text-tone-peach-fg mx-auto mb-1" />
           <p className="text-lg font-black text-slate-800 dark:text-white">{questions.length}</p>
           <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Đề bài {activeTab.replace('_', ' ')}</p>
         </div>
         <div className="bg-white dark:bg-slate-800 rounded-xl p-3 border border-slate-200 dark:border-slate-700 text-center">
-          <Lightbulb className="w-5 h-5 text-purple-500 mx-auto mb-1" />
+          <Lightbulb className="w-5 h-5 text-tone-lavender-fg mx-auto mb-1" />
           <p className="text-lg font-black text-slate-800 dark:text-white">{speakingFrameworks.length}</p>
           <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Frameworks</p>
         </div>
@@ -142,7 +142,7 @@ export default function IeltsSpeakingHub({ userId, onSelectQuestion, onStartMock
           onClick={handleRandom}
           className="bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 rounded-xl p-3 border border-slate-200 dark:border-slate-700 text-center flex flex-col items-center justify-center gap-0.5"
         >
-          <Shuffle className="w-5 h-5 text-emerald-500 mx-auto" />
+          <Shuffle className="w-5 h-5 text-tone-mint-fg mx-auto" />
           <p className="text-[10px] text-slate-550 dark:text-slate-400 font-bold mt-1">Câu ngẫu nhiên</p>
         </button>
       </div>
@@ -158,7 +158,7 @@ export default function IeltsSpeakingHub({ userId, onSelectQuestion, onStartMock
                 onClick={() => onOpenStudy(tab)}
                 className="flex h-full min-h-touch w-full items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600"
               >
-                <Icon className="h-5 w-5 flex-shrink-0 text-rose-600 dark:text-rose-400" />
+                <Icon className="h-5 w-5 flex-shrink-0 text-tone-peach-fg" />
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold text-slate-900 dark:text-white">{title}</span>
                   <span className="block text-caption text-slate-500 dark:text-slate-400">{subtitle}</span>
@@ -174,18 +174,18 @@ export default function IeltsSpeakingHub({ userId, onSelectQuestion, onStartMock
       <IeltsAttemptHistory userId={userId} skill="speaking" onOpenAttempt={onOpenAttempt} />
 
       {/* Framework Section */}
-      <div className="bg-gradient-to-r from-rose-50 to-orange-50 dark:from-rose-900/20 dark:to-orange-900/20 rounded-xl border border-rose-200 dark:border-rose-800/40 overflow-hidden">
+      <div className="bg-tone-peach rounded-xl border border-tone-peach-border overflow-hidden">
         <button
           onClick={() => setShowFrameworks(!showFrameworks)}
-          className="w-full px-4 py-3 flex items-center justify-between hover:bg-rose-50/50 dark:hover:bg-rose-900/10 transition-colors"
+          className="w-full px-4 py-3 flex items-center justify-between hover:bg-tone-peach-soft transition-colors"
         >
           <div className="flex items-center gap-2">
-            <Lightbulb className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-            <span className="text-sm font-bold text-rose-700 dark:text-rose-300">
+            <Lightbulb className="w-4 h-4 text-tone-peach-fg" />
+            <span className="text-sm font-bold text-tone-peach-fg">
               Framework hướng dẫn nói
             </span>
           </div>
-          {showFrameworks ? <ChevronUp className="w-4 h-4 text-rose-400" /> : <ChevronDown className="w-4 h-4 text-rose-400" />}
+          {showFrameworks ? <ChevronUp className="w-4 h-4 text-tone-peach-fg" /> : <ChevronDown className="w-4 h-4 text-tone-peach-fg" />}
         </button>
         {showFrameworks && (
           <div className="px-4 pb-4 space-y-2">

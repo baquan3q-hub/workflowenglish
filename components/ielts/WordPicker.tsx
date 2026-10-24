@@ -13,9 +13,9 @@ interface Props {
 }
 
 const chip = 'inline-flex min-h-touch items-center rounded-xl border px-3 text-sm font-medium transition-colors';
-const chipOn = 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900';
+const chipOn = 'border-slate-900 border border-tone-periwinkle-border bg-tone-periwinkle-soft text-tone-periwinkle-fg dark:border-white';
 const chipOff =
-  'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800';
+  'border-slate-200 bg-white text-slate-700 hover:border-tone-periwinkle-border hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200';
 
 /** Pick words from a model text and send them to the review queue, each with its sentence as the example. */
 export default function WordPicker({ userId, text, save }: Props) {

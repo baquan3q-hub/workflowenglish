@@ -29,9 +29,9 @@ function Shape({ shape: s }: { shape: MapShape }) {
     case 'green':
       return (
         <g>
-          <rect x={s.x} y={s.y} width={s.w} height={s.h} rx={14} className="fill-emerald-100 dark:fill-emerald-900/40" />
+          <rect x={s.x} y={s.y} width={s.w} height={s.h} rx={14} className="fill-tone-mint-border dark:fill-tone-mint-accent" />
           {s.label && (
-            <text x={s.x + 10} y={s.y + 18} fontSize={11} fontWeight={600} className="fill-emerald-800 dark:fill-emerald-300">
+            <text x={s.x + 10} y={s.y + 18} fontSize={11} fontWeight={600} className="fill-tone-mint-accent dark:fill-tone-mint-accent">
               {s.label}
             </text>
           )}
@@ -40,9 +40,9 @@ function Shape({ shape: s }: { shape: MapShape }) {
     case 'water':
       return (
         <g>
-          <rect x={s.x} y={s.y} width={s.w} height={s.h} rx={28} className="fill-sky-100 dark:fill-sky-900/40" />
+          <rect x={s.x} y={s.y} width={s.w} height={s.h} rx={28} className="fill-tone-sky-border dark:fill-tone-sky-accent" />
           {s.label && (
-            <text x={cx} y={s.y + 24} fontSize={11} fontWeight={600} textAnchor="middle" className="fill-sky-800 dark:fill-sky-300">
+            <text x={cx} y={s.y + 24} fontSize={11} fontWeight={600} textAnchor="middle" className="fill-tone-sky-accent dark:fill-tone-sky-accent">
               {s.label}
             </text>
           )}

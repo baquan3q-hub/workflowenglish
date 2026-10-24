@@ -40,7 +40,7 @@ export default function GuideDrawer({ guide, onClose }: Props) {
             type="button"
             onClick={onClose}
             aria-label="Đóng"
-            className="inline-flex min-h-touch min-w-touch items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+            className="press inline-flex min-h-touch min-w-touch items-center justify-center rounded-xl text-slate-500 hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg dark:text-slate-400"
           >
             <X className="h-5 w-5" />
           </button>

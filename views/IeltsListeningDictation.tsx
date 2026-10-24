@@ -4,6 +4,7 @@ import { LISTENING_TESTS, PART_DESCRIPTIONS_VI, type ListeningSection } from '..
 import { compareDictation, dictationLines, type DictationResult } from '../services/listeningDrillLogic';
 import { DictationTokens, accuracyTone } from '../components/ielts/DictationTokens';
 import { useClipPlayer, type ResolveClip } from '../components/ielts/listening/useClipPlayer';
+import { ghostBtn, panel, primaryBtn, secondaryBtn } from '../components/ui/styles';
 
 interface Props {
   /** Part to start on; without it the learner picks one. */
@@ -12,13 +13,6 @@ interface Props {
   resolveClip?: ResolveClip;
 }
 
-const primaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200';
-const secondaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800';
-const ghostBtn =
-  'inline-flex min-h-touch min-w-touch items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800';
-const panel = 'rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900';
 
 function PartPicker({ onPick }: { onPick: (s: ListeningSection) => void }) {
   return (
@@ -128,7 +122,7 @@ export default function IeltsListeningDictation({ section: initial, onBack, reso
         <>
           <div className="flex items-center gap-3">
             <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-              <span className="block h-full rounded-full bg-slate-900 transition-all dark:bg-white" style={{ width: `${(index / lines.length) * 100}%` }} />
+              <span className="block h-full rounded-full bg-tone-sky-accent transition-all" style={{ width: `${(index / lines.length) * 100}%` }} />
             </span>
             <span className="text-caption tabular-nums text-slate-500 dark:text-slate-400">
               Câu {index + 1}/{lines.length}
@@ -155,7 +149,7 @@ export default function IeltsListeningDictation({ section: initial, onBack, reso
               </span>
             </div>
             {clip.error && (
-              <p role="alert" className="text-caption text-rose-600 dark:text-rose-400">
+              <p role="alert" className="text-caption text-tone-blush-fg">
                 {clip.error}
               </p>
             )}
@@ -227,7 +221,7 @@ export default function IeltsListeningDictation({ section: initial, onBack, reso
       {done && (
         <section className={`${panel} space-y-4 p-4 sm:p-5`}>
           <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-tone-aqua-soft text-tone-aqua-fg">
               <Keyboard className="h-5 w-5" />
             </span>
             <div>

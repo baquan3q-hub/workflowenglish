@@ -14,6 +14,8 @@ import IeltsAttemptHistory from '../components/IeltsAttemptHistory';
 import { Segmented } from '../components/ui/Segmented';
 import GeneratedSections, { type GeneratedSectionsApi } from '../components/ielts/listening/GeneratedSections';
 import LibrarySection from '../components/ielts/listening/LibrarySection';
+import { toneClasses } from '../components/ui/palette';
+import { ghostBtn, panel, primaryBtn, secondaryBtn, tag } from '../components/ui/styles';
 
 interface Props {
   userId: string;
@@ -30,14 +32,6 @@ interface Props {
   loadLibrary?: () => Promise<ListeningTest[]>;
 }
 
-const primaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200';
-const secondaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800';
-const ghostBtn =
-  'inline-flex min-h-touch min-w-touch items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800';
-const panel = 'rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900';
-const tag = 'inline-flex items-center rounded-md bg-slate-100 px-1.5 py-0.5 text-caption font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300';
 
 const MODE_KEY = 'ielts-listening-mode';
 const MODE_HINTS: Record<ListeningMode, string> = {
@@ -112,7 +106,7 @@ export default function IeltsListeningHub({ userId, onStart, onOpenDictation, on
           {LISTENING_FULL_TESTS.map((test) => (
             <li key={test.id} className={`${panel} p-4 sm:p-5`}>
               <div className="flex items-start gap-3">
-                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-tone-sky-soft text-tone-sky-fg">
                   <Headphones className="h-5 w-5" />
                 </span>
                 <div className="min-w-0 flex-1">
@@ -186,17 +180,17 @@ export default function IeltsListeningHub({ userId, onStart, onOpenDictation, on
         </h2>
         <ul className="mt-3 grid gap-3 sm:grid-cols-2">
           {[
-            { icon: Keyboard, title: 'Chép chính tả', text: 'Nghe từng câu trong đề, gõ lại và xem từ nào nghe sót.', onClick: onOpenDictation },
-            { icon: Hash, title: 'Số, tên và ngày', text: 'Lượt 8 câu ngắn: đánh vần tên, số điện thoại, ngày tháng, giá tiền.', onClick: onOpenDrill },
-          ].map(({ icon: Icon, title, text, onClick }) => (
+            { icon: Keyboard, title: 'Chép chính tả', text: 'Nghe từng câu trong đề, gõ lại và xem từ nào nghe sót.', onClick: onOpenDictation, tone: 'aqua' as const },
+            { icon: Hash, title: 'Số, tên và ngày', text: 'Lượt 8 câu ngắn: đánh vần tên, số điện thoại, ngày tháng, giá tiền.', onClick: onOpenDrill, tone: 'butter' as const },
+          ].map(({ icon: Icon, title, text, onClick, tone }) => (
             <li key={title}>
               <button
                 type="button"
                 onClick={onClick}
-                className={`${panel} flex h-full w-full items-center gap-3 p-4 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60`}
+                className={`${panel} lift press group flex h-full w-full items-center gap-3 p-4 text-left`}
               >
-                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                  <Icon className="h-5 w-5" />
+                <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${toneClasses(tone).tile}`}>
+                  <Icon className="icon-pop h-5 w-5" />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold text-slate-900 dark:text-white">{title}</span>

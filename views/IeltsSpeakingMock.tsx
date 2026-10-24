@@ -347,7 +347,7 @@ export default function IeltsSpeakingMock({
       <div className="space-y-2">
         <div className="flex gap-1" aria-hidden="true">
           {[1, 2, 3].map((p) => (
-            <span key={p} className={`h-1.5 flex-1 rounded-full ${p < part ? 'bg-emerald-500' : p === part ? 'bg-rose-500' : 'bg-slate-200 dark:bg-slate-700'}`} />
+            <span key={p} className={`h-1.5 flex-1 rounded-full ${p < part ? 'bg-tone-mint-accent' : p === part ? 'bg-tone-blush-accent' : 'bg-slate-200 dark:bg-slate-700'}`} />
           ))}
         </div>
         <p className={muted}>
@@ -362,7 +362,7 @@ export default function IeltsSpeakingMock({
         <section className={`${panel} space-y-4 p-4 sm:p-5`}>
           <div className="flex items-start gap-3">
             <span
-              className={`mt-0.5 inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full ${clipBusy ? 'bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}
+              className={`mt-0.5 inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full ${clipBusy ? 'bg-tone-blush text-tone-blush-fg' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}
               aria-hidden="true"
             >
               {player.loadingId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}

@@ -7,24 +7,24 @@ import { descriptorBand, findDescriptor, type DescriptorSkill } from '../data/ie
 
 export function BandScoreDisplay({ score, targetBand, label }: { score: number; targetBand?: string; label?: string }) {
   const getScoreColor = (s: number) => {
-    if (s >= 7.0) return 'from-emerald-400 to-green-500';
-    if (s >= 6.0) return 'from-blue-400 to-indigo-500';
-    if (s >= 5.0) return 'from-amber-400 to-orange-500';
-    return 'from-red-400 to-rose-500';
+    if (s >= 7.0) return 'bg-tone-mint-soft text-tone-mint-fg';
+    if (s >= 6.0) return 'bg-tone-sky-soft text-tone-sky-fg';
+    if (s >= 5.0) return 'bg-tone-butter-soft text-tone-butter-fg';
+    return 'bg-tone-blush-soft text-tone-blush-fg';
   };
 
   const getScoreRing = (s: number) => {
-    if (s >= 7.0) return 'ring-emerald-400/30';
-    if (s >= 6.0) return 'ring-blue-400/30';
-    if (s >= 5.0) return 'ring-amber-400/30';
-    return 'ring-red-400/30';
+    if (s >= 7.0) return 'ring-tone-mint-accent';
+    if (s >= 6.0) return 'ring-tone-sky-accent';
+    if (s >= 5.0) return 'ring-tone-butter-accent';
+    return 'ring-tone-blush-accent';
   };
 
   return (
     <div className="flex flex-col items-center gap-1.5">
       {label && <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{label}</span>}
-      <div className={`relative w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-br ${getScoreColor(score)} ring-4 ${getScoreRing(score)} flex items-center justify-center shadow-lg`}>
-        <span className="text-2xl sm:text-3xl font-black text-white drop-shadow-md">{score.toFixed(1)}</span>
+      <div className={`relative w-20 h-20 sm:w-24 sm:h-24 rounded-full ${getScoreColor(score)} ring-4 ${getScoreRing(score)} flex items-center justify-center shadow-sm`}>
+        <span className="text-2xl sm:text-3xl font-black tabular-nums">{score.toFixed(1)}</span>
       </div>
       {targetBand && (
         <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
@@ -43,10 +43,10 @@ export function CriterionScoreBar({ criterion, skill }: { criterion: IeltsCriter
   const band = descriptorBand(criterion.score);
   const percentage = Math.min(100, (criterion.score / 9) * 100);
   const getBarColor = (s: number) => {
-    if (s >= 7.0) return 'bg-emerald-500';
-    if (s >= 6.0) return 'bg-blue-500';
-    if (s >= 5.0) return 'bg-amber-500';
-    return 'bg-red-500';
+    if (s >= 7.0) return 'bg-tone-mint-accent';
+    if (s >= 6.0) return 'bg-tone-sky-accent';
+    if (s >= 5.0) return 'bg-tone-butter-accent';
+    return 'bg-tone-blush-accent';
   };
 
   return (
@@ -56,7 +56,7 @@ export function CriterionScoreBar({ criterion, skill }: { criterion: IeltsCriter
           <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{criterion.name}</span>
           <span className="text-xs text-slate-500 dark:text-slate-400 ml-2">({criterion.nameVi})</span>
         </div>
-        <span className={`text-sm font-bold ${criterion.score >= 6 ? 'text-blue-600 dark:text-blue-400' : 'text-amber-600 dark:text-amber-400'}`}>
+        <span className={`text-sm font-bold ${criterion.score >= 6 ? 'text-tone-sky-fg' : 'text-tone-butter-fg'}`}>
           {criterion.score.toFixed(1)}
         </span>
       </div>
@@ -89,11 +89,11 @@ export function FrameworkCard({ framework, isCompact }: { framework: IeltsFramew
     <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors"
+        className="group w-full px-4 py-3 flex items-center justify-between text-left hover:bg-tone-lavender transition-colors"
       >
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0">
-            <Lightbulb className="w-4 h-4 text-white" />
+          <div className="w-8 h-8 rounded-lg bg-tone-lavender-soft text-tone-lavender-fg flex items-center justify-center flex-shrink-0">
+            <Lightbulb className="icon-pop w-4 h-4" />
           </div>
           <div>
             <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100">{framework.name}</h4>
@@ -110,7 +110,7 @@ export function FrameworkCard({ framework, isCompact }: { framework: IeltsFramew
           <div className="space-y-2">
             {framework.steps.map((step, i) => (
               <div key={i} className="flex items-start gap-2.5">
-                <div className="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0 text-xs font-bold mt-0.5">
+                <div className="w-5 h-5 rounded-full bg-tone-periwinkle-soft text-tone-periwinkle-fg flex items-center justify-center flex-shrink-0 text-xs font-bold mt-0.5">
                   {i + 1}
                 </div>
                 <div>
@@ -145,26 +145,26 @@ export function QuestionCard({
   showSample?: boolean;
 }) {
   const getDifficultyColor = (d: string) => {
-    if (d === 'easy') return 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400';
-    if (d === 'medium') return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400';
-    return 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400';
+    if (d === 'easy') return 'bg-tone-mint-soft text-tone-mint-fg';
+    if (d === 'medium') return 'bg-tone-butter-soft text-tone-butter-fg';
+    return 'bg-tone-blush-soft text-tone-blush-fg';
   };
 
   const getTypeColor = (t: string) => {
     const colors: Record<string, string> = {
-      opinion: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400',
-      discussion: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400',
-      problem_solution: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400',
-      advantages_disadvantages: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-400',
-      two_part: 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-400',
-      cause_effect: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400',
-      personal: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400',
+      opinion: 'bg-tone-sky-soft text-tone-sky-fg',
+      discussion: 'bg-tone-lavender-soft text-tone-lavender-fg',
+      problem_solution: 'bg-tone-peach-soft text-tone-peach-fg',
+      advantages_disadvantages: 'bg-tone-aqua-soft text-tone-aqua-fg',
+      two_part: 'bg-tone-blush-soft text-tone-blush-fg',
+      cause_effect: 'bg-tone-periwinkle-soft text-tone-periwinkle-fg',
+      personal: 'bg-tone-sky-soft text-tone-sky-fg',
     };
     return colors[t] || 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300';
   };
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-200 group">
+    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 hover:shadow-lg hover:border-tone-sky-border transition-all duration-200 group">
       <div className="flex flex-wrap gap-1.5 mb-3">
         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${getDifficultyColor(question.difficulty)}`}>
           {question.difficulty}
@@ -176,7 +176,7 @@ export function QuestionCard({
           {question.topic}
         </span>
         {question.popularity && (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400">
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-tone-lavender-soft text-tone-lavender-fg">
             {question.popularity.replace(/_/g, ' ')}
           </span>
         )}
@@ -191,7 +191,7 @@ export function QuestionCard({
         </div>
         <button
           onClick={() => onSelect(question)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg text-xs font-bold shadow-sm group-hover:shadow-md transition-all"
+          className="press flex items-center gap-1.5 px-3 py-1.5 border border-tone-periwinkle-border bg-tone-periwinkle-soft text-tone-periwinkle-fg hover:bg-tone-periwinkle-border rounded-lg text-xs font-bold transition-all"
         >
           Bắt đầu <ArrowRight className="w-3 h-3" />
         </button>
@@ -218,7 +218,7 @@ export function FilterBar({
           key={f.key}
           value={filters[f.key] || ''}
           onChange={(e) => onChange(f.key, e.target.value)}
-          className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+          className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-tone-sky-accent focus:border-transparent outline-none"
         >
           <option value="">{f.label}</option>
           {f.options.map((o) => (
@@ -251,8 +251,8 @@ export function WritingTimer({ startTime, limitMinutes }: { startTime: number; l
 
   return (
     <div className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-colors
-      ${isUrgent ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400 animate-pulse' :
-        isWarning ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400' :
+      ${isUrgent ? 'bg-tone-blush-soft text-tone-blush-fg animate-pulse' :
+        isWarning ? 'bg-tone-butter-soft text-tone-butter-fg' :
         'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}
     >
       <Clock className="w-3.5 h-3.5" />
@@ -283,26 +283,26 @@ export function AudioRecorderButton({
         onClick={isRecording ? onStopRecording : onStartRecording}
         className={`relative w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg
           ${isRecording
-            ? 'bg-gradient-to-br from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 scale-110'
-            : 'bg-gradient-to-br from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 hover:scale-105'
+            ? 'bg-tone-blush-soft text-tone-blush-fg border-2 border-tone-blush-border hover:bg-tone-blush-border scale-110'
+            : 'bg-tone-peach-soft text-tone-peach-fg border-2 border-tone-peach-border hover:bg-tone-peach-border hover:scale-105'
           }`}
       >
         {isRecording ? (
           <>
-            <Square className="w-8 h-8 text-white" />
+            <Square className="w-8 h-8" />
             {/* Pulse rings */}
-            <span className="absolute inset-0 rounded-full bg-red-500/20 animate-ping" />
-            <span className="absolute inset-[-4px] rounded-full border-2 border-red-400/40 animate-pulse" />
+            <span className="absolute inset-0 rounded-full bg-tone-blush-soft animate-ping" />
+            <span className="absolute inset-[-4px] rounded-full border-2 border-tone-blush-border animate-pulse" />
           </>
         ) : (
-          <Mic className="w-8 h-8 text-white" />
+          <Mic className="w-8 h-8" />
         )}
       </button>
 
       {isRecording && (
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-          <span className="text-sm font-bold text-red-600 dark:text-red-400 tabular-nums">
+          <div className="w-2 h-2 rounded-full bg-tone-blush-accent animate-pulse" />
+          <span className="text-sm font-bold text-tone-blush-fg tabular-nums">
             {mins.toString().padStart(2, '0')}:{secs.toString().padStart(2, '0')}
           </span>
         </div>
@@ -323,18 +323,18 @@ export function SentenceCorrectionList({ corrections }: { corrections: IeltsSent
   return (
     <div className="space-y-3">
       <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
-        <AlertTriangle className="w-4 h-4 text-amber-500" />
+        <AlertTriangle className="w-4 h-4 text-tone-butter-fg" />
         Sửa lỗi câu ({corrections.length})
       </h4>
       {corrections.map((c, i) => (
         <div key={i} className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 space-y-1.5">
           <div className="flex items-start gap-2">
-            <X aria-hidden="true" className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-red-500" />
-            <p className="text-xs text-red-600 dark:text-red-400 line-through leading-relaxed">{c.original}</p>
+            <X aria-hidden="true" className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-tone-blush-fg" />
+            <p className="text-xs text-tone-blush-fg line-through leading-relaxed">{c.original}</p>
           </div>
           <div className="flex items-start gap-2">
-            <Check aria-hidden="true" className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-green-500" />
-            <p className="text-xs text-green-600 dark:text-green-400 font-medium leading-relaxed">{c.corrected}</p>
+            <Check aria-hidden="true" className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-tone-mint-fg" />
+            <p className="text-xs text-tone-mint-fg font-medium leading-relaxed">{c.corrected}</p>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 pl-5 italic">{c.explanation}</p>
         </div>
@@ -356,14 +356,14 @@ export function FeedbackList({
 
   return (
     <div className="space-y-2">
-      <h4 className={`text-sm font-bold flex items-center gap-2 ${isStrength ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>
+      <h4 className={`text-sm font-bold flex items-center gap-2 ${isStrength ? 'text-tone-mint-fg' : 'text-tone-butter-fg'}`}>
         {isStrength ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
         {isStrength ? 'Điểm mạnh' : 'Cần cải thiện'}
       </h4>
       <ul className="space-y-1.5">
         {items.map((item, i) => (
           <li key={i} className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-            <span className={`mt-0.5 flex-shrink-0 ${isStrength ? 'text-emerald-500' : 'text-amber-500'}`}>
+            <span className={`mt-0.5 flex-shrink-0 ${isStrength ? 'text-tone-mint-fg' : 'text-tone-butter-fg'}`}>
               {isStrength ? <Check className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
             </span>
             {item}
@@ -380,13 +380,13 @@ export function NextActionsList({ actions }: { actions: string[] }) {
   return (
     <div className="space-y-2">
       <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
-        <TrendingUp className="w-4 h-4 text-blue-500" />
+        <TrendingUp className="w-4 h-4 text-tone-sky-fg" />
         Bước tiếp theo để nâng band
       </h4>
       <div className="space-y-2">
         {actions.map((action, i) => (
-          <div key={i} className="flex items-start gap-2.5 bg-blue-50 dark:bg-blue-900/20 rounded-lg px-3 py-2 border border-blue-100 dark:border-blue-800/40">
-            <div className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-400 flex items-center justify-center flex-shrink-0 text-xs font-bold">
+          <div key={i} className="flex items-start gap-2.5 bg-tone-sky rounded-lg px-3 py-2 border border-tone-sky-border">
+            <div className="w-5 h-5 rounded-full bg-tone-sky-soft text-tone-sky-fg flex items-center justify-center flex-shrink-0 text-xs font-bold">
               {i + 1}
             </div>
             <span className="text-xs text-slate-700 dark:text-slate-200 leading-relaxed">{action}</span>
@@ -405,7 +405,7 @@ export function WordCountDisplay({ text, minimum }: { text: string; minimum: num
 
   return (
     <div className={`flex items-center gap-1.5 text-xs font-bold transition-colors
-      ${isEnough ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}
+      ${isEnough ? 'text-tone-mint-fg' : 'text-tone-butter-fg'}`}
     >
       <BookOpen className="w-3.5 h-3.5" />
       <span>{count} / {minimum} từ</span>

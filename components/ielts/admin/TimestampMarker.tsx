@@ -64,7 +64,7 @@ function TimeField({ value, onCommit, label }: { value: number | undefined; onCo
       placeholder="–:––"
       inputMode="decimal"
       className={`h-9 w-[4.5rem] rounded-lg border bg-white px-2 text-center text-sm tabular-nums text-slate-900 focus:outline-none dark:bg-slate-950 dark:text-white ${
-        bad ? 'border-red-400' : 'border-slate-200 focus:border-slate-400 dark:border-slate-700'
+        bad ? 'border-tone-blush-border' : 'border-slate-200 focus:border-slate-400 dark:border-slate-700'
       }`}
     />
   );
@@ -243,7 +243,7 @@ export default function TimestampMarker({ section, onChange, create = createYouT
             </div>
           )}
           {error && (
-            <p role="alert" className="absolute inset-x-4 top-1/2 -translate-y-1/2 rounded-xl bg-red-50 p-3 text-center text-sm text-red-700 dark:bg-red-950 dark:text-red-200">
+            <p role="alert" className="absolute inset-x-4 top-1/2 -translate-y-1/2 rounded-xl bg-tone-blush p-3 text-center text-sm text-tone-blush-fg">
               {error}
             </p>
           )}
@@ -294,8 +294,8 @@ export default function TimestampMarker({ section, onChange, create = createYouT
           </div>
         </div>
         {confirmClear && (
-          <div role="alert" className="mt-3 flex flex-col gap-2 rounded-xl bg-red-50 p-3 dark:bg-red-950/40 sm:flex-row sm:items-center">
-            <p className="flex-1 text-sm text-red-800 dark:text-red-200">Xoá thời gian của mọi đoạn? Lời thoại và câu hỏi vẫn giữ nguyên.</p>
+          <div role="alert" className="mt-3 flex flex-col gap-2 rounded-xl bg-tone-blush p-3 sm:flex-row sm:items-center">
+            <p className="flex-1 text-sm text-tone-blush-fg">Xoá thời gian của mọi đoạn? Lời thoại và câu hỏi vẫn giữ nguyên.</p>
             <button
               type="button"
               onClick={() => {
@@ -318,13 +318,13 @@ export default function TimestampMarker({ section, onChange, create = createYouT
               const first = seg.lines[0];
               const isCursor = i === cursor;
               return (
-                <li key={seg.id} className={`flex flex-col gap-2 py-3 sm:flex-row sm:items-center ${isCursor ? 'bg-amber-50/60 dark:bg-amber-950/20' : ''}`}>
+                <li key={seg.id} className={`flex flex-col gap-2 py-3 sm:flex-row sm:items-center ${isCursor ? 'bg-tone-butter-soft' : ''}`}>
                   <div className="flex min-w-0 flex-1 items-center gap-2">
                     <button
                       type="button"
                       onClick={() => setCursor(i)}
                       className={`inline-flex h-7 min-w-7 flex-shrink-0 items-center justify-center rounded-md px-1 text-caption font-bold tabular-nums ${
-                        isCursor ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'
+                        isCursor ? 'bg-tone-butter-soft text-tone-butter-fg' : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'
                       }`}
                       aria-label={`Đánh mốc tiếp từ đoạn ${i + 1}`}
                       title="Đánh mốc tiếp từ đoạn này"

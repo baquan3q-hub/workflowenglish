@@ -19,6 +19,7 @@ import { useClipPlayer, type ResolveClip } from '../components/ielts/listening/u
 import YouTubeDock from '../components/ielts/listening/YouTubeDock';
 import type { CreatePlayer } from '../components/ielts/listening/youtubeMedia';
 import type { AudioSegment } from '../services/listeningAudioService';
+import { ghostBtn, panel, primaryBtn, secondaryBtn } from '../components/ui/styles';
 
 interface Props {
   test: ListeningTest;
@@ -35,20 +36,13 @@ interface Props {
   createYouTubePlayer?: CreatePlayer;
 }
 
-const primaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200';
-const secondaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800';
-const ghostBtn =
-  'inline-flex min-h-touch min-w-touch items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800';
-const panel = 'rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900';
 
 const STATUS_TONE: Record<AnswerStatus, string> = {
-  correct: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300',
-  spelling: 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300',
-  plural: 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300',
-  over_limit: 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300',
-  wrong: 'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300',
+  correct: 'bg-tone-mint text-tone-mint-fg',
+  spelling: 'bg-tone-butter text-tone-butter-fg',
+  plural: 'bg-tone-butter text-tone-butter-fg',
+  over_limit: 'bg-tone-butter text-tone-butter-fg',
+  wrong: 'bg-tone-blush text-tone-blush-fg',
   blank: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
 };
 
@@ -70,7 +64,7 @@ function bandNote(estimated: boolean, total: number) {
 }
 
 const replayBtn =
-  'inline-flex min-h-touch items-center gap-1.5 rounded-xl px-3 text-caption font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800';
+  'press inline-flex min-h-touch items-center gap-1.5 rounded-xl px-3 text-caption font-semibold text-slate-700 hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg dark:text-slate-200';
 
 interface ReplayProps {
   playing: boolean;
@@ -114,18 +108,18 @@ function ResultCard({ r, group, replay }: { r: QuestionResult; group: ListeningG
           <dl className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
             <div>
               <dt className="text-caption text-slate-500 dark:text-slate-400">Bạn trả lời</dt>
-              <dd className={`font-medium ${ok ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-900 dark:text-white'}`}>
+              <dd className={`font-medium ${ok ? 'text-tone-mint-fg' : 'text-slate-900 dark:text-white'}`}>
                 {r.given ? answerLabel(group, r.question, r.given) : <span className="italic text-slate-400">Bỏ trống</span>}
               </dd>
             </div>
             {!ok && (
               <div>
                 <dt className="text-caption text-slate-500 dark:text-slate-400">Đáp án</dt>
-                <dd className="font-medium text-emerald-700 dark:text-emerald-300">{answerLabel(group, r.question, r.expected)}</dd>
+                <dd className="font-medium text-tone-mint-fg">{answerLabel(group, r.question, r.expected)}</dd>
               </div>
             )}
           </dl>
-          {tip && <p className="mt-2 text-caption text-amber-700 dark:text-amber-300">{tip}</p>}
+          {tip && <p className="mt-2 text-caption text-tone-butter-fg">{tip}</p>}
 
           <p className="mt-3 text-sm text-slate-700 dark:text-slate-300">{r.question.explanationVi}</p>
 
@@ -135,7 +129,7 @@ function ResultCard({ r, group, replay }: { r: QuestionResult; group: ListeningG
           </blockquote>
           {r.question.distractor && (
             <p className="mt-2 flex gap-2 text-sm text-slate-700 dark:text-slate-300">
-              <TriangleAlert className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-500" />
+              <TriangleAlert className="mt-0.5 h-4 w-4 flex-shrink-0 text-tone-butter-fg" />
               <span>
                 <span className="font-semibold">Bẫy: </span>
                 {r.question.distractor}
@@ -210,7 +204,7 @@ export default function IeltsListeningResult({ test, sectionIds, mode, answers, 
                 <span className="w-14 flex-shrink-0 font-medium text-slate-700 dark:text-slate-300">Part {p.part}</span>
                 <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                   <span
-                    className="block h-full rounded-full bg-emerald-500"
+                    className="block h-full rounded-full bg-tone-mint-accent"
                     style={{ width: `${p.total ? (p.score / p.total) * 100 : 0}%` }}
                   />
                 </span>
@@ -249,7 +243,7 @@ export default function IeltsListeningResult({ test, sectionIds, mode, answers, 
           />
         </div>
         {clip.error && (
-          <p role="alert" className="mt-2 text-caption text-rose-600 dark:text-rose-400">
+          <p role="alert" className="mt-2 text-caption text-tone-blush-fg">
             {clip.error}
           </p>
         )}

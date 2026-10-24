@@ -101,7 +101,7 @@ function PassagePanel({ passage, pick, onPick }: { passage: ReadingPassage; pick
           )}
         </p>
         {pick && (
-          <button type="button" onClick={() => onPick(null)} className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Bỏ chọn">
+          <button type="button" onClick={() => onPick(null)} className="press inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg" aria-label="Bỏ chọn">
             <X className="h-3.5 w-3.5" />
           </button>
         )}
@@ -213,7 +213,7 @@ export default function ReadingEditor({ item, saved: savedProp, onSave, onClose,
           <ArrowLeft className="h-4 w-4" /> Danh sách
         </button>
         <span className={tag}>{STATUS_LABELS_VI[draft.status]}</span>
-        {dirty && <span className="text-caption text-amber-700 dark:text-amber-400">Chưa lưu</span>}
+        {dirty && <span className="text-caption text-tone-butter-fg">Chưa lưu</span>}
         <div className="ml-auto flex gap-2">
           <button type="button" onClick={() => onPreview(draft, saved)} className={secondaryBtn}>
             <Eye className="h-4 w-4" /> <span className="hidden sm:inline">Xem thử</span>
@@ -239,8 +239,8 @@ export default function ReadingEditor({ item, saved: savedProp, onSave, onClose,
       </div>
 
       {confirmLeave && (
-        <div role="alert" className="flex flex-col gap-2 rounded-xl bg-amber-50 p-3 dark:bg-amber-950/40 sm:flex-row sm:items-center">
-          <p className="flex-1 text-sm text-amber-900 dark:text-amber-200">Bạn có thay đổi chưa lưu. Rời đi sẽ mất các thay đổi này.</p>
+        <div role="alert" className="flex flex-col gap-2 rounded-xl bg-tone-butter p-3 sm:flex-row sm:items-center">
+          <p className="flex-1 text-sm text-tone-butter-fg">Bạn có thay đổi chưa lưu. Rời đi sẽ mất các thay đổi này.</p>
           <div className="flex gap-2">
             <button type="button" onClick={() => setConfirmLeave(false)} className={secondaryBtn}>
               Ở lại
@@ -256,7 +256,7 @@ export default function ReadingEditor({ item, saved: savedProp, onSave, onClose,
         <p
           role={message.kind === 'error' ? 'alert' : 'status'}
           className={`flex items-start gap-2 rounded-xl p-3 text-sm ${
-            message.kind === 'ok' ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200' : 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300'
+            message.kind === 'ok' ? 'bg-tone-mint text-tone-mint-fg' : 'bg-tone-blush text-tone-blush-fg'
           }`}
         >
           {message.kind === 'ok' ? <CircleCheck className="mt-0.5 h-4 w-4 flex-shrink-0" /> : <CircleAlert className="mt-0.5 h-4 w-4 flex-shrink-0" />}

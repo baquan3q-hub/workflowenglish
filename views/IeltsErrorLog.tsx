@@ -33,6 +33,7 @@ import { getReadingTest } from '../data/ielts/reading';
 import { summarizeReadingErrors, type ReadingErrorLog, type ReadingErrorSummary } from '../services/readingReview';
 import { Segmented } from '../components/ui/Segmented';
 import { ErrorState, Skeleton } from '../components/ui/States';
+import { ghostBtn, panel, primaryBtn, secondaryBtn } from '../components/ui/styles';
 
 interface Props {
   userId: string;
@@ -49,13 +50,6 @@ type Filter = 'all' | ErrorSkill | 'reading';
 const ATTEMPT_LIMIT = 30;
 const DRILL_LEVEL = 'B2';
 
-const primaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200';
-const secondaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800';
-const ghostBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800';
-const panel = 'rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900';
 const field =
   'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-slate-400 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white';
 
@@ -63,9 +57,9 @@ const SKILL_LABEL: Record<ErrorSkill, string> = { writing: 'Writing', speaking: 
 const OTHER_HINT = 'Lỗi trong các bài chấm trước khi có nhãn, hoặc chưa xếp được vào nhóm nào.';
 
 const VERDICT_STYLE = {
-  correct: { icon: CircleCheck, cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' },
-  acceptable: { icon: CircleAlert, cls: 'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300' },
-  incorrect: { icon: CircleX, cls: 'bg-rose-50 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300' },
+  correct: { icon: CircleCheck, cls: 'bg-tone-mint text-tone-mint-fg' },
+  acceptable: { icon: CircleAlert, cls: 'bg-tone-butter text-tone-butter-fg' },
+  incorrect: { icon: CircleX, cls: 'bg-tone-blush text-tone-blush-fg' },
 } as const;
 
 async function loadRecent(userId: string): Promise<IeltsAttempt[]> {
@@ -82,8 +76,8 @@ function shortDate(iso?: string): string {
 const TrendBadge: React.FC<{ trend: ErrorSummary['trend'] }> = ({ trend }) => {
   if (!trend) return null;
   const view = {
-    up: { icon: TrendingUp, text: 'Gặp nhiều hơn gần đây', cls: 'text-rose-700 dark:text-rose-300' },
-    down: { icon: TrendingDown, text: 'Đang giảm', cls: 'text-emerald-700 dark:text-emerald-300' },
+    up: { icon: TrendingUp, text: 'Gặp nhiều hơn gần đây', cls: 'text-tone-blush-fg' },
+    down: { icon: TrendingDown, text: 'Đang giảm', cls: 'text-tone-mint-fg' },
     flat: { icon: Minus, text: 'Chưa đổi', cls: 'text-slate-500 dark:text-slate-400' },
   }[trend];
   const Icon = view.icon;
@@ -96,8 +90,8 @@ const TrendBadge: React.FC<{ trend: ErrorSummary['trend'] }> = ({ trend }) => {
 
 const Example: React.FC<{ e: LoggedError }> = ({ e }) => (
   <li className="space-y-1 rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60">
-    <p className="text-sm text-rose-700 line-through decoration-rose-300 dark:text-rose-300 dark:decoration-rose-700">{e.original}</p>
-    <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">{e.corrected}</p>
+    <p className="text-sm text-tone-blush-fg line-through decoration-tone-blush-accent">{e.original}</p>
+    <p className="text-sm font-medium text-tone-mint-fg">{e.corrected}</p>
     <p className="text-caption text-slate-500 dark:text-slate-400">
       {SKILL_LABEL[e.skill]}
       {shortDate(e.createdAt) && ` · ${shortDate(e.createdAt)}`}
@@ -159,9 +153,9 @@ const ReadingKindCard: React.FC<{ summary: ReadingErrorSummary; onLesson: () => 
         <li key={i} className="space-y-1 rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60">
           {e.context && <p className="text-sm text-slate-700 dark:text-slate-200">{e.context}</p>}
           <p className="text-sm">
-            <span className="text-rose-700 line-through decoration-rose-300 dark:text-rose-300 dark:decoration-rose-700">{e.given}</span>
+            <span className="text-tone-blush-fg line-through decoration-tone-blush-accent">{e.given}</span>
             {' → '}
-            <span className="font-medium text-emerald-800 dark:text-emerald-300">{e.expected}</span>
+            <span className="font-medium text-tone-mint-fg">{e.expected}</span>
           </p>
           <p className="text-caption text-slate-500 dark:text-slate-400">
             {e.testTitle} · câu {e.number}
@@ -204,9 +198,9 @@ const Diff: React.FC<{ before: string; after: string }> = ({ before, after }) =>
         <span
           className={
             t.kind === 'added'
-              ? 'rounded bg-emerald-100 px-0.5 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-200'
+              ? 'rounded bg-tone-mint-soft px-0.5 text-tone-mint-fg'
               : t.kind === 'removed'
-                ? 'rounded bg-rose-100 px-0.5 text-rose-700 line-through dark:bg-rose-500/20 dark:text-rose-300'
+                ? 'rounded bg-tone-blush-soft px-0.5 text-tone-blush-fg line-through'
                 : 'text-slate-700 dark:text-slate-200'
           }
         >
@@ -266,7 +260,7 @@ const Bolded: React.FC<{ text: string }> = ({ text }) => (
   <>
     {splitBold(text).map((p, i) =>
       p.bold ? (
-        <strong key={i} className="font-semibold text-slate-900 underline decoration-emerald-400 decoration-2 underline-offset-2 dark:text-white">
+        <strong key={i} className="font-semibold text-slate-900 underline decoration-tone-mint-accent decoration-2 underline-offset-2 dark:text-white">
           {p.text}
         </strong>
       ) : (
@@ -320,7 +314,7 @@ const DrillCard: React.FC<{ item: SentenceItem; index: number; grade: typeof gra
         </button>
       )}
       {state.kind === 'error' && (
-        <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">
+        <p role="alert" className="text-sm text-tone-blush-fg">
           {state.message}{' '}
           <button type="button" onClick={() => void submit()} className="font-semibold underline underline-offset-2">
             Thử lại
@@ -360,8 +354,8 @@ const Practice: React.FC<{ summary: ErrorSummary; grade: typeof gradeSentence; o
       {summary.info && (
         <div className={`${panel} space-y-1 p-4`}>
           <p className="text-caption font-medium text-slate-500 dark:text-slate-400">Ví dụ</p>
-          <p className="text-sm text-rose-700 line-through decoration-rose-300 dark:text-rose-300">{summary.info.example.wrong}</p>
-          <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">{summary.info.example.right}</p>
+          <p className="text-sm text-tone-blush-fg line-through decoration-tone-blush-accent">{summary.info.example.wrong}</p>
+          <p className="text-sm font-medium text-tone-mint-fg">{summary.info.example.right}</p>
           <button type="button" onClick={onLesson} className={`${ghostBtn} -ml-3 mt-1`}>
             <BookOpen className="h-4 w-4" /> Đọc bài học
           </button>
@@ -489,7 +483,7 @@ export default function IeltsErrorLog({ userId, onBack, onOpenLibrary, loadAttem
             </div>
           ) : !hasWriting && !hasReading ? (
             <div className={`${panel} flex flex-col items-center gap-3 px-6 py-10 text-center`}>
-              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-tone-blush-soft text-tone-blush-fg">
                 <NotebookPen className="h-5 w-5" />
               </span>
               <p className="text-sm font-semibold text-slate-900 dark:text-white">

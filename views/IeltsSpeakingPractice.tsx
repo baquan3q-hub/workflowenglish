@@ -149,7 +149,7 @@ export default function IeltsSpeakingPractice({ question, onSubmit, onBack, isGr
         <button type="button" onClick={exit} className={ghostBtn}>
           <ArrowLeft className="h-4 w-4" /> Thoát
         </button>
-        <span className="rounded-full bg-rose-50 px-3 py-1 text-caption font-semibold text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
+        <span className="rounded-full bg-tone-blush px-3 py-1 text-caption font-semibold text-tone-blush-fg">
           Speaking {PART_LABEL[part] ?? part}
         </span>
       </div>
@@ -168,7 +168,7 @@ export default function IeltsSpeakingPractice({ question, onSubmit, onBack, isGr
                   {questions.map((_, i) => (
                     <span
                       key={i}
-                      className={`h-1.5 flex-1 rounded-full ${i < index ? 'bg-emerald-500' : i === index ? 'bg-rose-500' : 'bg-slate-200 dark:bg-slate-700'}`}
+                      className={`h-1.5 flex-1 rounded-full ${i < index ? 'bg-tone-mint-accent' : i === index ? 'bg-tone-blush-accent' : 'bg-slate-200 dark:bg-slate-700'}`}
                     />
                   ))}
                 </div>

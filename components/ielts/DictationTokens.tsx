@@ -3,9 +3,9 @@ import type { DictationToken } from '../../services/listeningDrillLogic';
 
 const TOKEN_CLASS: Record<DictationToken['status'], string> = {
   ok: 'text-slate-900 dark:text-white',
-  close: 'rounded bg-amber-100 px-0.5 text-amber-900 dark:bg-amber-500/20 dark:text-amber-100',
-  wrong: 'rounded bg-rose-100 px-0.5 text-rose-900 dark:bg-rose-500/20 dark:text-rose-100',
-  missed: 'rounded px-0.5 text-rose-700 underline decoration-dotted underline-offset-4 dark:text-rose-300',
+  close: 'rounded bg-tone-butter-soft px-0.5 text-tone-butter-fg',
+  wrong: 'rounded bg-tone-blush-soft px-0.5 text-tone-blush-fg',
+  missed: 'rounded px-0.5 text-tone-blush-fg underline decoration-dotted underline-offset-4',
   extra: 'text-slate-400 line-through dark:text-slate-500',
 };
 
@@ -26,5 +26,5 @@ export function DictationTokens({ tokens, typedLabel = 'Bạn viết' }: { token
 }
 
 export function accuracyTone(a: number) {
-  return a >= 90 ? 'text-emerald-600 dark:text-emerald-400' : a >= 70 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400';
+  return a >= 90 ? 'text-tone-mint-fg' : a >= 70 ? 'text-tone-butter-fg' : 'text-tone-blush-fg';
 }

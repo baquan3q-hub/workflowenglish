@@ -16,6 +16,7 @@ import { AlertTriangle, Headphones, Pause, Play, RotateCcw, SkipBack, SkipForwar
 import { AUDIO_ERROR, AudioClipMedia, type ClipEvents, type ClipMedia } from './listening/clipMedia';
 import { YOUTUBE_TAP_HINT, YouTubeClipMedia, type CreatePlayer } from './listening/youtubeMedia';
 import { isYouTubeSource } from '../../services/youtubeLogic';
+import { panel, primaryBtn, secondaryBtn } from '../ui/styles';
 
 export const PLAYBACK_RATES = [0.75, 1, 1.25] as const;
 type Rate = (typeof PLAYBACK_RATES)[number];
@@ -47,17 +48,12 @@ interface Props {
 
 type Phase = 'idle' | 'prep' | 'playing' | 'paused' | 'done' | 'error';
 
-const primaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100';
-const secondaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800';
 const iconBtn =
-  'inline-flex min-h-touch min-w-touch items-center justify-center rounded-xl text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-transparent dark:text-slate-200 dark:hover:bg-slate-800';
+  'press inline-flex min-h-touch min-w-touch items-center justify-center rounded-xl text-slate-700 hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg disabled:opacity-40 disabled:hover:bg-transparent dark:text-slate-200';
 const chipBase = 'inline-flex min-h-touch items-center rounded-xl border px-2.5 text-caption font-semibold tabular-nums transition-colors';
-const chipOn = 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900';
+const chipOn = 'border-slate-900 border border-tone-periwinkle-border bg-tone-periwinkle-soft text-tone-periwinkle-fg dark:border-white';
 const chipOff =
-  'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800';
-const panel = 'rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900';
+  'border-slate-200 bg-white text-slate-600 hover:border-tone-periwinkle-border hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300';
 
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.max(0, Math.floor(s % 60))).padStart(2, '0')}`;
 
@@ -279,7 +275,7 @@ const SegmentPlayer = forwardRef<SegmentPlayerHandle, Props>(function SegmentPla
           const fill = i < index || phase === 'done' ? 1 : i === index && phase !== 'idle' ? fraction : 0;
           const bar = (
             <span className="block h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
-              <span className="block h-full rounded-full bg-slate-900 dark:bg-white" style={{ width: `${Math.round(fill * 100)}%` }} />
+              <span className="block h-full rounded-full bg-tone-sky-accent" style={{ width: `${Math.round(fill * 100)}%` }} />
             </span>
           );
           return exam ? (
@@ -304,7 +300,7 @@ const SegmentPlayer = forwardRef<SegmentPlayerHandle, Props>(function SegmentPla
 
       {phase === 'error' ? (
         <div className="flex flex-wrap items-center gap-3">
-          <p className="flex flex-1 items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
+          <p className="flex flex-1 items-center gap-2 text-sm text-tone-butter-fg">
             <AlertTriangle aria-hidden="true" className="h-4 w-4 flex-shrink-0" />
             {errorText}
           </p>
@@ -347,7 +343,7 @@ const SegmentPlayer = forwardRef<SegmentPlayerHandle, Props>(function SegmentPla
       )}
 
       {hint && phase !== 'error' && (
-        <p role="status" className="text-caption text-amber-700 dark:text-amber-400">
+        <p role="status" className="text-caption text-tone-butter-fg">
           {hint}
         </p>
       )}
@@ -391,7 +387,7 @@ const ExamControls: React.FC<{
   if (phase === 'done') return <p className="text-sm text-slate-600 dark:text-slate-400">Đã hết phần nghe. Kiểm tra lại đáp án rồi nộp bài.</p>;
   return (
     <p className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-      <span aria-hidden="true" className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
+      <span aria-hidden="true" className="h-2 w-2 animate-pulse rounded-full bg-tone-blush-accent" />
       Đang phát
     </p>
   );

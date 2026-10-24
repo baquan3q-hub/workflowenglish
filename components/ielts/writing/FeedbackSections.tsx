@@ -88,7 +88,7 @@ export function Task1Checklist({ feedback }: { feedback: IeltsAiFeedback }) {
           <li key={c.id} className="flex gap-2.5 text-sm leading-relaxed">
             <span
               className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full ${
-                c.passed ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300'
+                c.passed ? 'bg-tone-mint-soft text-tone-mint-fg' : 'bg-tone-blush-soft text-tone-blush-fg'
               }`}
             >
               {c.passed ? <Check className="h-3.5 w-3.5" aria-label="Đạt" /> : <X className="h-3.5 w-3.5" aria-label="Chưa đạt" />}
@@ -107,11 +107,11 @@ export function Task1Checklist({ feedback }: { feedback: IeltsAiFeedback }) {
 function CorrectionCard({ c }: { c: IeltsSentenceCorrection }) {
   return (
     <li className="space-y-1.5 rounded-xl bg-slate-50 p-3 text-sm leading-relaxed dark:bg-slate-800/60">
-      <p className="flex gap-2 text-rose-700 dark:text-rose-300">
+      <p className="flex gap-2 text-tone-blush-fg">
         <X className="mt-1 h-3.5 w-3.5 flex-shrink-0" aria-label="Câu gốc" />
-        <span className="line-through decoration-rose-400/70">{c.original}</span>
+        <span className="line-through decoration-tone-blush-accent">{c.original}</span>
       </p>
-      <p className="flex gap-2 font-medium text-emerald-700 dark:text-emerald-300">
+      <p className="flex gap-2 font-medium text-tone-mint-fg">
         <Check className="mt-1 h-3.5 w-3.5 flex-shrink-0" aria-label="Câu sửa" />
         <span>{c.corrected}</span>
       </p>
@@ -166,7 +166,7 @@ export function CorrectionsByCategory({ corrections }: { corrections: IeltsSente
 function Delta({ value }: { value: number | undefined }) {
   if (value === undefined) return <span className="text-slate-400">–</span>;
   const tone =
-    value > 0 ? 'text-emerald-700 dark:text-emerald-300' : value < 0 ? 'text-rose-700 dark:text-rose-300' : 'text-slate-500 dark:text-slate-400';
+    value > 0 ? 'text-tone-mint-fg' : value < 0 ? 'text-tone-blush-fg' : 'text-slate-500 dark:text-slate-400';
   const Icon = value > 0 ? ArrowUp : value < 0 ? ArrowDown : Minus;
   return (
     <span className={`inline-flex items-center gap-0.5 font-semibold tabular-nums ${tone}`}>
@@ -216,7 +216,7 @@ export function RewriteComparison({
         type="button"
         onClick={() => setShowDiff(!showDiff)}
         aria-expanded={showDiff}
-        className="inline-flex min-h-touch items-center gap-1.5 rounded-xl px-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+        className="press inline-flex min-h-touch items-center gap-1.5 rounded-xl px-2 text-sm font-semibold text-slate-700 hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg dark:text-slate-300"
       >
         <ChevronDown className={`h-4 w-4 transition-transform ${showDiff ? 'rotate-180' : ''}`} aria-hidden="true" />
         {showDiff ? 'Ẩn thay đổi' : 'Xem bạn đã sửa gì'}
@@ -225,11 +225,11 @@ export function RewriteComparison({
         <div className="space-y-2">
           <p className="flex flex-wrap gap-3 text-caption text-slate-600 dark:text-slate-400">
             <span>
-              <span className="rounded bg-emerald-100 px-1 text-emerald-900 dark:bg-emerald-500/20 dark:text-emerald-100">Thêm</span>{' '}
+              <span className="rounded bg-tone-mint-soft px-1 text-tone-mint-fg">Thêm</span>{' '}
               <span className="tabular-nums">{stats.added} từ</span>
             </span>
             <span>
-              <span className="rounded bg-rose-100 px-1 text-rose-900 line-through dark:bg-rose-500/20 dark:text-rose-100">Bỏ</span>{' '}
+              <span className="rounded bg-tone-blush-soft px-1 text-tone-blush-fg line-through">Bỏ</span>{' '}
               <span className="tabular-nums">{stats.removed} từ</span>
             </span>
           </p>
@@ -241,11 +241,11 @@ export function RewriteComparison({
                 <span key={i}>{t.text} </span>
               ) : t.kind === 'added' ? (
                 <React.Fragment key={i}>
-                  <ins className="rounded bg-emerald-100 px-0.5 text-emerald-900 no-underline dark:bg-emerald-500/20 dark:text-emerald-100">{t.text}</ins>{' '}
+                  <ins className="rounded bg-tone-mint-soft px-0.5 text-tone-mint-fg no-underline">{t.text}</ins>{' '}
                 </React.Fragment>
               ) : (
                 <React.Fragment key={i}>
-                  <del className="rounded bg-rose-100 px-0.5 text-rose-900 dark:bg-rose-500/20 dark:text-rose-100">{t.text}</del>{' '}
+                  <del className="rounded bg-tone-blush-soft px-0.5 text-tone-blush-fg">{t.text}</del>{' '}
                 </React.Fragment>
               ),
             )}

@@ -207,7 +207,7 @@ export default function IeltsAdmin({ userId, onBack, onPreview, editing: editing
       )}
 
       {error && (
-        <p role="alert" className="flex items-start gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">
+        <p role="alert" className="flex items-start gap-2 rounded-xl bg-tone-blush p-3 text-sm text-tone-blush-fg">
           <CircleAlert className="mt-0.5 h-4 w-4 flex-shrink-0" />
           {error}
         </p>

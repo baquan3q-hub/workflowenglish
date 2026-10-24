@@ -53,6 +53,7 @@ import { useRecorder } from '../components/ielts/speaking/useRecorder';
 import { DictationTokens, accuracyTone } from '../components/ielts/DictationTokens';
 import AddToReviewButton from '../components/ielts/AddToReviewButton';
 import { Segmented } from '../components/ui/Segmented';
+import { ghostBtn, panel, primaryBtn, secondaryBtn } from '../components/ui/styles';
 
 export type SpeakingStudyTab = 'part1' | 'part2' | 'part3' | 'pronunciation' | 'shadowing';
 
@@ -84,17 +85,10 @@ const TABS: { id: SpeakingStudyTab; label: string }[] = [
   { id: 'shadowing', label: 'Shadowing' },
 ];
 
-const primaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200';
-const secondaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800';
-const ghostBtn =
-  'inline-flex min-h-touch min-w-touch items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800';
-const panel = 'rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900';
 const chipBase = 'inline-flex min-h-touch flex-shrink-0 items-center rounded-xl border px-3 text-sm font-medium transition-colors';
-const chipOn = 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900';
+const chipOn = 'border-slate-900 border border-tone-periwinkle-border bg-tone-periwinkle-soft text-tone-periwinkle-fg dark:border-white';
 const chipOff =
-  'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800';
+  'border-slate-200 bg-white text-slate-700 hover:border-tone-periwinkle-border hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200';
 const h2 = 'text-title font-semibold text-slate-900 dark:text-white';
 const muted = 'text-caption text-slate-500 dark:text-slate-400';
 
@@ -119,7 +113,7 @@ function PlayButton({ clip, player, rate = 1, label }: { clip: AudioSegment; pla
       type="button"
       onClick={() => player.toggle(clip, rate)}
       aria-label={playing ? `Dừng: ${label}` : `Nghe: ${label}`}
-      className="inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+      className="press inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-700 hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg dark:border-slate-700 dark:text-slate-200"
     >
       {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : playing ? <Square className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
     </button>
@@ -129,7 +123,7 @@ function PlayButton({ clip, player, rate = 1, label }: { clip: AudioSegment; pla
 function PlayerError({ player }: { player: Player }) {
   if (!player.error) return null;
   return (
-    <p role="alert" className="text-caption text-rose-600 dark:text-rose-400">
+    <p role="alert" className="text-caption text-tone-blush-fg">
       {player.error}
     </p>
   );
@@ -684,7 +678,7 @@ function ShadowView({ set, player, transcribe }: { set: ShadowSet; player: Playe
 
       <div className="flex items-center gap-3">
         <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-          <span className="block h-full rounded-full bg-slate-900 transition-all dark:bg-white" style={{ width: `${((index + 1) / set.sentences.length) * 100}%` }} />
+          <span className="block h-full rounded-full bg-tone-peach-accent transition-all" style={{ width: `${((index + 1) / set.sentences.length) * 100}%` }} />
         </span>
         <span className={`${muted} tabular-nums`}>
           Câu {index + 1}/{set.sentences.length}
@@ -717,7 +711,7 @@ function ShadowView({ set, player, transcribe }: { set: ShadowSet; player: Playe
             <button
               type="button"
               onClick={toggleRecord}
-              className={recorder.recording ? `${primaryBtn} bg-rose-600 hover:bg-rose-700 dark:bg-rose-500 dark:text-white dark:hover:bg-rose-600` : secondaryBtn}
+              className={recorder.recording ? `${primaryBtn.replace('border-tone-periwinkle-border bg-tone-periwinkle-soft', 'border-tone-blush-border bg-tone-blush-soft').replace('text-tone-periwinkle-fg hover:bg-tone-periwinkle-border', 'text-tone-blush-fg hover:bg-tone-blush-border')}` : secondaryBtn}
             >
               {recorder.recording ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
               {recorder.recording ? `Dừng ${formatDuration(recorder.seconds)}` : recorder.take ? 'Ghi âm lại' : '2. Ghi âm'}
@@ -737,7 +731,7 @@ function ShadowView({ set, player, transcribe }: { set: ShadowSet; player: Playe
           <p className="text-sm text-slate-600 dark:text-slate-400">Trình duyệt này không ghi âm được. Hãy dùng Chrome hoặc Edge để shadowing.</p>
         )}
         {(recorder.error || player.error) && (
-          <p role="alert" className="text-caption text-rose-600 dark:text-rose-400">
+          <p role="alert" className="text-caption text-tone-blush-fg">
             {recorder.error || player.error}
           </p>
         )}
@@ -761,7 +755,7 @@ function ShadowView({ set, player, transcribe }: { set: ShadowSet; player: Playe
               </button>
             )}
             {check.kind === 'error' && (
-              <p role="alert" className="text-caption text-rose-600 dark:text-rose-400">
+              <p role="alert" className="text-caption text-tone-blush-fg">
                 {check.message}
               </p>
             )}

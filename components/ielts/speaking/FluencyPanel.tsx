@@ -15,10 +15,10 @@ import { muted, panel } from './styles';
 const KEYS: FluencyMetricKey[] = ['wpm', 'fillers', 'pauses', 'repeats'];
 
 const LEVEL_TONE: Record<FluencyLevel, string> = {
-  strong: 'text-emerald-700 dark:text-emerald-300',
-  ok: 'text-sky-700 dark:text-sky-300',
-  weak: 'text-amber-700 dark:text-amber-300',
-  low: 'text-rose-700 dark:text-rose-300',
+  strong: 'text-tone-mint-fg',
+  ok: 'text-tone-sky-fg',
+  weak: 'text-tone-butter-fg',
+  low: 'text-tone-blush-fg',
 };
 
 function format(key: FluencyMetricKey, value: number): string {

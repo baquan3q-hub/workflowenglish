@@ -4,19 +4,13 @@ import { DRILL_CATEGORIES, DRILL_ITEMS, DRILL_SIZE, type DrillCategory, type Dri
 import { gradeDrillAnswer, pickDrillItems } from '../services/listeningDrillLogic';
 import { ANSWER_STATUS_LABELS, type AnswerStatus } from '../services/listeningLogic';
 import { useClipPlayer, type ResolveClip } from '../components/ielts/listening/useClipPlayer';
+import { ghostBtn, panel, primaryBtn, secondaryBtn } from '../components/ui/styles';
 
 interface Props {
   onBack: () => void;
   resolveClip?: ResolveClip;
 }
 
-const primaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200';
-const secondaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800';
-const ghostBtn =
-  'inline-flex min-h-touch min-w-touch items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800';
-const panel = 'rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900';
 
 type Pick = DrillCategory | 'mixed';
 
@@ -118,7 +112,7 @@ export default function IeltsListeningDrill({ onBack, resolveClip }: Props) {
         <>
           <div className="flex items-center gap-3">
             <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-              <span className="block h-full rounded-full bg-slate-900 transition-all dark:bg-white" style={{ width: `${(index / items.length) * 100}%` }} />
+              <span className="block h-full rounded-full bg-tone-sky-accent transition-all" style={{ width: `${(index / items.length) * 100}%` }} />
             </span>
             <span className="text-caption tabular-nums text-slate-500 dark:text-slate-400">
               {index + 1}/{items.length}
@@ -134,7 +128,7 @@ export default function IeltsListeningDrill({ onBack, resolveClip }: Props) {
               <p className="text-sm font-medium text-slate-900 dark:text-white">{item.promptVi}</p>
             </div>
             {clip.error && (
-              <p role="alert" className="text-caption text-rose-600 dark:text-rose-400">
+              <p role="alert" className="text-caption text-tone-blush-fg">
                 {clip.error}
               </p>
             )}
@@ -177,8 +171,8 @@ export default function IeltsListeningDrill({ onBack, resolveClip }: Props) {
                 role="status"
                 className={`rounded-xl p-3 text-sm ${
                   current.status === 'correct'
-                    ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-500/10 dark:text-emerald-100'
-                    : 'bg-rose-50 text-rose-900 dark:bg-rose-500/10 dark:text-rose-100'
+                    ? 'bg-tone-mint text-tone-mint-fg'
+                    : 'bg-tone-blush text-tone-blush-fg'
                 }`}
               >
                 <p className="flex items-center gap-1.5 font-semibold">
@@ -213,7 +207,7 @@ export default function IeltsListeningDrill({ onBack, resolveClip }: Props) {
                     <p className="mt-0.5 text-slate-700 dark:text-slate-300">
                       <span className="line-through opacity-70">{a.given || 'Bỏ trống'}</span>
                       {' → '}
-                      <span className="font-semibold text-emerald-700 dark:text-emerald-300">{a.item.answers[0]}</span>
+                      <span className="font-semibold text-tone-mint-fg">{a.item.answers[0]}</span>
                       <span className="ml-2 text-caption text-slate-500 dark:text-slate-400">{ANSWER_STATUS_LABELS[a.status]}</span>
                     </p>
                   </li>

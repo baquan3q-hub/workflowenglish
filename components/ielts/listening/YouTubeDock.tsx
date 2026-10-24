@@ -32,7 +32,7 @@ export default function YouTubeDock({ dock, message, onClose }: Props) {
             type="button"
             onClick={onClose}
             aria-label="Dừng và đóng video"
-            className="inline-flex min-h-touch min-w-touch items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+            className="press inline-flex min-h-touch min-w-touch items-center justify-center rounded-xl text-slate-500 hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100"
           >
             <X className="h-4 w-4" />
           </button>
@@ -41,7 +41,7 @@ export default function YouTubeDock({ dock, message, onClose }: Props) {
           <div ref={dock.hostRef} className="h-full w-full" />
         </div>
         {message && dock.open && (
-          <p role="status" className="px-3 py-2 text-caption text-amber-700 dark:text-amber-400">
+          <p role="status" className="px-3 py-2 text-caption text-tone-butter-fg">
             {message}
           </p>
         )}

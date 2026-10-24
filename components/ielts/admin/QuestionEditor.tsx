@@ -46,7 +46,7 @@ function QuestionNotes({ q, section, onPatch }: { q: ListeningQuestion; section:
       <summary className="flex min-h-touch cursor-pointer list-none items-center gap-1.5 text-caption font-semibold text-slate-600 dark:text-slate-300">
         <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
         Đoạn, trích dẫn và giải thích
-        {missing && <span className="rounded bg-amber-100 px-1.5 text-amber-800 dark:bg-amber-950 dark:text-amber-300">còn thiếu</span>}
+        {missing && <span className="rounded bg-tone-butter-soft px-1.5 text-tone-butter-fg">còn thiếu</span>}
       </summary>
       <div className="mt-2 grid gap-3 sm:grid-cols-2">
         <label className="block">
@@ -314,7 +314,7 @@ function MapShapesField({ group, onChange }: { group: Extract<ListeningGroup, { 
       <span className={hint}>
         Loại: building, path, green, water, entrance. Khung {group.map.width}×{group.map.height}.
       </span>
-      {bad.length > 0 && <span className="block text-caption text-red-600 dark:text-red-400">Không đọc được dòng {bad.join(', ')}.</span>}
+      {bad.length > 0 && <span className="block text-caption text-tone-blush-fg">Không đọc được dòng {bad.join(', ')}.</span>}
     </>
   );
 }
@@ -325,7 +325,7 @@ export default function QuestionEditor({ section, onChange }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <p className={`text-sm ${count === 10 ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-300'}`}>
+        <p className={`text-sm ${count === 10 ? 'text-tone-mint-fg' : 'text-slate-600 dark:text-slate-300'}`}>
           {count}/10 câu{count !== 10 ? ' — mỗi part cần đúng 10 câu' : ''}
         </p>
         <div className="flex gap-2">

@@ -191,7 +191,7 @@ export default function GeneratedPassages({ userId, onStart, api = defaultApi }:
                   disabled={!on && full}
                   onClick={() => toggle(k)}
                   className={`press group inline-flex min-h-touch items-center gap-1.5 rounded-xl border px-3 text-sm font-medium transition-colors disabled:opacity-50 ${
-                    on ? `${t.border} ${t.tile}` : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
+                    on ? `${t.border} ${t.tile}` : 'border-slate-200 bg-white text-slate-700 hover:border-tone-periwinkle-border hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200'
                   }`}
                 >
                   <info.icon className={`icon-pop h-4 w-4 ${on ? '' : t.text}`} aria-hidden />

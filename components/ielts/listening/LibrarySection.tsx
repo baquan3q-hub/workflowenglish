@@ -7,18 +7,14 @@ import { ArrowRight, Clock, Library, Youtube } from 'lucide-react';
 import { GROUP_TYPE_LABELS, PART_DESCRIPTIONS_VI } from '../../../data/ielts/listening';
 import type { ListeningTest } from '../../../data/ielts/listening/types';
 import { getPublishedLibrary } from '../../../services/listeningLibraryService';
+import { panel, primaryBtn, secondaryBtn as sharedSecondary, tag } from '../../ui/styles';
 
 interface Props {
   onStart: (testId: string, sectionIds: string[]) => void;
   load?: () => Promise<ListeningTest[]>;
 }
 
-const panel = 'rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900';
-const primaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200';
-const secondaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800';
-const tag = 'inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-caption font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300';
+const secondaryBtn = sharedSecondary.replace('px-4', 'px-3');
 
 const types = (test: ListeningTest) => [...new Set(test.sections.flatMap((s) => s.groups.map((g) => GROUP_TYPE_LABELS[g.type])))];
 

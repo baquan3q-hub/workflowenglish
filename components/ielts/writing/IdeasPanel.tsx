@@ -7,11 +7,10 @@ import { Lightbulb, Loader2, RotateCcw } from 'lucide-react';
 import type { IeltsQuestion, IeltsWritingIdeas } from '../../../types';
 import { getWritingIdeas } from '../../../services/ieltsWritingService';
 import { aiErrorMessage } from '../../../services/aiClient';
+import { secondaryBtn } from '../../ui/styles';
 
 type State = { status: 'idle' } | { status: 'loading' } | { status: 'error'; message: string } | { status: 'done'; ideas: IeltsWritingIdeas };
 
-const secondaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800';
 
 export default function IdeasPanel({ question }: { question: IeltsQuestion }) {
   const [state, setState] = useState<State>({ status: 'idle' });
@@ -45,7 +44,7 @@ export default function IdeasPanel({ question }: { question: IeltsQuestion }) {
       </div>
 
       {state.status === 'error' && (
-        <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800 dark:bg-rose-500/10 dark:text-rose-200">
+        <p role="alert" className="rounded-xl bg-tone-blush p-3 text-sm text-tone-blush-fg">
           Chưa lấy được gợi ý. {state.message}
         </p>
       )}
@@ -105,7 +104,7 @@ function IdeasView({ ideas, onReload }: { ideas: IeltsWritingIdeas; onReload: ()
       <button
         type="button"
         onClick={onReload}
-        className="inline-flex min-h-touch items-center gap-1.5 rounded-xl px-2 text-caption font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+        className="press inline-flex min-h-touch items-center gap-1.5 rounded-xl px-2 text-caption font-semibold text-slate-600 hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg dark:text-slate-400"
       >
         <RotateCcw className="h-3.5 w-3.5" /> Gợi ý khác
       </button>

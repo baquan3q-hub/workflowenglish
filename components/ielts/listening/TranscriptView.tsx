@@ -15,9 +15,9 @@ interface Props {
 }
 
 const iconBtn =
-  'inline-flex min-h-touch min-w-touch items-center justify-center gap-1.5 rounded-xl px-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800';
-const evidenceMark = 'rounded bg-emerald-100 px-0.5 text-emerald-900 dark:bg-emerald-500/20 dark:text-emerald-100';
-const distractorMark = 'rounded bg-amber-100 px-0.5 text-amber-900 dark:bg-amber-500/20 dark:text-amber-100';
+  'press inline-flex min-h-touch min-w-touch items-center justify-center gap-1.5 rounded-xl px-3 text-sm font-semibold text-slate-700 hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg dark:text-slate-200';
+const evidenceMark = 'rounded bg-tone-mint-soft px-0.5 text-tone-mint-fg';
+const distractorMark = 'rounded bg-tone-butter-soft px-0.5 text-tone-butter-fg';
 
 function Piece({ p }: { p: TranscriptPiece }) {
   if (!p.mark) return <>{p.text}</>;

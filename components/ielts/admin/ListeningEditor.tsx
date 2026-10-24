@@ -122,7 +122,7 @@ function SegmentScript({
       <div className="flex items-center gap-2">
         <span className="text-sm font-semibold text-slate-900 dark:text-white">Đoạn {index + 1}</span>
         {time && <span className={tag}>{time}</span>}
-        <span className={`ml-auto text-caption tabular-nums ${!recorded && chars > LISTENING_TEXT_MAX ? 'text-red-600 dark:text-red-400' : 'text-slate-500'}`}>
+        <span className={`ml-auto text-caption tabular-nums ${!recorded && chars > LISTENING_TEXT_MAX ? 'text-tone-blush-fg' : 'text-slate-500'}`}>
           {recorded ? `${chars} ký tự` : `${chars}/${LISTENING_TEXT_MAX}`}
         </span>
         <button type="button" onClick={() => onChange(removeSegment(section, seg.id))} className={iconBtn} aria-label={`Xoá đoạn ${index + 1}`}>
@@ -144,11 +144,11 @@ function SegmentScript({
         className={textarea}
       />
       {parsed.unknown.length > 0 && (
-        <p className="mt-1 text-caption text-amber-700 dark:text-amber-400">
+        <p className="mt-1 text-caption text-tone-butter-fg">
           Chưa khai báo người nói: {parsed.unknown.join(', ')}. Thêm ở bước Thông tin hoặc sửa tên.
         </p>
       )}
-      {!recorded && speakers > 2 && <p className="mt-1 text-caption text-red-600 dark:text-red-400">Giọng AI chỉ đọc được 2 người trong một đoạn: hãy tách đoạn.</p>}
+      {!recorded && speakers > 2 && <p className="mt-1 text-caption text-tone-blush-fg">Giọng AI chỉ đọc được 2 người trong một đoạn: hãy tách đoạn.</p>}
     </li>
   );
 }
@@ -222,7 +222,7 @@ function YouTubeSource({ section, onChange }: { section: ListeningSection; onCha
           </button>
         </div>
       </Field>
-      {link && !id && <p className="text-caption text-red-600 dark:text-red-400">Không nhận ra link YouTube này.</p>}
+      {link && !id && <p className="text-caption text-tone-blush-fg">Không nhận ra link YouTube này.</p>}
       {current && (
         <div className="flex items-center gap-3">
           <img src={youtubeThumbnail(current)} alt="" className="h-16 w-28 flex-shrink-0 rounded-lg object-cover" />
@@ -333,7 +333,7 @@ export default function ListeningEditor({ item, saved: savedProp, onSave, onClos
           <ArrowLeft className="h-4 w-4" /> Danh sách
         </button>
         <span className={tag}>{STATUS_LABELS_VI[draft.status]}</span>
-        {dirty && <span className="text-caption text-amber-700 dark:text-amber-400">Chưa lưu</span>}
+        {dirty && <span className="text-caption text-tone-butter-fg">Chưa lưu</span>}
         <div className="ml-auto flex gap-2">
           <button type="button" onClick={() => onPreview(draft, saved)} className={secondaryBtn}>
             <Eye className="h-4 w-4" /> <span className="hidden sm:inline">Xem thử</span>
@@ -359,8 +359,8 @@ export default function ListeningEditor({ item, saved: savedProp, onSave, onClos
       </div>
 
       {confirmLeave && (
-        <div role="alert" className="flex flex-col gap-2 rounded-xl bg-amber-50 p-3 dark:bg-amber-950/40 sm:flex-row sm:items-center">
-          <p className="flex-1 text-sm text-amber-900 dark:text-amber-200">Bạn có thay đổi chưa lưu. Rời đi sẽ mất các thay đổi này.</p>
+        <div role="alert" className="flex flex-col gap-2 rounded-xl bg-tone-butter p-3 sm:flex-row sm:items-center">
+          <p className="flex-1 text-sm text-tone-butter-fg">Bạn có thay đổi chưa lưu. Rời đi sẽ mất các thay đổi này.</p>
           <div className="flex gap-2">
             <button type="button" onClick={() => setConfirmLeave(false)} className={secondaryBtn}>
               Ở lại
@@ -376,7 +376,7 @@ export default function ListeningEditor({ item, saved: savedProp, onSave, onClos
         <p
           role={message.kind === 'error' ? 'alert' : 'status'}
           className={`flex items-start gap-2 rounded-xl p-3 text-sm ${
-            message.kind === 'ok' ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200' : 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300'
+            message.kind === 'ok' ? 'bg-tone-mint text-tone-mint-fg' : 'bg-tone-blush text-tone-blush-fg'
           }`}
         >
           {message.kind === 'ok' ? <CircleCheck className="mt-0.5 h-4 w-4 flex-shrink-0" /> : <CircleAlert className="mt-0.5 h-4 w-4 flex-shrink-0" />}
@@ -415,13 +415,13 @@ export default function ListeningEditor({ item, saved: savedProp, onSave, onClos
                 aria-current={step === s.id ? 'step' : undefined}
                 className={`inline-flex min-h-touch items-center gap-1.5 rounded-xl px-3 text-sm font-semibold ${
                   step === s.id
-                    ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                    ? 'border border-tone-periwinkle-border bg-tone-periwinkle-soft text-tone-periwinkle-fg'
                     : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
                 }`}
               >
                 <span className="tabular-nums opacity-60">{i + 1}</span> {s.label}
                 {s.id === 'check' && problems.length > 0 && (
-                  <span className="rounded-full bg-amber-500 px-1.5 text-caption text-white">{problems.length}</span>
+                  <span className="rounded-full bg-tone-butter-soft px-1.5 text-caption text-tone-butter-fg">{problems.length}</span>
                 )}
               </button>
             </li>
@@ -605,7 +605,7 @@ export default function ListeningEditor({ item, saved: savedProp, onSave, onClos
         {step === 'check' && (
           <div className="space-y-4">
             {problems.length === 0 ? (
-              <p className="flex items-center gap-2 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+              <p className="flex items-center gap-2 rounded-xl bg-tone-mint p-3 text-sm text-tone-mint-fg">
                 <CircleCheck className="h-4 w-4 flex-shrink-0" /> Đề đã sẵn sàng. Hãy bấm Xem thử để làm thử một lượt trước khi xuất bản.
               </p>
             ) : (
@@ -616,7 +616,7 @@ export default function ListeningEditor({ item, saved: savedProp, onSave, onClos
                     const target = p.sectionId ? draft.sections.findIndex((s) => s.id === p.sectionId) : -1;
                     return (
                       <li key={i} className="flex items-start gap-2 py-2 text-sm">
-                        <CircleAlert className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+                        <CircleAlert className="mt-0.5 h-4 w-4 flex-shrink-0 text-tone-butter-fg" />
                         <span className="min-w-0 flex-1 text-slate-700 dark:text-slate-200">
                           <b className="font-semibold text-slate-900 dark:text-white">{p.where}:</b> {p.message}
                         </span>

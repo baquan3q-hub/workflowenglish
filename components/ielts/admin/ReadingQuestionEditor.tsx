@@ -237,7 +237,7 @@ function DiagramFields({ group, set, paragraph }: { group: Extract<ReadingGroup,
           <span className={hint}>
             Loại: box, circle, line, arrow. Khung {group.diagram.width}×{group.diagram.height}. Dấu | xuống dòng; mỗi ___ là một câu.
           </span>
-          {bad.length > 0 && <span className="block text-caption text-red-600 dark:text-red-400">Không đọc được dòng {bad.join(', ')}.</span>}
+          {bad.length > 0 && <span className="block text-caption text-tone-blush-fg">Không đọc được dòng {bad.join(', ')}.</span>}
         </label>
       </div>
       {group.diagram.shapes.length > 0 && <ReadingDiagram diagram={group.diagram} answers={{}} />}

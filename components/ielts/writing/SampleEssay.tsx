@@ -8,8 +8,8 @@ import type { BandEssay } from '../../../data/ielts/writingSamples';
 import type { IeltsWritingTask } from '../../../types';
 import { annotateParagraph, criterionLabels, essayWordCount } from '../../../services/writingStudyLogic';
 
-const goodMark = 'rounded bg-emerald-100 px-0.5 text-emerald-950 dark:bg-emerald-500/20 dark:text-emerald-100';
-const weakMark = 'rounded bg-rose-100 px-0.5 text-rose-950 dark:bg-rose-500/20 dark:text-rose-100';
+const goodMark = 'rounded bg-tone-mint-soft px-0.5 text-tone-mint-fg';
+const weakMark = 'rounded bg-tone-blush-soft px-0.5 text-tone-blush-fg';
 
 export default function SampleEssay({ essay, task }: { essay: BandEssay; task: IeltsWritingTask }) {
   const labels = criterionLabels(task);
@@ -65,9 +65,9 @@ export default function SampleEssay({ essay, task }: { essay: BandEssay; task: I
                   <li key={k} className="flex gap-2 text-caption leading-relaxed text-slate-600 dark:text-slate-400">
                     <span className="flex flex-shrink-0 items-center gap-1 font-semibold tabular-nums">
                       {n.kind === 'good' ? (
-                        <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" aria-label="Điểm cộng" />
+                        <Check className="h-3.5 w-3.5 text-tone-mint-fg" aria-label="Điểm cộng" />
                       ) : (
-                        <TriangleAlert className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" aria-label="Điểm trừ" />
+                        <TriangleAlert className="h-3.5 w-3.5 text-tone-blush-fg" aria-label="Điểm trừ" />
                       )}
                       {numbers[k]}
                     </span>
