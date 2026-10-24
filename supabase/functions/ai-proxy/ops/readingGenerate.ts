@@ -723,6 +723,9 @@ export function blueprintProblems(passage: GeneratedPassage, plan: readonly Plan
       case 'headings':
         keysAre(g.headings, n + 1, ROMAN.length, ROMAN);
         if (n > paragraphs) at('asks about more paragraphs than the passage has');
+        // Each heading fits one paragraph and each paragraph is asked about once.
+        if (new Set(g.questions.map((q) => q.answers[0])).size < n) at('a heading is used more than once');
+        if (new Set(g.questions.map((q) => q.paragraph)).size < n) at('a paragraph is asked about more than once');
         break;
       case 'tfng':
       case 'ynng': {

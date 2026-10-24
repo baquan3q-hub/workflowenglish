@@ -273,6 +273,18 @@ describe('finalizeReadingPassage', () => {
     }, /line already shows the answer/);
   });
 
+  it('rejects a headings group that reuses a heading or a paragraph', () => {
+    const reused = rawFrom(passage('reading-practice-museums', 'rp-museums'), 'medium');
+    const headings = reused.groups.find((g) => g.kind === 'headings')!;
+    headings.questions[1].answers = headings.questions[0].answers;
+    expect(() => finalizeReadingPassage(reused)).toThrow(/a heading is used more than once/);
+
+    const twice = rawFrom(passage('reading-practice-museums', 'rp-museums'), 'medium');
+    const other = twice.groups.find((g) => g.kind === 'headings')!;
+    other.questions[1].paragraph = other.questions[0].paragraph;
+    expect(() => finalizeReadingPassage(twice)).toThrow(/a paragraph is asked about more than once/);
+  });
+
   it('asks harder passages for distractors', () => {
     const raw = rawFrom(passage('reading-test-1', 'rt1-p1'), 'hard');
     raw.groups.forEach((g) => g.questions.forEach((q) => (q.distractor = '')));
@@ -299,6 +311,8 @@ describe('readingGenerationLogic', () => {
     expect(generatedReadingProblems(g(), 1)).toEqual([]);
     expect(generatedReadingProblems(g(), 2)).toEqual(['expected Part 2, got Part 1']);
     expect(generatedReadingProblems(g(), 1, ['mcq'])[0]).toMatch(/is not the one asked for/);
+    expect(generatedReadingProblems(g(), 1, TFNG_KINDS, 'medium')).toEqual([]);
+    expect(generatedReadingProblems(g(), 1, TFNG_KINDS, 'hard')).toEqual(['expected hard, got medium']);
     expect(generatedReadingProblems(null, 1)).toEqual(['not a generated Reading passage']);
     expect(generatedReadingProblems({ plan: [], passage: {} }, 1)).toEqual(['not a generated Reading passage']);
   });
@@ -336,7 +350,13 @@ describe('readingGenerationService', () => {
   it('generates, checks, saves and registers a passage', async () => {
     invoke.mockResolvedValue(finalizeReadingPassage(sample()));
     const item = await generateReading('user-1', req);
-    expect(invoke).toHaveBeenCalledWith('generateReadingPassage', { part: 1, topic: 'Salt', difficulty: 'medium', kinds: TFNG_KINDS });
+    expect(invoke).toHaveBeenCalledWith(
+      'generateReadingPassage',
+      { part: 1, topic: 'Salt', difficulty: 'medium', kinds: TFNG_KINDS },
+      // The op can retry and fall back, so the client waits longer than the 90 s default.
+      { timeoutMs: expect.any(Number) },
+    );
+    expect(invoke.mock.calls[0][2].timeoutMs).toBeGreaterThan(240_000);
     expect(item.saved).toBe(true);
     const row = db.insert.mock.calls[0][0];
     expect(row).toMatchObject({ id: item.id, user_id: 'user-1', part: 1, topic: 'Salt', difficulty: 'medium' });

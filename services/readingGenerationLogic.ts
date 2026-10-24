@@ -73,14 +73,21 @@ export class ReadingCheckError extends Error {}
  * opened. With `kinds`, the passage must also follow the plan those kinds
  * make, so a result for another request is never shown.
  */
-export function generatedReadingProblems(value: unknown, part: ReadingPart, kinds?: readonly GeneratedKind[]): string[] {
+export function generatedReadingProblems(
+  value: unknown,
+  part: ReadingPart,
+  kinds?: readonly GeneratedKind[],
+  difficulty?: ReadingDifficulty,
+): string[] {
   const g = value as GeneratedReading | null;
   const p = g?.passage;
   if (!g || typeof g !== 'object' || !Array.isArray(g.plan) || !p || !Array.isArray(p.paragraphs) || !Array.isArray(p.groups)) {
     return ['not a generated Reading passage'];
   }
   if (p.part !== part) return [`expected Part ${part}, got Part ${String(p.part)}`];
-  const problems = generatedPassageProblems(g);
+  // A result for another level is never shown, and the level asked for sets the distractor minimum.
+  if (difficulty && p.difficulty !== difficulty) return [`expected ${difficulty}, got ${String(p.difficulty)}`];
+  const problems = generatedPassageProblems(g, difficulty);
   if (kinds && planKey(g.plan) !== planKey(readingPlan(part, kinds))) problems.push(`plan ${planKey(g.plan)} is not the one asked for`);
   return problems;
 }

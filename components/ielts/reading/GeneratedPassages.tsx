@@ -78,7 +78,8 @@ export default function GeneratedPassages({ userId, onStart, api = defaultApi }:
     let live = true;
     apiRef.current
       .list(userId)
-      .then((list) => live && setItems(list))
+      // A passage generated while the list was loading stays on top.
+      .then((list) => live && setItems((prev) => [...(prev ?? []), ...list.filter((g) => !prev?.some((p) => p.id === g.id))]))
       .catch(() => live && setItems([]));
     return () => {
       live = false;
@@ -106,9 +107,12 @@ export default function GeneratedPassages({ userId, onStart, api = defaultApi }:
     }
   };
 
-  const remove = async (id: string) => {
+  const remove = async (g: GeneratedReadingItem) => {
     setConfirmId(null);
-    if (await apiRef.current.remove(id)) setItems((prev) => (prev ?? []).filter((g) => g.id !== id));
+    // An unsaved passage has no row to delete (the table may be missing): just drop it from the list.
+    if (!g.saved) void apiRef.current.remove(g.id).catch(() => false);
+    else if (!(await apiRef.current.remove(g.id))) return;
+    setItems((prev) => (prev ?? []).filter((x) => x.id !== g.id));
   };
 
   return (
@@ -265,7 +269,7 @@ export default function GeneratedPassages({ userId, onStart, api = defaultApi }:
                   </button>
                   <button
                     type="button"
-                    onClick={() => remove(g.id)}
+                    onClick={() => remove(g)}
                     className="press inline-flex min-h-touch items-center justify-center rounded-xl border border-tone-blush-border bg-tone-blush-soft px-3 text-sm font-semibold text-tone-blush-fg hover:bg-tone-blush-border"
                   >
                     Xoá
@@ -276,11 +280,9 @@ export default function GeneratedPassages({ userId, onStart, api = defaultApi }:
                   <button type="button" onClick={() => onStart(generatedReadingTestId(g.id), g.passage.id)} className={`${compactBtn} flex-1`}>
                     Bắt đầu <ArrowRight className="h-4 w-4" aria-hidden />
                   </button>
-                  {g.saved && (
-                    <button type="button" onClick={() => setConfirmId(g.id)} className={ghostBtn} aria-label={`Xoá đề ${g.passage.title}`}>
-                      <Trash2 className="h-4 w-4 text-tone-blush-fg" aria-hidden />
-                    </button>
-                  )}
+                  <button type="button" onClick={() => setConfirmId(g.id)} className={ghostBtn} aria-label={`Xoá đề ${g.passage.title}`}>
+                    <Trash2 className="h-4 w-4 text-tone-blush-fg" aria-hidden />
+                  </button>
                 </div>
               )}
             </li>

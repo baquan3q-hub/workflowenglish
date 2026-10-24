@@ -28,6 +28,7 @@ import { supabase } from './supabaseClient';
 
 const TABLE = 'reading_generated';
 const COLUMNS = 'id, part, topic, difficulty, passage, created_at';
+const GENERATE_TIMEOUT_MS = 270_000;
 
 const newId = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -40,8 +41,13 @@ const newId = () =>
 /** Asks the op for a passage, checks it, saves it and makes it openable. Throws AiError or ReadingCheckError. */
 export async function generateReading(userId: string, req: GenerateReadingRequest): Promise<GeneratedReadingItem> {
   const topic = req.topic.trim().slice(0, 100);
-  const raw = await invokeAi<unknown>('generateReadingPassage', { part: req.part, topic, difficulty: req.difficulty, kinds: req.kinds });
-  const problems = generatedReadingProblems(raw, req.part, req.kinds);
+  // The op may retry and fall back to a second model, up to 120 s each; the default 90 s would give up first.
+  const raw = await invokeAi<unknown>(
+    'generateReadingPassage',
+    { part: req.part, topic, difficulty: req.difficulty, kinds: req.kinds },
+    { timeoutMs: GENERATE_TIMEOUT_MS },
+  );
+  const problems = generatedReadingProblems(raw, req.part, req.kinds, req.difficulty);
   if (problems.length) {
     console.warn('[Reading] generated passage failed checks:', problems);
     throw new ReadingCheckError('Đề vừa tạo chưa đạt kiểm định. Bạn thử tạo lại nhé.');
