@@ -76,6 +76,12 @@ import { ConnectionIndicator } from './components/ConnectionIndicator';
 import { saveDraft, loadDraft, clearDraft, DraftData } from './services/draftService';
 import { useAutoSave } from './services/autoSaveService';
 import IeltsChatBox from './components/IeltsChatBox';
+import { TAB_TONE, TONE_HOVER, toneClasses } from './components/ui/palette';
+
+/** Quiet header action: slate label, coloured icon, its tone's tint on hover. */
+const headerAction = (tone: keyof typeof TAB_TONE) =>
+  `press group inline-flex min-h-touch min-w-touch items-center justify-center gap-1.5 rounded-lg text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-300 dark:hover:text-white ${TONE_HOVER[TAB_TONE[tone]]}`;
+const headerIcon = (tone: keyof typeof TAB_TONE) => `icon-pop ${toneClasses(TAB_TONE[tone]).text}`;
 
 
 interface AppUser {
@@ -1802,14 +1808,14 @@ function App() {
                         setIsSaving(false);
                       }
                     }}
-                    className="inline-flex min-h-touch min-w-touch items-center justify-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white xl:px-3"
+                    className={`${headerAction('save')} px-2 disabled:opacity-50 xl:px-3`}
                     title="Lưu tiến trình bài học"
                     aria-label={isSaving ? 'Đang lưu bài học' : 'Lưu bài học'}
                   >
                     {isSaving ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <Loader2 className={`w-4 h-4 animate-spin ${toneClasses(TAB_TONE.save).text}`} />
                     ) : (
-                      <Save className="w-4 h-4" />
+                      <Save className={`w-4 h-4 ${headerIcon('save')}`} />
                     )}
                     <span className="hidden xl:inline" aria-hidden="true">{isSaving ? 'Đang lưu…' : 'Lưu'}</span>
                   </button>
@@ -1819,38 +1825,38 @@ function App() {
 
                 <button
                   onClick={() => setDarkMode(!darkMode)}
-                  className="inline-flex min-h-touch min-w-touch items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+                  className={headerAction('theme')}
                   title={darkMode ? "Chuyển sang chế độ sáng" : "Chuyển sang chế độ tối"}
                   aria-label={darkMode ? "Chuyển sang chế độ sáng" : "Chuyển sang chế độ tối"}
                 >
-                  {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                  {darkMode ? <Sun className={`w-5 h-5 ${headerIcon('theme')}`} /> : <Moon className={`w-5 h-5 ${headerIcon('theme')}`} />}
                 </button>
                 <button
                   onClick={() => navigateTo({ phase: AppPhase.HISTORY })}
                   aria-current={phase === AppPhase.HISTORY ? 'page' : undefined}
-                  className={`inline-flex min-h-touch min-w-touch items-center justify-center gap-1.5 rounded-lg px-2 text-sm font-semibold transition-colors ${
+                  className={
                     phase === AppPhase.HISTORY
-                      ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
-                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white'
-                  }`}
+                      ? `press group inline-flex min-h-touch min-w-touch items-center justify-center gap-1.5 rounded-lg px-2 text-sm font-semibold transition-colors ${toneClasses(TAB_TONE.history).tile}`
+                      : `${headerAction('history')} px-2`
+                  }
                   title="Lịch sử học tập"
                 >
-                  <History className="w-4 h-4" />
+                  <History className={`w-4 h-4 ${headerIcon('history')}`} />
                   <span className="sr-only xl:not-sr-only">Lịch sử</span>
                 </button>
 
-                <div className="hidden xl:flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/50 px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-700">
+                <div className="hidden xl:flex items-center gap-1.5 bg-tone-periwinkle px-2.5 py-1 rounded-full border border-tone-periwinkle-border">
                   <img src="/avatarandlogo.png" className="w-5 h-5 rounded-full object-cover border border-blue-100 dark:border-slate-700 shadow-sm" alt="" />
-                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 max-w-[100px] truncate">{currentUser.displayName}</span>
+                  <span className="text-xs font-semibold text-tone-periwinkle-fg max-w-[100px] truncate">{currentUser.displayName}</span>
                 </div>
 
                 <button
                   onClick={handleLogout}
-                  className="inline-flex min-h-touch min-w-touch items-center justify-center rounded-lg text-slate-600 hover:bg-rose-50 hover:text-rose-700 dark:text-slate-300 dark:hover:bg-rose-500/15 dark:hover:text-rose-300"
+                  className={headerAction('logout')}
                   title="Đăng xuất"
                   aria-label="Đăng xuất"
                 >
-                  <LogOut className="w-4 h-4" />
+                  <LogOut className={`w-4 h-4 ${headerIcon('logout')}`} />
                 </button>
               </div>
             )}
@@ -1873,7 +1879,7 @@ function App() {
           }`}
         >
           {error && (
-            <div className="bg-rose-50 border border-rose-300 text-rose-800 dark:bg-rose-500/10 dark:border-rose-500/40 dark:text-rose-200 pl-4 pr-12 py-3 rounded-xl relative mb-6 text-sm" role="alert">
+            <div className="bg-tone-blush border border-tone-blush-border text-tone-blush-fg pl-4 pr-12 py-3 rounded-xl relative mb-6 text-sm" role="alert">
               <strong className="font-bold">Lỗi: </strong>
               <span>{error}</span>
               <button

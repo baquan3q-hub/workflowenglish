@@ -83,6 +83,31 @@ export const NAV_TONE = {
   next: 'periwinkle',
 } as const satisfies Record<string, Tone>;
 
+/** One tone per main navigation tab (and header action), all different so each place is easy to spot. */
+export const TAB_TONE = {
+  learn: 'periwinkle',
+  review: 'butter',
+  vocab: 'mint',
+  stats: 'aqua',
+  ielts: 'lavender',
+  history: 'sky',
+  theme: 'peach',
+  save: 'mint',
+  logout: 'blush',
+} as const satisfies Record<string, Tone>;
+
+/** Hover fill per tone for quiet (unselected) controls: the bg tint, so only the hovered one lights up. */
+export const TONE_HOVER: Record<Tone, string> = {
+  sky: 'hover:bg-tone-sky',
+  mint: 'hover:bg-tone-mint',
+  lavender: 'hover:bg-tone-lavender',
+  peach: 'hover:bg-tone-peach',
+  butter: 'hover:bg-tone-butter',
+  aqua: 'hover:bg-tone-aqua',
+  blush: 'hover:bg-tone-blush',
+  periwinkle: 'hover:bg-tone-periwinkle',
+};
+
 /** Answer states: gentle colours instead of harsh red/green. */
 export const STATUS_TONE = {
   correct: 'mint',

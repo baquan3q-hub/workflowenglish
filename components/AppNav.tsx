@@ -10,6 +10,7 @@ import React from 'react';
 import { BarChart3, BookMarked, GraduationCap, Home, RotateCcw } from 'lucide-react';
 import { activeNavTab, dueBadgeText, type AnalyticsSection, type NavTabId } from './navConfig';
 import { AppPhase } from '../types';
+import { TAB_TONE, TONE_HOVER, toneClasses, type Tone } from './ui/palette';
 
 export interface NavRequest {
   phase: AppPhase;
@@ -27,15 +28,16 @@ interface TabDef {
   id: NavTabId;
   label: string;
   icon: React.FC<{ className?: string }>;
+  tone: Tone;
   request?: NavRequest;
 }
 
 const TABS: readonly TabDef[] = [
-  { id: 'learn', label: 'Học', icon: Home, request: { phase: AppPhase.DASHBOARD } },
-  { id: 'review', label: 'Ôn tập', icon: RotateCcw, request: { phase: AppPhase.REVIEW_SESSION } },
-  { id: 'vocab', label: 'Sổ từ', icon: BookMarked, request: { phase: AppPhase.VOCAB_LIBRARY } },
-  { id: 'stats', label: 'Thống kê', icon: BarChart3, request: { phase: AppPhase.ANALYTICS, analyticsSection: 'overview' } },
-  { id: 'ielts', label: 'IELTS', icon: GraduationCap, request: { phase: AppPhase.IELTS_HOME } },
+  { id: 'learn', label: 'Học', icon: Home, tone: TAB_TONE.learn, request: { phase: AppPhase.DASHBOARD } },
+  { id: 'review', label: 'Ôn tập', icon: RotateCcw, tone: TAB_TONE.review, request: { phase: AppPhase.REVIEW_SESSION } },
+  { id: 'vocab', label: 'Sổ từ', icon: BookMarked, tone: TAB_TONE.vocab, request: { phase: AppPhase.VOCAB_LIBRARY } },
+  { id: 'stats', label: 'Thống kê', icon: BarChart3, tone: TAB_TONE.stats, request: { phase: AppPhase.ANALYTICS, analyticsSection: 'overview' } },
+  { id: 'ielts', label: 'IELTS', icon: GraduationCap, tone: TAB_TONE.ielts, request: { phase: AppPhase.IELTS_HOME } },
 ];
 
 const DueBadge: React.FC<{ count: number | null; className?: string }> = ({ count, className = '' }) => {
@@ -44,7 +46,7 @@ const DueBadge: React.FC<{ count: number | null; className?: string }> = ({ coun
   return (
     <span
       aria-hidden="true"
-      className={`min-w-[18px] rounded-full bg-rose-600 px-1 text-center text-[10px] font-bold leading-[18px] text-white tabular-nums ${className}`}
+      className={`min-w-[18px] rounded-full border border-tone-blush-border bg-tone-blush-soft px-1 text-center text-[10px] font-bold leading-4 text-tone-blush-fg tabular-nums ${className}`}
     >
       {text}
     </span>
@@ -71,15 +73,14 @@ export const AppNavDesktop: React.FC<AppNavProps & { compact?: boolean }> = ({
       {TABS.map((tab) => {
         const Icon = tab.icon;
         const isActive = tab.id === active;
+        const t = toneClasses(tab.tone);
         // Labels show from 1024px; between 768 and 1024 (and in compact mode)
         // the tab is icon-only but keeps its label for screen readers.
         const labelClass = compact ? 'sr-only' : 'sr-only lg:not-sr-only';
-        const base = `relative inline-flex min-h-touch min-w-touch items-center justify-center gap-1.5 rounded-lg text-sm font-semibold transition-colors ${
+        const base = `press group relative inline-flex min-h-touch min-w-touch items-center justify-center gap-1.5 rounded-lg text-sm font-semibold transition-colors ${
           compact ? 'px-2' : 'px-2 lg:px-3'
         } ${
-          isActive
-            ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
-            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white'
+          isActive ? t.tile : `text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white ${TONE_HOVER[tab.tone]}`
         }`;
 
         return (
@@ -92,7 +93,7 @@ export const AppNavDesktop: React.FC<AppNavProps & { compact?: boolean }> = ({
             onClick={() => tab.request && onNavigate(tab.request)}
             className={base}
           >
-            <Icon className="h-4 w-4" />
+            <Icon className={`icon-pop h-4 w-4 ${t.text}`} />
             <span className={labelClass}>{tab.label}</span>
             {tab.id === 'review' && (
               <DueBadge
@@ -120,6 +121,7 @@ export const AppNavMobile: React.FC<AppNavProps> = ({ phase, analyticsSection, d
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const isActive = tab.id === active;
+          const t = toneClasses(tab.tone);
           return (
             <button
               key={tab.id}
@@ -127,17 +129,17 @@ export const AppNavMobile: React.FC<AppNavProps> = ({ phase, analyticsSection, d
               aria-current={isActive ? 'page' : undefined}
               aria-label={tabAriaLabel(tab, dueCount)}
               onClick={() => tab.request && onNavigate(tab.request)}
-              className={`flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 px-1 pt-1.5 pb-1 text-[11px] font-semibold transition-colors ${
-                isActive ? 'text-blue-700 dark:text-blue-300' : 'text-slate-600 dark:text-slate-400'
+              className={`press group flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 px-1 pt-1.5 pb-1 text-[11px] font-semibold transition-colors ${
+                isActive ? t.text : 'text-slate-600 dark:text-slate-400'
               }`}
             >
               <span className="relative">
                 <span
                   className={`flex h-7 w-12 items-center justify-center rounded-full transition-colors ${
-                    isActive ? 'bg-blue-100 dark:bg-blue-500/20' : ''
+                    isActive ? t.tile : TONE_HOVER[tab.tone]
                   }`}
                 >
-                  <Icon className="h-5 w-5" />
+                  <Icon className={`icon-pop h-5 w-5 ${t.text}`} />
                 </span>
                 {tab.id === 'review' && <DueBadge count={dueCount} className="absolute -right-1 -top-1" />}
               </span>

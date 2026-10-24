@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
-import { contrastRatio, NAV_TONE, SKILL_TONE, STATUS_TONE, TONE_RGB, TONES, toneClasses, type Tone } from '../palette';
+import { contrastRatio, NAV_TONE, SKILL_TONE, STATUS_TONE, TAB_TONE, TONE_HOVER, TONE_RGB, TONES, toneClasses, type Tone } from '../palette';
 
 const AA = 4.5;
 
@@ -53,6 +53,13 @@ describe('tone palette', () => {
     expect(SKILL_TONE).toEqual({ listening: 'sky', reading: 'mint', writing: 'lavender', speaking: 'peach' });
     expect(STATUS_TONE).toEqual({ correct: 'mint', wrong: 'blush', nearMiss: 'butter', blank: 'sky' });
     for (const tone of Object.values(NAV_TONE)) expect(TONES).toContain(tone);
+  });
+
+  it('gives each main tab and the history button its own tone', () => {
+    const tabs = [TAB_TONE.learn, TAB_TONE.review, TAB_TONE.vocab, TAB_TONE.stats, TAB_TONE.ielts, TAB_TONE.history];
+    expect(new Set(tabs).size).toBe(tabs.length);
+    for (const tone of Object.values(TAB_TONE)) expect(TONES).toContain(tone);
+    for (const tone of TONES) expect(TONE_HOVER[tone]).toBe(`hover:bg-tone-${tone}`);
   });
 
   it('gives every tone full, literal class names', () => {
