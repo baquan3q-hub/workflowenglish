@@ -539,7 +539,7 @@ export interface StoredConversation {
   messages: ChatMessage[];
 }
 
-export const MAX_CONVERSATIONS = 40;
+export const MAX_CONVERSATIONS = 60;
 export const MAX_SAVED_MESSAGES = 120;
 
 /** First thing the learner asked, trimmed to a title. */
@@ -615,4 +615,54 @@ export function conversationPreview(c: StoredConversation): string {
   if (/```json:scaffold_vocab/.test(last.content)) return `⭐ ${count(/"word"\s*:/g)} từ vựng`;
   if (/```json:scaffold_quiz/.test(last.content)) return `🧩 ${count(/"question"\s*:/g)} câu hỏi ôn tập`;
   return last.content.replace(/```[\s\S]*?(```|$)/g, ' ').replace(/[#*`>|_-]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 90);
+}
+
+// ─── Saved conversations in the database (migration 013) ────────
+
+/** A row of ai_chat_conversations. */
+export interface ConversationRow {
+  id: string;
+  title: string;
+  messages: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
+const time = (iso: string) => {
+  const t = Date.parse(iso);
+  return Number.isFinite(t) ? t : 0;
+};
+
+export function rowToConversation(row: ConversationRow): StoredConversation | null {
+  if (!row || typeof row.id !== 'string' || !Array.isArray(row.messages)) return null;
+  const messages = (row.messages as ChatMessage[]).filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string');
+  return { id: row.id, title: row.title || titleFrom(messages), createdAt: time(row.created_at), updatedAt: time(row.updated_at), messages };
+}
+
+export function conversationToRow(c: StoredConversation): ConversationRow {
+  return {
+    id: c.id,
+    title: c.title.slice(0, 120),
+    messages: messagesForStorage(c.messages),
+    created_at: new Date(c.createdAt || Date.now()).toISOString(),
+    updated_at: new Date(c.updatedAt || Date.now()).toISOString(),
+  };
+}
+
+/**
+ * The account's list with this device's unsent changes on top: a pending
+ * conversation wins when the server has none or an older copy.
+ */
+export function mergeConversations(
+  local: ReadonlyArray<StoredConversation>,
+  remote: ReadonlyArray<StoredConversation>,
+  pending: ReadonlySet<string>,
+): StoredConversation[] {
+  const byId = new Map(remote.map((c) => [c.id, c]));
+  for (const c of local) {
+    if (!pending.has(c.id)) continue;
+    const r = byId.get(c.id);
+    if (!r || c.updatedAt >= r.updatedAt) byId.set(c.id, c);
+  }
+  return [...byId.values()].sort((a, b) => b.updatedAt - a.updatedAt);
 }

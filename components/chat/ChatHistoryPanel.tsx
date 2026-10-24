@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Check, MessageSquare, Pencil, Search, SquarePen, Trash2, X } from 'lucide-react';
 import { conversationPreview, groupConversations, searchConversations, type StoredConversation } from '../../services/chatLogic';
+import type { SyncStatus } from '../../services/chatHistoryService';
 
 interface Props {
   conversations: StoredConversation[];
@@ -12,7 +13,16 @@ interface Props {
   onClearAll: () => void;
   /** Sidebar in the wide layout: no close button. */
   onClose?: () => void;
+  /** Where the history is saved, shown in the footer. */
+  syncStatus?: SyncStatus;
 }
+
+const SYNC_NOTE: Record<SyncStatus, string> = {
+  synced: 'Đã lưu vào tài khoản',
+  saving: 'Đang lưu…',
+  offline: 'Chưa lưu được lên tài khoản, sẽ thử lại',
+  local: 'Chỉ lưu trên trình duyệt này',
+};
 
 const timeOf = (t: number) => {
   const d = new Date(t);
@@ -23,7 +33,7 @@ const timeOf = (t: number) => {
 };
 
 /** Saved conversations: search, reopen, rename, delete. */
-export function ChatHistoryPanel({ conversations, activeId, onOpen, onNew, onRename, onDelete, onClearAll, onClose }: Props) {
+export function ChatHistoryPanel({ conversations, activeId, onOpen, onNew, onRename, onDelete, onClearAll, onClose, syncStatus = 'local' }: Props) {
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<{ id: string; title: string } | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
@@ -126,7 +136,10 @@ export function ChatHistoryPanel({ conversations, activeId, onOpen, onNew, onRen
             </span>
           ) : (
             <span className="flex items-center justify-between gap-2">
-              <span>Lưu trên trình duyệt này · {conversations.length} cuộc</span>
+              <span className="flex min-w-0 items-center gap-1.5" title={SYNC_NOTE[syncStatus]}>
+                <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${syncStatus === 'synced' ? 'bg-tone-mint-accent' : syncStatus === 'offline' ? 'bg-tone-butter-accent' : syncStatus === 'saving' ? 'anim-record-pulse bg-tone-lavender-accent' : 'bg-slate-300 dark:bg-slate-600'}`} />
+                <span className="truncate">{SYNC_NOTE[syncStatus]} · {conversations.length} cuộc</span>
+              </span>
               <button type="button" onClick={() => setConfirmClear(true)} className="font-semibold hover:text-tone-blush-fg">Xoá tất cả</button>
             </span>
           )}

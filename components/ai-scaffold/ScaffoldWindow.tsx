@@ -13,7 +13,8 @@ import {
 } from '../../services/chatLogic';
 import { loadLearnerData } from '../../services/chatContextService';
 import {
-  clearConversations, deleteConversation, loadConversations, loadPrefs, renameConversation, saveConversation, savePrefs,
+  clearConversations, deleteConversation, loadConversations, loadPrefs, onSyncStatus, renameConversation, saveConversation, savePrefs,
+  syncConversations, type SyncStatus,
 } from '../../services/chatHistoryService';
 import { buildScaffoldActionPrompt, extractDocumentText, getPhaseContextTip, getProactiveSuggestionsForAttachment } from '../../services/scaffoldChatService';
 import type { ScaffoldActionType } from '../../services/scaffoldActionTypes';
@@ -291,6 +292,18 @@ export function ScaffoldWindow({ open, onClose, userId, userName, currentPhase, 
   }, [open, prefs.useData, userId, userName]);
 
   useEffect(() => savePrefs(prefs), [prefs]);
+
+  // Account history: sync each time the window opens.
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('saving');
+  useEffect(() => onSyncStatus(setSyncStatus), []);
+  useEffect(() => {
+    if (!open) return;
+    let live = true;
+    void syncConversations(userId).then((list) => live && setConversations(list));
+    return () => {
+      live = false;
+    };
+  }, [open, userId]);
 
   useEffect(() => {
     if (streaming || !messages.some((m) => m.role === 'user')) return;
@@ -650,6 +663,7 @@ export function ScaffoldWindow({ open, onClose, userId, userName, currentPhase, 
         newChat();
       }}
       onClose={closable ? () => setShowHistory(false) : undefined}
+      syncStatus={syncStatus}
     />
   );
 
