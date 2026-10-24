@@ -6,14 +6,12 @@ import {
   ChevronRight,
   Clock,
   FileText,
-  Flame,
   LayoutGrid,
   PenLine,
   Plus,
   RefreshCw,
   Repeat,
   Sparkles,
-  Trophy,
   X,
 } from 'lucide-react';
 import { DifficultyLevel, SentenceItem, UserGoals, UserSettings, VocabularyTemplate, WordRecommendation } from '../types';
@@ -104,10 +102,20 @@ const FALLBACK_WORDS: ReadonlyArray<{ topic: string; words: string[] }> = [
 ];
 
 const chipBase =
-  'press group inline-flex min-h-touch flex-shrink-0 items-center gap-2 rounded-xl border px-3 text-sm font-medium transition-colors';
-/** A chip in its tone: a light tint that lifts on hover, deeper and bold when picked. */
-const toneChip = (tone: Tone, on: boolean) =>
-  `${chipBase} ${on ? `${toneClasses(tone).border} ${toneClasses(tone).tile} font-semibold` : `lift ${toneClasses(tone).surface} text-slate-700 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white`}`;
+  'press group inline-flex min-h-touch flex-shrink-0 items-center gap-2 rounded-xl border px-3 text-sm font-medium transition-all duration-200';
+/**
+ * Chip tone styling:
+ * - Unselected: clean background with colored border only. On hover, fills with tone color and lifts cleanly.
+ * - Selected: vibrant tone tile fill + tone border + font-semibold.
+ */
+const toneChip = (tone: Tone, on: boolean) => {
+  const t = toneClasses(tone);
+  const hoverBg = TONE_HOVER[tone];
+  if (on) {
+    return `${chipBase} ${t.border} ${t.tile} font-semibold shadow-xs`;
+  }
+  return `${chipBase} lift ${t.border} bg-white dark:bg-slate-900 ${hoverBg} text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white shadow-xs`;
+};
 
 /** Icon and tone of the "Hôm nay" card for each kind of next step. */
 const ACTION_TILE = {
@@ -163,6 +171,16 @@ const GoalRing: React.FC<{ value: number; max: number }> = ({ value, max }) => {
         <span className="text-base font-semibold tabular-nums text-slate-900 dark:text-white">{value}</span>
         <span className="mt-0.5 text-[11px] tabular-nums text-slate-500 dark:text-slate-400">/{max}</span>
       </span>
+      {met && (
+        <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center drop-shadow-sm" aria-hidden="true">
+          <img
+            src="/learning-progress.png"
+            alt=""
+            className="h-full w-full object-contain select-none"
+            draggable={false}
+          />
+        </span>
+      )}
     </div>
   );
 };
@@ -384,7 +402,11 @@ const Dashboard: React.FC<DashboardProps> = ({
       {/* Main card: the one thing to do now, with today's goal */}
       <section className={`${panel} p-5 sm:p-6`} aria-labelledby="dash-primary">
         <div className="group flex flex-col gap-5 sm:flex-row sm:items-center">
-          <IconTile icon={ACTION_TILE[action.kind].icon} tone={ACTION_TILE[action.kind].tone} size="lg" className="hidden sm:flex" />
+          {action.kind === 'review' ? (
+            <IconTile imageSrc="/review-refresh.png" tone={ACTION_TILE[action.kind].tone} size="lg" className="hidden sm:flex" />
+          ) : (
+            <IconTile icon={ACTION_TILE[action.kind].icon} tone={ACTION_TILE[action.kind].tone} size="lg" className="hidden sm:flex" />
+          )}
           <div className="min-w-0 flex-1">
             <p className={`text-caption font-semibold ${toneClasses(ACTION_TILE[action.kind].tone).text}`}>Hôm nay</p>
             <h1 id="dash-primary" className="mt-1 text-heading font-bold text-slate-900 dark:text-white">
@@ -412,7 +434,12 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <GoalRing value={userGoals.words_reviewed_today} max={userGoals.daily_word_goal} />
                 <div className="space-y-1.5">
                   <p className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-900 dark:text-white">
-                    <Flame className="h-4 w-4 text-tone-peach-fg" aria-hidden="true" />
+                    <img
+                      src="/streak-flame.png"
+                      alt=""
+                      className="h-6 w-6 sm:h-7 sm:w-7 object-contain flex-shrink-0 select-none"
+                      draggable={false}
+                    />
                     {userGoals.current_streak} ngày liên tiếp
                   </p>
                   <label className="flex items-center gap-1.5 text-caption text-slate-500 dark:text-slate-400">
@@ -450,7 +477,12 @@ const Dashboard: React.FC<DashboardProps> = ({
               onClick={onStartReview}
               className="press group inline-flex min-h-touch items-center gap-1.5 rounded-xl px-2 text-sm font-medium text-tone-butter-fg transition-colors hover:bg-tone-butter"
             >
-              <Repeat className="icon-pop h-4 w-4" aria-hidden="true" />
+              <img
+                src="/review-refresh.png"
+                alt=""
+                className="h-5 w-5 object-contain select-none"
+                draggable={false}
+              />
               Còn {dueCount} từ đến hạn ôn
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -461,7 +493,12 @@ const Dashboard: React.FC<DashboardProps> = ({
               onClick={onStartVocabTest}
               className="press group inline-flex min-h-touch items-center gap-1.5 rounded-xl px-2 text-sm font-medium text-tone-lavender-fg transition-colors hover:bg-tone-lavender"
             >
-              <Trophy className="icon-pop h-4 w-4" aria-hidden="true" />
+              <img
+                src="/vocabulary-trophy.png"
+                alt=""
+                className="h-7 w-7 sm:h-8 sm:w-8 object-contain flex-shrink-0 select-none"
+                draggable={false}
+              />
               Kiểm tra từ vựng
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -472,9 +509,21 @@ const Dashboard: React.FC<DashboardProps> = ({
       {/* New lesson */}
       <section className={`${panel} space-y-5 p-5 sm:p-6`} aria-labelledby="dash-new">
         <div className="flex items-center justify-between gap-3">
-          <h2 id="dash-new" className="flex items-center gap-2 text-title font-semibold text-slate-900 dark:text-white">
-            <Sparkles className="h-5 w-5 text-tone-mint-fg" aria-hidden="true" />
-            Tạo bài mới
+          <h2 id="dash-new" className="group/book-title flex items-center gap-3 text-title font-semibold text-slate-900 dark:text-white cursor-default select-none">
+            <div className="relative flex items-center justify-center flex-shrink-0">
+              {/* Soft purple ambient glow aura - loang màu tím nhẹ khi hover (giống chat box AI) */}
+              <div
+                className="absolute inset-0 rounded-full bg-gradient-to-tr from-purple-500/35 via-violet-400/30 to-fuchsia-400/25 blur-lg transform scale-100 opacity-0 group-hover/book-title:opacity-100 group-hover/book-title:scale-130 transition-all duration-300 ease-out pointer-events-none"
+                aria-hidden="true"
+              />
+              <img
+                src="/sach-mo-lap-lanh-pastel-3d.png"
+                alt="Sách mở lấp lánh pastel 3D"
+                className="relative h-[36.5px] w-[36.5px] sm:h-[42px] sm:w-[42px] object-contain flex-shrink-0 select-none transition-all duration-300 ease-out group-hover/book-title:scale-110 group-hover/book-title:drop-shadow-[0_8px_18px_rgba(168,85,247,0.45)]"
+                draggable={false}
+              />
+            </div>
+            <span>Tạo bài mới</span>
           </h2>
           <button type="button" onClick={() => setShowTemplateLibrary(true)} className={`${ghostBtn} group`}>
             <LayoutGrid className="icon-pop h-4 w-4 text-tone-sky-fg" aria-hidden="true" />
@@ -483,32 +532,41 @@ const Dashboard: React.FC<DashboardProps> = ({
           </button>
         </div>
 
-        <div>
-          <h3 className="sr-only">Mẫu bộ từ</h3>
-          <div className="-mx-5 flex snap-x gap-3 overflow-x-auto px-5 pb-1 scrollbar-none sm:-mx-6 sm:px-6">
-            {templates.slice(0, 8).map((t, i) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => applyTemplate(t)}
-                className={`lift press w-44 flex-shrink-0 snap-start rounded-xl border p-3 text-left ${toneClasses(cardTone(i)).surface}`}
-              >
-                <span className="flex items-center justify-between gap-2">
-                  <span className="truncate text-sm font-semibold text-slate-900 dark:text-white">{t.name}</span>
-                  <span className={`flex-shrink-0 rounded-md px-1.5 text-caption font-semibold ${toneClasses(LEVEL_TONE[t.cefrLevel]).tile}`}>{t.cefrLevel}</span>
-                </span>
-                <span className="mt-1 block truncate text-caption text-slate-600 dark:text-slate-300">
-                  {t.samplePreview.join(', ')}
-                </span>
-                <span className={`mt-2 block text-caption font-medium tabular-nums ${toneClasses(cardTone(i)).text}`}>{t.words.length} từ</span>
-              </button>
-            ))}
+        <div className="min-w-0">
+          <p className="text-caption font-medium text-slate-500 dark:text-slate-400">Bộ từ mẫu có sẵn</p>
+          <div className="-mx-5 -my-1.5 mt-2 flex snap-x gap-2.5 overflow-x-auto px-5 py-2 scrollbar-none sm:mx-0 sm:my-0 sm:mt-2 sm:px-0 sm:py-1">
+            {templates.slice(0, 8).map((t, i) => {
+              const tone = cardTone(i);
+              const tClasses = toneClasses(tone);
+              const hoverBg = TONE_HOVER[tone];
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => applyTemplate(t)}
+                  className={`lift press group w-44 flex-shrink-0 snap-start rounded-xl border ${tClasses.border} bg-white dark:bg-slate-900 ${hoverBg} p-3 text-left transition-all duration-200 shadow-xs`}
+                >
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="truncate text-sm font-semibold text-slate-900 dark:text-white">{t.name}</span>
+                    <span className={`flex-shrink-0 rounded-md px-1.5 py-0.5 text-caption font-semibold ${toneClasses(LEVEL_TONE[t.cefrLevel]).tile}`}>
+                      {t.cefrLevel}
+                    </span>
+                  </span>
+                  <span className="mt-1 block truncate text-caption text-slate-600 dark:text-slate-300">
+                    {t.samplePreview.join(', ')}
+                  </span>
+                  <span className={`mt-2 block text-caption font-medium tabular-nums ${tClasses.text}`}>
+                    {t.words.length} từ
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
         <fieldset className="min-w-0">
           <legend className="text-caption font-medium text-slate-500 dark:text-slate-400">Cấp độ</legend>
-          <div className="-mx-5 mt-2 flex gap-2 overflow-x-auto px-5 scrollbar-none sm:mx-0 sm:flex-wrap sm:px-0">
+          <div className="-mx-5 -my-1.5 mt-1 flex gap-2 overflow-x-auto px-5 py-2 scrollbar-none sm:mx-0 sm:my-0 sm:mt-2 sm:flex-wrap sm:px-0 sm:py-1">
             {Object.values(DifficultyLevel).map((level) => {
               const on = settings.level === level;
               return (
@@ -530,7 +588,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
         <fieldset className="min-w-0">
           <legend className="text-caption font-medium text-slate-500 dark:text-slate-400">Chủ đề</legend>
-          <div className="-mx-5 mt-2 flex gap-2 overflow-x-auto px-5 scrollbar-none sm:mx-0 sm:flex-wrap sm:px-0">
+          <div className="-mx-5 -my-1.5 mt-1 flex gap-2 overflow-x-auto px-5 py-2 scrollbar-none sm:mx-0 sm:my-0 sm:mt-2 sm:flex-wrap sm:px-0 sm:py-1">
             {TOPICS.map((t) => {
               const on = settings.topic === t.value;
               return (
@@ -604,7 +662,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               </button>
             </div>
             {recsError && <p className="text-sm text-tone-blush-fg">{recsError}</p>}
-            <div className="-mx-5 flex gap-2 overflow-x-auto px-5 scrollbar-none sm:mx-0 sm:flex-wrap sm:px-0" aria-busy={recsLoading}>
+            <div className="-mx-5 -my-1.5 mt-1 flex gap-2 overflow-x-auto px-5 py-2 scrollbar-none sm:mx-0 sm:my-0 sm:mt-2 sm:flex-wrap sm:px-0 sm:py-1" aria-busy={recsLoading}>
               {recsLoading
                 ? Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="h-11 w-24 flex-shrink-0 rounded-xl" />)
                 : fallbackTopicsActive

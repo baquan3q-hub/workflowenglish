@@ -67,15 +67,44 @@ interface SkillDef {
   skill: IeltsSkill;
   title: string;
   hint: string;
-  icon: React.FC<{ className?: string }>;
+  imageSrc: string;
+  glowColor: string;
   phase?: AppPhase;
 }
 
 const SKILLS: readonly SkillDef[] = [
-  { skill: 'listening', title: 'Listening', hint: '4 part, 40 câu, chấm tự động', icon: Headphones, phase: AppPhase.IELTS_LISTENING_HUB },
-  { skill: 'reading', title: 'Reading', hint: '3 passage, 40 câu, Academic', icon: BookOpenText, phase: AppPhase.IELTS_READING_HUB },
-  { skill: 'writing', title: 'Writing', hint: 'Task 1, Task 2, AI chấm 4 tiêu chí', icon: PenTool, phase: AppPhase.IELTS_WRITING_HUB },
-  { skill: 'speaking', title: 'Speaking', hint: 'Part 1, 2, 3 và thi thử', icon: Mic, phase: AppPhase.IELTS_SPEAKING_HUB },
+  {
+    skill: 'listening',
+    title: 'Listening',
+    hint: '4 part · 40 câu hỏi',
+    imageSrc: '/listening-3d.png',
+    glowColor: 'rgba(59, 130, 246, 0.3)',
+    phase: AppPhase.IELTS_LISTENING_HUB,
+  },
+  {
+    skill: 'reading',
+    title: 'Reading',
+    hint: '3 bài đọc · 40 câu hỏi',
+    imageSrc: '/reading-3d.png',
+    glowColor: 'rgba(16, 185, 129, 0.3)',
+    phase: AppPhase.IELTS_READING_HUB,
+  },
+  {
+    skill: 'writing',
+    title: 'Writing',
+    hint: 'Task 1 & 2 · Chấm 4 tiêu chí',
+    imageSrc: '/writing-3d.png',
+    glowColor: 'rgba(139, 92, 246, 0.3)',
+    phase: AppPhase.IELTS_WRITING_HUB,
+  },
+  {
+    skill: 'speaking',
+    title: 'Speaking',
+    hint: 'Part 1, 2, 3 · Luyện phản xạ',
+    imageSrc: '/speaking-3d.png',
+    glowColor: 'rgba(249, 115, 22, 0.3)',
+    phase: AppPhase.IELTS_SPEAKING_HUB,
+  },
 ];
 
 const fmtBand = (b: number | null) => (b == null ? '–' : b.toFixed(1));
@@ -96,27 +125,53 @@ const SkillCard: React.FC<{ def: SkillDef; progress: SkillProgress | null; loadi
   const t = toneClasses(tone);
   return (
     <li className="flex">
-      <InteractiveCard tone={tone} onClick={onOpen} disabled={!available} className="flex w-full flex-col p-4">
-        <div className="flex w-full items-start justify-between gap-3">
-          <IconTile icon={def.icon} tone={tone} />
-          <div className="text-right">
-            {loading ? (
-              <Skeleton className="ml-auto h-6 w-10" />
-            ) : (
-              <p className={`text-title font-bold tabular-nums ${t.text}`}>{fmtBand(progress?.current ?? null)}</p>
-            )}
-            <p className="text-caption text-slate-600 dark:text-slate-300">
-              {available ? `${progress?.attempts ?? 0} bài đã làm` : 'Sắp ra mắt'}
-            </p>
+      <InteractiveCard tone={tone} onClick={onOpen} disabled={!available} className="flex w-full flex-col justify-between p-4 sm:p-5">
+        <div>
+          <div className="flex w-full items-start justify-between gap-3">
+            {/* 3D Glassy Bitmap Icon with Soft Ambient Glow */}
+            <div className="relative flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center flex-shrink-0">
+              {/* Soft Ambient Glow / Radial Blur behind the 3D Icon */}
+              <div
+                className="pointer-events-none absolute inset-0 rounded-full opacity-0 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] group-hover:scale-125 group-hover:opacity-100"
+                style={{
+                  background: `radial-gradient(circle, ${def.glowColor} 0%, rgba(255,255,255,0) 70%)`,
+                  filter: 'blur(20px)',
+                }}
+                aria-hidden="true"
+              />
+
+              {/* 3D Bitmap Image */}
+              <img
+                src={def.imageSrc}
+                alt={def.title}
+                className="relative h-full w-full object-contain rounded-2xl mix-blend-multiply dark:mix-blend-normal select-none pointer-events-none transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] group-hover:scale-[1.08] group-hover:-translate-y-0.5 filter drop-shadow-sm group-hover:drop-shadow-md"
+                draggable={false}
+              />
+            </div>
+
+            {/* Band Score */}
+            <div className="flex flex-col items-end text-right min-w-0 pt-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Band</span>
+              {loading ? (
+                <Skeleton className="mt-1 h-7 w-10 rounded-md" />
+              ) : (
+                <p className={`text-[1.75rem] font-black tabular-nums leading-none mt-1 ${t.text}`}>
+                  {fmtBand(progress?.current ?? null)}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4 min-w-0">
+            <h3 className={`text-lg font-bold tracking-tight truncate ${t.text}`}>{def.title}</h3>
           </div>
         </div>
-        <h3 className={`mt-3 text-sm font-semibold ${t.text}`}>{def.title}</h3>
-        <p className="mt-0.5 flex-1 text-caption text-slate-600 dark:text-slate-300">{def.hint}</p>
+
         <span
-          className={`mt-4 inline-flex min-h-touch w-full items-center justify-center gap-2 rounded-xl border bg-white/80 px-4 text-sm font-semibold transition-colors group-hover:bg-white dark:bg-slate-900/50 dark:group-hover:bg-slate-900 ${t.border} ${t.text}`}
+          className={`mt-4 inline-flex min-h-touch w-full items-center justify-center gap-2 rounded-xl border bg-white/85 px-4 text-sm font-semibold transition-all duration-200 group-hover:bg-white group-hover:shadow-xs dark:bg-slate-900/60 dark:group-hover:bg-slate-900 ${t.border} ${t.text}`}
         >
-          {available ? (progress?.attempts ? 'Luyện tiếp' : 'Bắt đầu') : 'Đang xây dựng'}
-          {available && <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />}
+          <span>{available ? (progress?.attempts ? 'Luyện tiếp' : 'Bắt đầu') : 'Đang xây dựng'}</span>
+          {available && <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />}
         </span>
       </InteractiveCard>
     </li>
