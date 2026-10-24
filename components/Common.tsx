@@ -18,8 +18,8 @@ export const Button: React.FC<ButtonProps> = ({
   const baseStyle = "inline-flex min-h-touch items-center justify-center rounded-lg px-4 py-2 font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed";
   
   const variants = {
-    primary: "bg-blue-600 text-white hover:bg-blue-700 focus-visible:ring-blue-500 shadow-sm",
-    secondary: "bg-emerald-700 text-white hover:bg-emerald-800 focus-visible:ring-emerald-500 shadow-sm",
+    primary: "bg-tone-sky-soft text-tone-sky-fg hover:bg-tone-sky-soft focus-visible:ring-tone-sky-accent shadow-sm",
+    secondary: "bg-tone-mint-soft text-tone-mint-fg hover:bg-tone-mint focus-visible:ring-tone-mint-accent shadow-sm",
     outline: "border-2 border-slate-200 bg-transparent hover:bg-slate-50 text-slate-700 focus-visible:ring-slate-400 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800",
     ghost: "bg-transparent hover:bg-slate-100 text-slate-600 focus-visible:ring-slate-400 dark:text-slate-300 dark:hover:bg-slate-800",
   };
@@ -47,7 +47,7 @@ export const Select: React.FC<SelectProps> = ({ label, children, className = '',
       <label className="text-sm font-semibold text-slate-600">{label}</label>
       <div className="relative">
         <select 
-          className={`w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 ${className}`}
+          className={`w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 focus:border-tone-sky-border focus:outline-none focus:ring-1 focus:ring-tone-sky-accent ${className}`}
           {...props}
         >
           {children}
@@ -65,9 +65,9 @@ export const Select: React.FC<SelectProps> = ({ label, children, className = '',
 // --- Badge ---
 export const Badge: React.FC<{ children: React.ReactNode, color?: 'blue' | 'green' | 'yellow' }> = ({ children, color = 'blue' }) => {
   const colors = {
-    blue: "bg-blue-100 text-blue-800",
-    green: "bg-green-100 text-green-800",
-    yellow: "bg-amber-100 text-amber-800",
+    blue: "bg-tone-sky-soft text-tone-sky-fg",
+    green: "bg-tone-mint-soft text-tone-mint-fg",
+    yellow: "bg-tone-butter-soft text-tone-butter-fg",
   };
   return (
     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${colors[color]}`}>
@@ -81,7 +81,7 @@ export const ProgressBar: React.FC<{ progress: number }> = ({ progress }) => {
   return (
     <div className="h-2.5 w-full rounded-full bg-slate-200">
       <div 
-        className="h-2.5 rounded-full bg-blue-600 transition-all duration-500 ease-out" 
+        className="h-2.5 rounded-full bg-tone-sky-accent transition-all duration-500 ease-out" 
         style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
       ></div>
     </div>
@@ -119,9 +119,9 @@ export interface ToastProps {
 }
 
 const TOAST_PALETTE: Record<ToastType, string> = {
-  success: 'bg-emerald-700 text-white',
-  info: 'bg-slate-800 text-white dark:bg-slate-700',
-  error: 'bg-rose-700 text-white',
+  success: 'bg-tone-mint-soft text-tone-mint-fg',
+  info: 'bg-tone-sky-soft text-tone-sky-fg',
+  error: 'bg-tone-blush-soft text-tone-blush-fg',
 };
 
 const TOAST_ICON: Record<ToastType, React.FC<{ className?: string }>> = {
@@ -153,7 +153,7 @@ export const Toast: React.FC<ToastProps> = ({
     <div
       role={type === 'error' ? 'alert' : 'status'}
       aria-live={type === 'error' ? 'assertive' : 'polite'}
-      className={`anim-toast-in fixed top-4 left-1/2 flex max-w-[calc(100vw-2rem)] items-center gap-3 rounded-xl py-2 pl-4 pr-2 shadow-lg ${TOAST_PALETTE[type]}`}
+      className={`anim-toast-in fixed top-4 left-1/2 flex max-w-[calc(100vw-2rem)] items-center gap-3 rounded-xl py-2 pl-4 pr-2 shadow-lg ring-1 ring-black/5 dark:ring-white/10 ${TOAST_PALETTE[type]}`}
       style={{ zIndex: 100, transform: 'translateX(-50%)' }}
     >
       <Icon className="h-5 w-5 flex-shrink-0" />
@@ -165,7 +165,7 @@ export const Toast: React.FC<ToastProps> = ({
             action.onClick();
             onClose();
           }}
-          className="min-h-touch flex-shrink-0 rounded-lg px-3 text-sm font-bold underline-offset-2 hover:bg-white/15 hover:underline"
+          className="min-h-touch flex-shrink-0 rounded-lg px-3 text-sm font-bold underline-offset-2 hover:bg-black/5 hover:underline dark:hover:bg-white/10"
         >
           {action.label}
         </button>
@@ -174,7 +174,7 @@ export const Toast: React.FC<ToastProps> = ({
         type="button"
         onClick={onClose}
         aria-label="Đóng thông báo"
-        className="inline-flex min-h-touch min-w-touch flex-shrink-0 items-center justify-center rounded-lg opacity-80 transition-colors hover:bg-white/15 hover:opacity-100"
+        className="inline-flex min-h-touch min-w-touch flex-shrink-0 items-center justify-center rounded-lg opacity-80 transition-colors hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
       >
         <X className="h-4 w-4" />
       </button>

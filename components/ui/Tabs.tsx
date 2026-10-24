@@ -58,7 +58,7 @@ export function Tabs<T extends string>({
         const tone =
           variant === 'underline'
             ? active
-              ? 'border-blue-600 text-blue-700 dark:border-blue-400 dark:text-blue-300'
+              ? 'border-tone-sky-border text-tone-sky-fg'
               : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
             : active
               ? 'bg-white text-slate-900 shadow-card dark:bg-slate-700 dark:text-white'

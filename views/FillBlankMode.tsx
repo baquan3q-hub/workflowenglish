@@ -186,8 +186,8 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
     if (isComplete) {
         return (
             <div className="max-w-md mx-auto text-center space-y-6 pt-8 animate-fade-in px-4">
-                <div className="w-20 h-20 sm:w-24 sm:h-24 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Award className="w-10 h-10 sm:w-12 sm:h-12 text-blue-600" />
+                <div className="w-20 h-20 sm:w-24 sm:h-24 bg-tone-sky-soft rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Award className="w-10 h-10 sm:w-12 sm:h-12 text-tone-sky-fg" />
                 </div>
 
                 <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">
@@ -196,17 +196,17 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
 
                 {!retryMode && (
                     <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 space-y-3">
-                        <div className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                        <div className="text-4xl font-bold text-tone-periwinkle-fg">
                             {correctCount}/{questions.length}
                         </div>
                         <p className="text-slate-500 dark:text-slate-400">
                             {Math.round((correctCount / questions.length) * 100)}% chính xác
                         </p>
                         <div className="flex justify-center gap-4 text-sm">
-                            <span className="flex items-center gap-1 text-green-600">
+                            <span className="flex items-center gap-1 text-tone-mint-fg">
                                 <CheckCircle className="w-4 h-4" /> {correctCount} đúng
                             </span>
-                            <span className="flex items-center gap-1 text-red-500">
+                            <span className="flex items-center gap-1 text-tone-blush-fg">
                                 <XCircle className="w-4 h-4" /> {wrongCount} sai
                             </span>
                         </div>
@@ -256,9 +256,9 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
                             <span
                                 key={card.id}
                                 className={`px-3 py-1 rounded-lg text-sm font-medium transition-all border ${isCorrect
-                                    ? 'bg-green-50 text-green-600 border-green-100 opacity-50'
+                                    ? 'bg-tone-mint text-tone-mint-fg border-tone-mint-border opacity-50'
                                     : isIncorrect
-                                        ? 'bg-red-50 text-red-600 border-red-100'
+                                        ? 'bg-tone-blush text-tone-blush-fg border-tone-blush-border'
                                         : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 shadow-sm'
                                     }`}
                             >
@@ -273,11 +273,11 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
             <div className="bg-white dark:bg-slate-800 p-5 sm:p-8 rounded-2xl shadow-lg border border-slate-100 dark:border-slate-700">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
-                        <span className="px-3 py-1 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 text-xs font-bold rounded-full">
+                        <span className="px-3 py-1 bg-tone-lavender text-tone-lavender-fg text-xs font-bold rounded-full">
                             Điền vào chỗ trống
                         </span>
                         {current.partOfSpeech && (
-                            <span className="px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 text-xs font-bold rounded-full">
+                            <span className="px-3 py-1 bg-tone-sky text-tone-sky-fg text-xs font-bold rounded-full">
                                 {current.partOfSpeech}
                             </span>
                         )}
@@ -298,13 +298,13 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
                             setShowHint(!showHint);
                             setHintUsed(true);
                         }}
-                        className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-tone-sky-fg transition-colors"
                     >
                         {showHint ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                         {showHint ? 'Ẩn gợi ý' : 'Xem gợi ý'}
                     </button>
                     {showHint && (
-                        <p className="text-sm text-amber-600 dark:text-amber-400 mt-1.5 italic pl-5">
+                        <p className="text-sm text-tone-butter-fg mt-1.5 italic pl-5">
                             {current.hint}
                         </p>
                     )}
@@ -340,19 +340,19 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
                             placeholder="Gõ đáp án..."
                             className={`w-full px-4 py-3 rounded-xl border-2 text-base sm:text-lg font-medium outline-none transition-all ${
                                 status === 'correct'
-                                    ? 'border-green-400 bg-green-50 text-green-700'
+                                    ? 'border-tone-mint-border bg-tone-mint text-tone-mint-fg'
                                     : status === 'wrong'
-                                        ? 'border-red-300 bg-red-50 text-red-700 animate-[shake_0.3s_ease-in-out]'
+                                        ? 'border-tone-blush-border bg-tone-blush text-tone-blush-fg animate-[shake_0.3s_ease-in-out]'
                                         : status === 'exhausted'
-                                            ? 'border-orange-300 bg-orange-50 text-orange-700'
-                                            : 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-slate-700 dark:text-slate-200'
+                                            ? 'border-tone-peach-border bg-tone-peach text-tone-peach-fg'
+                                            : 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 focus:border-tone-sky-border focus:ring-2 focus:ring-tone-sky-border text-slate-700 dark:text-slate-200'
                             }`}
                             autoComplete="off"
                             autoCapitalize="off"
                         />
                         {/* Remaining attempts indicator */}
                         {status === 'idle' && attempts > 0 && (
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-orange-500 bg-orange-100 dark:bg-orange-900/30 px-2 py-0.5 rounded-full">
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-tone-peach-fg bg-tone-peach-soft px-2 py-0.5 rounded-full">
                                 {MAX_ATTEMPTS - attempts} lần còn lại
                             </span>
                         )}
@@ -374,18 +374,18 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
             {/* Feedback */}
             <div className="min-h-[80px]">
                 {status === 'correct' && (
-                    <div className="bg-green-100 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-4 rounded-xl flex items-center justify-between flex-wrap gap-3">
+                    <div className="bg-tone-mint-soft border border-tone-mint-border p-4 rounded-xl flex items-center justify-between flex-wrap gap-3">
                         <div className="flex items-center gap-3">
-                            <div className="bg-green-200 dark:bg-green-800 p-2 rounded-full">
-                                <CheckCircle className="w-5 h-5 text-green-700 dark:text-green-300" />
+                            <div className="bg-tone-mint-border p-2 rounded-full">
+                                <CheckCircle className="w-5 h-5 text-tone-mint-fg" />
                             </div>
                             <div>
-                                <p className="font-bold text-green-800 dark:text-green-200">Chính xác!</p>
+                                <p className="font-bold text-tone-mint-fg">Chính xác!</p>
                                 {feedback && (
-                                    <p className="text-xs text-green-700 dark:text-green-300">{feedback}</p>
+                                    <p className="text-xs text-tone-mint-fg">{feedback}</p>
                                 )}
                                 {attempts > 0 && (
-                                    <p className="text-xs text-green-600 dark:text-green-400">Sau {attempts + 1} lần thử</p>
+                                    <p className="text-xs text-tone-mint-fg">Sau {attempts + 1} lần thử</p>
                                 )}
                             </div>
                         </div>
@@ -396,13 +396,13 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
                 )}
 
                 {status === 'wrong' && (
-                    <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 p-4 rounded-xl flex items-center gap-3">
-                        <XCircle className="w-6 h-6 text-orange-500 flex-shrink-0" />
+                    <div className="bg-tone-peach border border-tone-peach-border p-4 rounded-xl flex items-center gap-3">
+                        <XCircle className="w-6 h-6 text-tone-peach-fg flex-shrink-0" />
                         <div>
-                            <p className="font-bold text-orange-800 dark:text-orange-200">
+                            <p className="font-bold text-tone-peach-fg">
                                 {feedback ? 'Sắp đúng rồi!' : 'Chưa đúng — thử lại!'}
                             </p>
-                            <p className="text-sm text-orange-600 dark:text-orange-400">
+                            <p className="text-sm text-tone-peach-fg">
                                 {feedback ?? `Còn ${MAX_ATTEMPTS - attempts} lần thử. Hãy nhớ lại nghĩa của từ.`}
                             </p>
                         </div>
@@ -410,17 +410,17 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
                 )}
 
                 {status === 'exhausted' && (
-                    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4 rounded-xl space-y-3">
+                    <div className="bg-tone-blush border border-tone-blush-border p-4 rounded-xl space-y-3">
                         <div className="flex items-center gap-3">
-                            <XCircle className="w-6 h-6 text-red-500 flex-shrink-0" />
+                            <XCircle className="w-6 h-6 text-tone-blush-fg flex-shrink-0" />
                             <div>
-                                <p className="font-bold text-red-800 dark:text-red-200">
+                                <p className="font-bold text-tone-blush-fg">
                                     {attempts >= MAX_ATTEMPTS ? 'Hết lượt thử!' : 'Đáp án'}
                                 </p>
-                                <p className="text-sm text-red-600 dark:text-red-400">
+                                <p className="text-sm text-tone-blush-fg">
                                     Đáp án đúng: <span className="font-bold">{current.answer}</span>
                                 </p>
-                                <p className="text-xs text-red-500 dark:text-red-400 mt-1">
+                                <p className="text-xs text-tone-blush-fg mt-1">
                                     Từ này sẽ xuất hiện lại để bạn luyện tập thêm.
                                 </p>
                             </div>
@@ -493,12 +493,12 @@ function renderBlankedSentence(text: string, status: string, answer: string, use
             <span
                 className={`inline-block min-w-[80px] border-b-2 px-1 mx-1 font-bold ${
                     status === 'correct'
-                        ? 'border-green-500 text-green-700'
+                        ? 'border-tone-mint-border text-tone-mint-fg'
                         : status === 'exhausted'
-                            ? 'border-red-400 text-red-600'
+                            ? 'border-tone-blush-border text-tone-blush-fg'
                             : status === 'wrong'
-                                ? 'border-orange-400 text-orange-600'
-                                : 'border-blue-400 text-blue-600'
+                                ? 'border-tone-peach-border text-tone-peach-fg'
+                                : 'border-tone-sky-border text-tone-sky-fg'
                 }`}
             >
                 {status === 'correct' || status === 'exhausted' ? answer : userAnswer || '...'}

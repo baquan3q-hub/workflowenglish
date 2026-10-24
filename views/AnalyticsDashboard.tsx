@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDownRight, ArrowUpRight, BarChart3, BookMarked, ChevronRight, Loader2 } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, BarChart3, BookMarked, Brain, ChevronRight, Flame, Loader2, Repeat, Target } from 'lucide-react';
+import { toneClasses, type Tone } from '../components/ui/palette';
 import { withTimeout } from '../services/supabaseClient';
 import { getAnalyticsSnapshot, type AnalyticsSnapshot } from '../services/analyticsService';
 import {
@@ -28,6 +29,7 @@ import { Tabs } from '../components/ui/Tabs';
 import { Segmented } from '../components/ui/Segmented';
 import { SRS_LEVEL_META, SRS_LEVEL_ORDER } from '../components/ui/srsTheme';
 import { EmptyState, ErrorState, LoadingRegion, Skeleton } from '../components/ui/States';
+import { primaryBtn, secondaryBtn } from '../components/ui/styles';
 
 interface AnalyticsDashboardProps {
   userId: string;
@@ -86,18 +88,23 @@ const Placeholder: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   </p>
 );
 
-const Metric: React.FC<{ label: string; value: React.ReactNode; foot?: React.ReactNode }> = ({ label, value, foot }) => (
-  <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 sm:p-5">
-    <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</dt>
+const Metric: React.FC<{ label: string; value: React.ReactNode; foot?: React.ReactNode; tone: Tone; icon: React.ComponentType<{ className?: string }> }> = ({
+  label,
+  value,
+  foot,
+  tone,
+  icon: Icon,
+}) => (
+  <div className={`lift group rounded-2xl border p-4 sm:p-5 ${toneClasses(tone).surface}`}>
+    <dt className={`flex items-center gap-1.5 text-xs font-semibold ${toneClasses(tone).text}`}>
+      <Icon className="icon-pop h-4 w-4" />
+      {label}
+    </dt>
     <dd className="mt-1.5 text-2xl font-semibold tabular-nums text-slate-900 dark:text-white">{value}</dd>
     {foot && <dd className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">{foot}</dd>}
   </div>
 );
 
-const primaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200';
-const secondaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800';
 
 const Delta: React.FC<{ delta: number; previous: number }> = ({ delta, previous }) => {
   if (previous === 0 && delta === 0) return <>Chưa có tuần trước để so sánh</>;
@@ -106,7 +113,7 @@ const Delta: React.FC<{ delta: number; previous: number }> = ({ delta, previous 
   return (
     <span>
       <Icon
-        className={`-mt-0.5 mr-0.5 inline h-3.5 w-3.5 ${delta > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}
+        className={`-mt-0.5 mr-0.5 inline h-3.5 w-3.5 ${delta > 0 ? 'text-tone-mint-fg' : 'text-slate-400'}`}
         aria-hidden="true"
       />
       <span className="tabular-nums">{delta > 0 ? `+${delta}` : delta}</span> so với tuần trước
@@ -134,11 +141,11 @@ const RetentionGauge: React.FC<{ result: RetentionResult; hasLogs: boolean }> = 
       </div>
       <div className="relative mt-5 h-2 rounded-full bg-slate-100 dark:bg-slate-800" aria-hidden="true">
         <div
-          className="absolute inset-y-0 rounded-full bg-emerald-200 dark:bg-emerald-700"
+          className="absolute inset-y-0 rounded-full bg-tone-mint-border"
           style={{ left: `${pos(RETENTION_TARGET.min)}%`, width: `${pos(RETENTION_TARGET.max) - pos(RETENTION_TARGET.min)}%` }}
         />
         <div
-          className="absolute -top-1 h-4 w-1 -translate-x-1/2 rounded-full bg-slate-900 dark:bg-white"
+          className="absolute -top-1 h-4 w-1 -translate-x-1/2 rounded-full bg-tone-periwinkle-fg"
           style={{ left: `${pos(result.rate)}%` }}
         />
       </div>
@@ -397,7 +404,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       <Tabs<TabId> label="Mục thống kê" value={tab} onChange={setTab} items={TABS} />
 
       {practiceError && (
-        <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-200">
+        <p role="alert" className="rounded-xl border border-tone-blush-border bg-tone-blush px-4 py-3 text-sm text-tone-blush-fg">
           {practiceError}
         </p>
       )}
@@ -415,8 +422,10 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
           </section>
 
           <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Metric label="Lượt ôn 7 ngày" value={stats.week.current} foot={<Delta delta={stats.week.delta} previous={stats.week.previous} />} />
+            <Metric tone="butter" icon={Repeat} label="Lượt ôn 7 ngày" value={stats.week.current} foot={<Delta delta={stats.week.delta} previous={stats.week.previous} />} />
             <Metric
+              tone="mint"
+              icon={Brain}
               label="Tỷ lệ nhớ 30 ngày"
               value={stats.retention30.rate === null ? '—' : `${Math.round(stats.retention30.rate * 100)}%`}
               foot={
@@ -427,8 +436,10 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                     : 'Mục tiêu 85–90%'
               }
             />
-            <Metric label="Chuỗi ngày" value={goals.current_streak} foot={`Kỷ lục ${goals.longest_streak} ngày`} />
+            <Metric tone="peach" icon={Flame} label="Chuỗi ngày" value={goals.current_streak} foot={`Kỷ lục ${goals.longest_streak} ngày`} />
             <Metric
+              tone="aqua"
+              icon={Target}
               label="Mục tiêu hôm nay"
               value={
                 <>
@@ -437,8 +448,8 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                 </>
               }
               foot={
-                <span className="mt-2.5 block h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" aria-hidden="true">
-                  <span className="block h-full rounded-full bg-blue-500 dark:bg-blue-400" style={{ width: `${goalPct}%` }} />
+                <span className="mt-2.5 block h-1.5 overflow-hidden rounded-full bg-tone-aqua-soft" aria-hidden="true">
+                  <span className="block h-full rounded-full bg-tone-aqua-accent" style={{ width: `${goalPct}%` }} />
                 </span>
               }
             />
@@ -571,16 +582,16 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             <button
               type="button"
               onClick={onOpenLibrary}
-              className="flex min-h-touch w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 text-left hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800/60"
+              className="lift press group flex min-h-touch w-full items-center gap-3 rounded-2xl border border-tone-mint-border bg-tone-mint px-5 py-4 text-left"
             >
-              <BookMarked className="h-5 w-5 flex-shrink-0 text-slate-500 dark:text-slate-400" aria-hidden="true" />
+              <BookMarked className="icon-pop h-5 w-5 flex-shrink-0 text-tone-mint-fg" aria-hidden="true" />
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-semibold text-slate-900 dark:text-white">Sổ từ</span>
                 <span className="block text-sm text-slate-600 dark:text-slate-400">
                   <span className="tabular-nums">{words.length}</span> từ · tìm, lọc, đổi trạng thái và gom thành bộ
                 </span>
               </span>
-              <ChevronRight className="h-5 w-5 flex-shrink-0 text-slate-400" aria-hidden="true" />
+              <ChevronRight className="h-5 w-5 flex-shrink-0 text-tone-mint-fg" aria-hidden="true" />
             </button>
           )}
         </div>

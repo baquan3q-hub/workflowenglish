@@ -56,6 +56,7 @@ import {
 import { applyManualStatus, undoManualStatus } from '../services/reviewService';
 import { MAX_NOTE_LENGTH, savePersonalNote } from '../services/noteService';
 import { speakText } from '../services/browserSpeech';
+import { ghostBtn, primaryBtn, secondaryBtn } from '../components/ui/styles';
 
 type ShowToast = (message: string, type?: ToastType, options?: { action?: ToastAction; durationMs?: number }) => void;
 
@@ -75,17 +76,11 @@ type Scope = 'all' | 'lessons' | 'lists';
 
 const PAGE = 100;
 
-const primaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200';
-const secondaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800';
-const ghostBtn =
-  'inline-flex min-h-touch min-w-touch items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50 dark:text-slate-200 dark:hover:bg-slate-800';
 const chipBase =
   'inline-flex min-h-touch flex-shrink-0 items-center gap-2 rounded-xl border px-3 text-sm font-medium transition-colors';
 const chipOff =
-  'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800';
-const chipOn = 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900';
+  'border-slate-200 bg-white text-slate-700 hover:border-tone-periwinkle-border hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200';
+const chipOn = 'border-tone-periwinkle-border bg-tone-periwinkle-soft text-tone-periwinkle-fg';
 
 const STATUS_CHOICES: ReadonlyArray<{ id: ManualStatus; hint: string }> = [
   { id: 'new', hint: 'Học lại từ đầu, chưa vào lịch ôn' },
@@ -198,7 +193,7 @@ const ListEditor: React.FC<{
           {list && (
             <button
               type="button"
-              className={`${ghostBtn} text-rose-700 dark:text-rose-400`}
+              className={`${ghostBtn} text-tone-blush-fg`}
               disabled={busy}
               onClick={async () => {
                 if (!confirmDelete) {
@@ -262,7 +257,7 @@ const ListEditor: React.FC<{
           </div>
         </fieldset>
         {confirmDelete ? (
-          <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800 dark:bg-rose-950/40 dark:text-rose-200">
+          <p role="alert" className="rounded-xl bg-tone-blush px-3 py-2 text-sm text-tone-blush-fg">
             Xoá bộ “{list?.name}”? Từ và tiến độ học vẫn giữ nguyên.
           </p>
         ) : (
@@ -870,9 +865,9 @@ const VocabLibrary: React.FC<VocabLibraryProps> = ({
           <button
             type="button"
             onClick={onStartVocabTest}
-            className="inline-flex min-h-touch items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/50"
+            className="inline-flex min-h-touch items-center gap-1.5 rounded-xl border border-tone-sky-border bg-tone-sky px-3.5 text-xs font-semibold text-tone-sky-fg hover:bg-tone-sky-soft"
           >
-            <Trophy className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <Trophy className="h-4 w-4 text-tone-sky-fg" />
             Kiểm tra từ vựng
           </button>
         )}
@@ -923,7 +918,7 @@ const VocabLibrary: React.FC<VocabLibraryProps> = ({
       {scope === 'lists' && (
         <div className="mt-3">
           {!listsAvailable ? (
-            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+            <p className="rounded-xl border border-tone-butter-border bg-tone-butter px-3 py-2 text-sm text-tone-butter-fg">
               Bộ từ chưa được bật. Cần chạy docs/migrations/006_word_lists.sql trong Supabase.
             </p>
           ) : (
@@ -967,7 +962,7 @@ const VocabLibrary: React.FC<VocabLibraryProps> = ({
       <div className="mt-4 flex gap-2">
         <label className="relative min-w-0 flex-1">
           <span className="sr-only">Tìm từ hoặc nghĩa</span>
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-tone-sky-fg" aria-hidden="true" />
           <input
             type="search"
             value={search}
@@ -988,7 +983,7 @@ const VocabLibrary: React.FC<VocabLibraryProps> = ({
         </label>
         <label className="relative flex-shrink-0">
           <span className="sr-only">Sắp xếp</span>
-          <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden="true" />
+          <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-tone-lavender-fg" aria-hidden="true" />
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value as SortKey)}
@@ -1094,7 +1089,7 @@ const VocabLibrary: React.FC<VocabLibraryProps> = ({
                     <span className="flex flex-shrink-0 flex-col items-end gap-1">
                       <StatusBadge level={w.mastery_level} suspended={!!w.is_suspended} variant="label" />
                       {due && (
-                        <span className={`text-xs tabular-nums ${due === 'Đến hạn' ? 'font-semibold text-amber-700 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                        <span className={`text-xs tabular-nums ${due === 'Đến hạn' ? 'font-semibold text-tone-butter-fg' : 'text-slate-500 dark:text-slate-400'}`}>
                           {due}
                         </span>
                       )}

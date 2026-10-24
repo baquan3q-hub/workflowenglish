@@ -42,7 +42,7 @@ const SectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 );
 
 const iconButton =
-  'inline-flex min-h-touch min-w-touch items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white';
+  'press inline-flex min-h-touch min-w-touch items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg hover:text-slate-900 dark:text-slate-400 dark:hover:text-white';
 
 const Flashcards: React.FC<FlashcardsProps> = ({
   cards,
@@ -419,7 +419,7 @@ const Flashcards: React.FC<FlashcardsProps> = ({
           return (
             <span
               key={pIdx}
-              className={`rounded px-0.5 transition-colors duration-150 ${isWordActive ? 'bg-blue-500 text-white' : ''}`}
+              className={`rounded px-0.5 transition-colors duration-150 ${isWordActive ? 'bg-tone-sky-soft text-tone-sky-fg' : ''}`}
             >
               {part}
             </span>
@@ -435,7 +435,7 @@ const Flashcards: React.FC<FlashcardsProps> = ({
       onClick={(e) => handlePlayAudio(text, e)}
       aria-label={isTextPlaying(text) ? 'Dừng' : label}
       title={label}
-      className={`${iconButton} ${isTextPlaying(text) ? 'text-blue-600 dark:text-blue-400' : ''}`}
+      className={`${iconButton} ${isTextPlaying(text) ? 'text-tone-sky-fg' : ''}`}
     >
       {isTextPlaying(text) ? <StopCircle className="h-4 w-4" aria-hidden="true" /> : <Volume2 className="h-4 w-4" aria-hidden="true" />}
     </button>
@@ -472,7 +472,7 @@ const Flashcards: React.FC<FlashcardsProps> = ({
           <span
             key={c.word + i}
             className={`h-1 flex-1 rounded-full ${
-              isRated(c.word) ? 'bg-slate-900 dark:bg-white' : i === currentIndex ? 'bg-slate-400 dark:bg-slate-500' : 'bg-slate-200 dark:bg-slate-800'
+              isRated(c.word) ? 'bg-tone-periwinkle-accent' : i === currentIndex ? 'bg-slate-400 dark:bg-slate-500' : 'bg-slate-200 dark:bg-slate-800'
             }`}
           />
         ))}
@@ -651,7 +651,7 @@ const Flashcards: React.FC<FlashcardsProps> = ({
                 const first = cards.findIndex((c) => !isRated(c.word));
                 if (first >= 0) goTo(first);
               }}
-              className="min-h-touch rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+              className="min-h-touch rounded-xl border border-tone-periwinkle-border bg-tone-periwinkle-soft px-4 text-sm font-semibold text-tone-periwinkle-fg hover:bg-tone-periwinkle-border"
             >
               Chấm thẻ còn lại
             </button>
@@ -661,7 +661,7 @@ const Flashcards: React.FC<FlashcardsProps> = ({
                 cleanupAudio();
                 onNextPhase();
               }}
-              className="min-h-touch rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              className="min-h-touch rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:border-tone-periwinkle-border hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
             >
               Vẫn sang phần đọc
             </button>
@@ -675,7 +675,7 @@ const Flashcards: React.FC<FlashcardsProps> = ({
           type="button"
           onClick={handlePrev}
           disabled={currentIndex === 0}
-          className="inline-flex min-h-touch items-center gap-1 rounded-xl px-3 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-35 dark:text-slate-300 dark:hover:bg-slate-800"
+          className="press inline-flex min-h-touch items-center gap-1 rounded-xl px-3 text-sm font-medium text-slate-600 hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg disabled:opacity-35 dark:text-slate-300"
         >
           <ChevronLeft className="h-4 w-4" aria-hidden="true" /> Trước
         </button>
@@ -686,7 +686,7 @@ const Flashcards: React.FC<FlashcardsProps> = ({
           <button
             type="button"
             onClick={finish}
-            className="inline-flex min-h-touch items-center gap-1 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+            className="press inline-flex min-h-touch items-center gap-1 rounded-xl border border-tone-periwinkle-border bg-tone-periwinkle-soft px-4 text-sm font-semibold text-tone-periwinkle-fg hover:bg-tone-periwinkle-border"
           >
             Sang phần đọc <ChevronRight className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -694,7 +694,7 @@ const Flashcards: React.FC<FlashcardsProps> = ({
           <button
             type="button"
             onClick={handleNext}
-            className="inline-flex min-h-touch items-center gap-1 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+            className="press inline-flex min-h-touch items-center gap-1 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:border-tone-periwinkle-border hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
           >
             Tiếp <ChevronRight className="h-4 w-4" aria-hidden="true" />
           </button>

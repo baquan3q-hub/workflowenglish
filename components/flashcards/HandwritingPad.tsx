@@ -21,7 +21,7 @@ const WIDTHS: Record<Width, number> = { thin: 2.5, thick: 5 };
 const toolButton = (active: boolean) =>
   `inline-flex min-h-touch min-w-touch items-center justify-center rounded-lg transition-colors disabled:opacity-35 ${
     active
-      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+      ? 'border border-tone-periwinkle-border bg-tone-periwinkle-soft text-tone-periwinkle-fg'
       : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
   }`;
 

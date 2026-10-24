@@ -111,7 +111,7 @@ const SpeakButton: React.FC<{ word: string }> = ({ word }) => (
       e.stopPropagation();
       speakText(word);
     }}
-    className="inline-flex min-h-touch min-w-touch items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+    className="press inline-flex min-h-touch min-w-touch items-center justify-center rounded-full text-slate-500 hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
     title="Nghe phát âm"
     aria-label={`Nghe phát âm ${word}`}
   >
@@ -515,7 +515,7 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
             <button
               type="button"
               onClick={onBack}
-              className="inline-flex min-h-touch items-center rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+              className="press inline-flex min-h-touch items-center rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-800 hover:border-tone-periwinkle-border hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             >
               Về trang chủ
             </button>
@@ -523,7 +523,7 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
               <button
                 type="button"
                 onClick={onStartVocabTest}
-                className="inline-flex min-h-touch items-center rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+                className="inline-flex min-h-touch items-center rounded-xl bg-tone-sky-soft px-5 text-sm font-semibold text-tone-sky-fg hover:bg-tone-sky-soft"
               >
                 Kiểm tra từ vựng →
               </button>
@@ -567,17 +567,17 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
         </section>
 
         {onStartVocabTest && (
-          <div className="flex items-center justify-between rounded-2xl border border-blue-200 bg-blue-50/70 p-4 dark:border-blue-900/50 dark:bg-blue-950/30">
+          <div className="flex items-center justify-between rounded-2xl border border-tone-sky-border bg-tone-sky-soft p-4">
             <div className="space-y-0.5">
-              <p className="text-sm font-semibold text-blue-900 dark:text-blue-200">Kiểm tra từ vựng</p>
-              <p className="text-xs text-blue-700 dark:text-blue-300">
+              <p className="text-sm font-semibold text-tone-sky-fg">Kiểm tra từ vựng</p>
+              <p className="text-xs text-tone-sky-fg">
                 Làm bài trắc nghiệm, điền từ & nghe hiểu các từ "Ôn tập" & "Thành thạo"
               </p>
             </div>
             <button
               type="button"
               onClick={onStartVocabTest}
-              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-tone-sky-soft px-4 text-xs font-semibold text-tone-sky-fg hover:bg-tone-sky-soft"
             >
               Vào kiểm tra →
             </button>
@@ -588,7 +588,7 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
           <button
             type="button"
             onClick={() => void startSession()}
-            className="inline-flex min-h-[52px] w-full items-center justify-center rounded-xl bg-slate-900 px-5 text-base font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+            className="press inline-flex min-h-[52px] w-full items-center justify-center rounded-xl border border-tone-periwinkle-border bg-tone-periwinkle-soft px-5 text-base font-semibold text-tone-periwinkle-fg hover:bg-tone-periwinkle-border"
           >
             Bắt đầu · {count} từ
           </button>
@@ -608,7 +608,7 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
         <button
           type="button"
           onClick={onComplete}
-          className="inline-flex min-h-touch items-center rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+          className="press inline-flex min-h-touch items-center rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-800 hover:border-tone-periwinkle-border hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
         >
           Về trang chủ
         </button>
@@ -683,7 +683,7 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
           <button
             type="button"
             onClick={onComplete}
-            className="inline-flex min-h-[48px] flex-1 items-center justify-center rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+            className="press inline-flex min-h-[48px] flex-1 items-center justify-center rounded-xl border border-tone-periwinkle-border bg-tone-periwinkle-soft px-5 text-sm font-semibold text-tone-periwinkle-fg hover:bg-tone-periwinkle-border"
           >
             Xong
           </button>
@@ -691,7 +691,7 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
             <button
               type="button"
               onClick={() => void startSession()}
-              className="inline-flex min-h-[48px] flex-1 items-center justify-center rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-800 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+              className="press inline-flex min-h-[48px] flex-1 items-center justify-center rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-800 hover:border-tone-periwinkle-border hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             >
               Ôn tiếp {nextBatch} từ
             </button>
@@ -717,7 +717,7 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
   const answered = typingMode ? !!check : revealed;
   const blanked = currentCard ? blankExample(currentCard.example_sentence, currentCard.word) : null;
   const iconButton =
-    'inline-flex min-h-touch min-w-touch items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:hover:bg-transparent dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white';
+    'press inline-flex min-h-touch min-w-touch items-center justify-center rounded-full text-slate-500 hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg hover:text-slate-900 disabled:opacity-40 disabled:hover:bg-transparent dark:text-slate-400 dark:hover:text-white';
 
   return (
     <div className={shell}>
@@ -734,7 +734,7 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
           aria-valuemax={uniqueTotal}
           aria-valuenow={uniqueDone}
         >
-          <div className="h-full rounded-full bg-slate-900 transition-[width] duration-300 dark:bg-white" style={{ width: `${progressPercent}%` }} />
+          <div className="h-full rounded-full bg-tone-butter-accent transition-[width] duration-300" style={{ width: `${progressPercent}%` }} />
         </div>
         <span className="min-w-[3.5rem] text-right text-sm font-medium tabular-nums text-slate-600 dark:text-slate-400">
           {uniqueDone}/{uniqueTotal}
@@ -839,7 +839,7 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
               <button
                 type="submit"
                 disabled={!typed.trim()}
-                className="ml-auto inline-flex min-h-touch items-center rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-40 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+                className="ml-auto inline-flex min-h-touch items-center rounded-xl border border-tone-periwinkle-border bg-tone-periwinkle-soft px-5 text-sm font-semibold text-tone-periwinkle-fg hover:bg-tone-periwinkle-border disabled:opacity-40"
               >
                 Kiểm tra
               </button>
@@ -858,18 +858,18 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
                 const isTargetCorrect = opt.isCorrect;
                 const isUserPicked = mcSelected === opt.text;
                 let btnStyle =
-                  'border-slate-200 bg-white hover:border-slate-400 hover:bg-slate-50 text-slate-800 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-100 dark:hover:border-slate-500';
+                  'border-slate-200 bg-white hover:border-slate-400 hover:border-tone-periwinkle-border hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg text-slate-800 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-100 dark:hover:border-slate-500';
                 let icon = null;
 
                 if (mcSelected) {
                   if (isTargetCorrect) {
                     btnStyle =
-                      'border-emerald-500 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-500/20 dark:border-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-200';
-                    icon = <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />;
+                      'border-tone-mint-border bg-tone-mint text-tone-mint-fg ring-2 ring-tone-mint-accent';
+                    icon = <Check className="h-4 w-4 text-tone-mint-fg flex-shrink-0" />;
                   } else if (isUserPicked) {
                     btnStyle =
-                      'border-rose-500 bg-rose-50 text-rose-900 ring-2 ring-rose-500/20 dark:border-rose-600 dark:bg-rose-950/40 dark:text-rose-200';
-                    icon = <X className="h-4 w-4 text-rose-600 dark:text-rose-400 flex-shrink-0" />;
+                      'border-tone-blush-border bg-tone-blush text-tone-blush-fg ring-2 ring-tone-blush-accent';
+                    icon = <X className="h-4 w-4 text-tone-blush-fg flex-shrink-0" />;
                   } else {
                     btnStyle =
                       'border-slate-200 bg-slate-50/50 text-slate-400 opacity-60 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-500';
@@ -1009,7 +1009,7 @@ const ReviewSession: React.FC<ReviewSessionProps> = ({
           <button
             type="button"
             onClick={() => setRevealed(true)}
-            className="inline-flex min-h-[64px] w-full items-center justify-center rounded-xl bg-slate-900 px-5 text-base font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+            className="press inline-flex min-h-[64px] w-full items-center justify-center rounded-xl border border-tone-periwinkle-border bg-tone-periwinkle-soft px-5 text-base font-semibold text-tone-periwinkle-fg hover:bg-tone-periwinkle-border"
           >
             Hiện đáp án
           </button>

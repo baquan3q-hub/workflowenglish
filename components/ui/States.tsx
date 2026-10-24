@@ -68,7 +68,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ icon, title, description
       <button
         type="button"
         onClick={action.onClick}
-        className="mt-1 inline-flex min-h-touch items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
+        className="mt-1 inline-flex min-h-touch items-center justify-center rounded-lg bg-tone-sky-soft px-4 text-sm font-semibold text-tone-sky-fg shadow-sm hover:bg-tone-sky-soft"
       >
         {action.label}
       </button>
@@ -94,16 +94,16 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
 }) => (
   <div
     role="alert"
-    className={`flex flex-col items-center justify-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-6 py-8 text-center dark:border-rose-900/50 dark:bg-rose-950/30 ${className}`}
+    className={`flex flex-col items-center justify-center gap-3 rounded-2xl border border-tone-blush-border bg-tone-blush px-6 py-8 text-center ${className}`}
   >
-    <AlertTriangle className="h-8 w-8 text-rose-600 dark:text-rose-400" aria-hidden="true" />
-    <p className="text-heading text-rose-900 dark:text-rose-100">{title}</p>
-    {message && <p className="max-w-sm text-sm text-rose-800/90 dark:text-rose-200/80">{message}</p>}
+    <AlertTriangle className="h-8 w-8 text-tone-blush-fg" aria-hidden="true" />
+    <p className="text-heading text-tone-blush-fg">{title}</p>
+    {message && <p className="max-w-sm text-sm text-tone-blush-fg">{message}</p>}
     {onRetry && (
       <button
         type="button"
         onClick={onRetry}
-        className="inline-flex min-h-touch items-center justify-center gap-2 rounded-lg border border-rose-300 bg-white px-4 text-sm font-semibold text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:bg-slate-900 dark:text-rose-300 dark:hover:bg-rose-950"
+        className="inline-flex min-h-touch items-center justify-center gap-2 rounded-lg border border-tone-blush-border bg-white px-4 text-sm font-semibold text-tone-blush-fg hover:bg-tone-blush-soft dark:bg-slate-900"
       >
         <RotateCcw className="h-4 w-4" aria-hidden="true" />
         {retryLabel}

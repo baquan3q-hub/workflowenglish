@@ -16,6 +16,7 @@ import {
 } from '../services/historyLogic';
 import { getLevelMeta } from '../components/ui/srsTheme';
 import { ErrorState, Skeleton } from '../components/ui/States';
+import { ghostBtn, panel, primaryBtn, secondaryBtn } from '../components/ui/styles';
 
 interface LearningHistoryProps {
   userId: string;
@@ -29,13 +30,6 @@ interface LearningHistoryProps {
 /** Words shown before "Xem tất cả". */
 const PREVIEW_WORDS = 6;
 
-const primaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200';
-const secondaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800';
-const ghostBtn =
-  'inline-flex min-h-touch min-w-touch items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50 dark:text-slate-300 dark:hover:bg-slate-800';
-const panel = 'rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900';
 
 interface CardProps {
   entry: HistoryEntry;
@@ -67,7 +61,7 @@ const HistoryCard: React.FC<CardProps> = ({ entry, now, byWord, reviewIds, onOpe
           </p>
         </div>
         {entry.finished ? (
-          <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-lg bg-emerald-50 px-2 py-1 text-caption font-medium text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+          <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-lg bg-tone-mint px-2 py-1 text-caption font-medium text-tone-mint-fg">
             <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
             Hoàn thành
           </span>
@@ -140,7 +134,7 @@ const HistoryCard: React.FC<CardProps> = ({ entry, now, byWord, reviewIds, onOpe
                   setConfirming(false);
                 }
               }}
-              className="inline-flex min-h-touch items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+              className="inline-flex min-h-touch items-center justify-center gap-2 rounded-xl bg-tone-blush-soft px-4 text-sm font-semibold text-tone-blush-fg hover:bg-tone-blush-soft disabled:opacity-50"
             >
               {deleting ? 'Đang xoá' : 'Xoá'}
             </button>
@@ -160,7 +154,7 @@ const HistoryCard: React.FC<CardProps> = ({ entry, now, byWord, reviewIds, onOpe
             <button
               type="button"
               onClick={() => setConfirming(true)}
-              className={`${ghostBtn} ml-auto text-slate-400 hover:text-rose-600 dark:text-slate-500 dark:hover:text-rose-400`}
+              className={`${ghostBtn} ml-auto text-slate-400 hover:text-tone-blush-fg dark:text-slate-500`}
               aria-label={`Xoá bài ${entry.topic}`}
               title="Xoá bài học"
             >
@@ -296,7 +290,7 @@ const LearningHistory: React.FC<LearningHistoryProps> = ({ userId, onStartLesson
         </div>
       ) : rows.length === 0 ? (
         <div className={`${panel} flex flex-col items-center gap-3 px-6 py-12 text-center`}>
-          <History className="h-6 w-6 text-slate-400" aria-hidden="true" />
+          <History className="h-6 w-6 text-tone-sky-fg" aria-hidden="true" />
           <p className="font-semibold text-slate-900 dark:text-white">Chưa có lịch sử</p>
           <p className="max-w-sm text-sm text-slate-500 dark:text-slate-400">Học xong bài đầu tiên, bài học và từ vựng sẽ hiện ở đây.</p>
           <button type="button" onClick={onStartLesson} className={primaryBtn}>
@@ -306,7 +300,7 @@ const LearningHistory: React.FC<LearningHistoryProps> = ({ userId, onStartLesson
       ) : (
         <>
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-tone-sky-fg" aria-hidden="true" />
             <input
               type="search"
               value={query}

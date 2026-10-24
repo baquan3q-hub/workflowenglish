@@ -5,6 +5,7 @@ import { gradeSentence, recordSentenceAttempt } from '../services/sentenceServic
 import { groupErrors, sentenceStepResult, splitBold, stripBold, VERDICT_LABELS } from '../services/sentenceLogic';
 import { aiErrorMessage } from '../services/aiClient';
 import { Skeleton, SkeletonText } from '../components/ui/States';
+import { ghostBtn, panel, primaryBtn, secondaryBtn } from '../components/ui/styles';
 
 interface SentencePracticeProps {
   /** Undefined while the lesson has none yet. */
@@ -22,27 +23,20 @@ interface SentencePracticeProps {
   subtitle?: string;
 }
 
-const primaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200';
-const secondaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800';
-const ghostBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50 dark:text-slate-300 dark:hover:bg-slate-800';
-const panel = 'rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900';
 const chip =
   'inline-flex items-center rounded-lg border border-slate-200 px-2 py-0.5 text-caption font-medium text-slate-600 dark:border-slate-700 dark:text-slate-300';
 
 const VERDICT_STYLE = {
-  correct: { icon: CircleCheck, cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' },
-  acceptable: { icon: CircleAlert, cls: 'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300' },
-  incorrect: { icon: CircleX, cls: 'bg-rose-50 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300' },
+  correct: { icon: CircleCheck, cls: 'bg-tone-mint text-tone-mint-fg' },
+  acceptable: { icon: CircleAlert, cls: 'bg-tone-butter text-tone-butter-fg' },
+  incorrect: { icon: CircleX, cls: 'bg-tone-blush text-tone-blush-fg' },
 } as const;
 
 const Bolded: React.FC<{ text: string }> = ({ text }) => (
   <>
     {splitBold(text).map((part, i) =>
       part.bold ? (
-        <strong key={i} className="font-semibold text-slate-900 underline decoration-emerald-400 decoration-2 underline-offset-2 dark:text-white">
+        <strong key={i} className="font-semibold text-slate-900 underline decoration-tone-mint-accent decoration-2 underline-offset-2 dark:text-white">
           {part.text}
         </strong>
       ) : (
@@ -133,7 +127,7 @@ const SentenceCard: React.FC<CardProps> = ({ index, item, level, answer, grade, 
           )}
 
           {error && !pending && (
-            <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
+            <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-tone-blush px-3 py-2 text-sm text-tone-blush-fg">
               <span>{error}</span>
               <button type="button" onClick={onSubmit} className="inline-flex min-h-touch items-center gap-1.5 font-semibold">
                 <RotateCcw className="h-4 w-4" aria-hidden="true" />
@@ -151,7 +145,7 @@ const SentenceCard: React.FC<CardProps> = ({ index, item, level, answer, grade, 
                 </span>
                 <span
                   className={`inline-flex items-center gap-1 text-caption ${
-                    grade.usedTargetWords ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'
+                    grade.usedTargetWords ? 'text-tone-mint-fg' : 'text-tone-blush-fg'
                   }`}
                 >
                   {grade.usedTargetWords ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <X className="h-3.5 w-3.5" aria-hidden="true" />}
@@ -170,7 +164,7 @@ const SentenceCard: React.FC<CardProps> = ({ index, item, level, answer, grade, 
                 <ul className="space-y-1.5 text-sm">
                   {grade.errors.map((e, i) => (
                     <li key={i} className="text-slate-600 dark:text-slate-300">
-                      {e.original && <span className="text-rose-600 line-through decoration-rose-300 dark:text-rose-300">{e.original}</span>}
+                      {e.original && <span className="text-tone-blush-fg line-through decoration-tone-blush-accent">{e.original}</span>}
                       {e.original && <ArrowRight className="mx-1 inline h-3.5 w-3.5 text-slate-400" aria-hidden="true" />}
                       <span className="font-medium text-slate-900 dark:text-white">{e.corrected}</span>
                       {e.explanationVi && <span className="text-slate-500 dark:text-slate-400"> · {e.explanationVi}</span>}

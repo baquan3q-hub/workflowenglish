@@ -90,7 +90,7 @@ const SpellTab: React.FC<{ word: string; onGrade: (grade: AnswerGrade | null) =>
         <button
           type="submit"
           disabled={!value.trim()}
-          className="min-h-touch rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:opacity-40 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+          className="min-h-touch rounded-xl border border-tone-periwinkle-border bg-tone-periwinkle-soft px-4 text-sm font-semibold text-tone-periwinkle-fg transition-colors hover:bg-tone-periwinkle-border disabled:opacity-40"
         >
           Kiểm tra
         </button>
@@ -147,7 +147,7 @@ const WriteTab: React.FC<{ word: string; onCompared: () => void }> = ({ word, on
               setShown(true);
               onCompared();
             }}
-            className="min-h-touch shrink-0 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+            className="min-h-touch shrink-0 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition-colors hover:border-tone-periwinkle-border hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg disabled:opacity-40 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
           >
             So sánh
           </button>

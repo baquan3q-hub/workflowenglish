@@ -265,11 +265,11 @@ export const VocabTestView: React.FC<VocabTestViewProps> = ({
     if (loadError) {
       return (
         <div className={`${shell} text-center py-12`}>
-          <p className="text-rose-600 dark:text-rose-400">{loadError}</p>
+          <p className="text-tone-blush-fg">{loadError}</p>
           <button
             type="button"
             onClick={loadPool}
-            className="mt-4 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white dark:bg-white dark:text-slate-900"
+            className="mt-4 inline-flex items-center gap-2 rounded-xl border border-tone-periwinkle-border bg-tone-periwinkle-soft px-4 py-2 text-sm font-semibold text-tone-periwinkle-fg"
           >
             <RefreshCw className="h-4 w-4" /> Thử lại
           </button>
@@ -280,7 +280,7 @@ export const VocabTestView: React.FC<VocabTestViewProps> = ({
     if (poolWords.length === 0) {
       return (
         <div className={`${shell} items-center py-12 text-center`}>
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-tone-butter-soft text-tone-butter-fg">
             <Trophy className="h-8 w-8" />
           </div>
           <div className="space-y-1.5 max-w-md">
@@ -293,7 +293,7 @@ export const VocabTestView: React.FC<VocabTestViewProps> = ({
           <button
             type="button"
             onClick={onBack}
-            className="mt-2 inline-flex min-h-touch items-center rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+            className="mt-2 inline-flex min-h-touch items-center rounded-xl border border-tone-periwinkle-border bg-tone-periwinkle-soft px-5 text-sm font-semibold text-tone-periwinkle-fg hover:bg-tone-periwinkle-border"
           >
             Về trang chủ
           </button>
@@ -331,13 +331,13 @@ export const VocabTestView: React.FC<VocabTestViewProps> = ({
             <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Từ đủ điều kiện</p>
             <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-white">{poolWords.length}</p>
           </div>
-          <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-900/40 dark:bg-blue-950/20">
-            <p className="text-xs font-medium text-blue-700 dark:text-blue-300">Đang ôn tập</p>
-            <p className="mt-1 text-2xl font-bold tabular-nums text-blue-900 dark:text-blue-100">{reviewingCount}</p>
+          <div className="rounded-2xl border border-tone-sky-border bg-tone-sky-soft p-4">
+            <p className="text-xs font-medium text-tone-sky-fg">Đang ôn tập</p>
+            <p className="mt-1 text-2xl font-bold tabular-nums text-tone-sky-fg">{reviewingCount}</p>
           </div>
-          <div className="col-span-2 sm:col-span-1 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20">
-            <p className="text-xs font-medium text-emerald-700 dark:text-emerald-300">Đã thành thạo</p>
-            <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-900 dark:text-emerald-100">{masteredCount}</p>
+          <div className="col-span-2 sm:col-span-1 rounded-2xl border border-tone-mint-border bg-tone-mint-soft p-4">
+            <p className="text-xs font-medium text-tone-mint-fg">Đã thành thạo</p>
+            <p className="mt-1 text-2xl font-bold tabular-nums text-tone-mint-fg">{masteredCount}</p>
           </div>
         </div>
 
@@ -364,7 +364,7 @@ export const VocabTestView: React.FC<VocabTestViewProps> = ({
                     onClick={() => setSelectedLevels(pill.levels)}
                     className={`rounded-xl border px-3.5 py-2 text-xs font-semibold transition-all ${
                       isSelected
-                        ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900'
+                        ? 'border-tone-periwinkle-border bg-tone-periwinkle-soft text-tone-periwinkle-fg'
                         : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300'
                     }`}
                   >
@@ -388,7 +388,7 @@ export const VocabTestView: React.FC<VocabTestViewProps> = ({
                   onClick={() => setQuestionCount(n)}
                   className={`rounded-xl border px-4 py-2 text-xs font-semibold tabular-nums transition-all ${
                     questionCount === n
-                      ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900'
+                      ? 'border-tone-periwinkle-border bg-tone-periwinkle-soft text-tone-periwinkle-fg'
                       : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300'
                   }`}
                 >
@@ -420,14 +420,14 @@ export const VocabTestView: React.FC<VocabTestViewProps> = ({
                     }}
                     className={`flex items-center gap-3 rounded-xl border p-3 text-left text-xs font-medium transition-all ${
                       active
-                        ? 'border-blue-500 bg-blue-50/60 text-blue-900 dark:border-blue-600 dark:bg-blue-950/40 dark:text-blue-200'
+                        ? 'border-tone-sky-border bg-tone-sky-soft text-tone-sky-fg'
                         : 'border-slate-200 bg-slate-50/50 text-slate-500 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-400'
                     }`}
                   >
                     <span
                       className={`flex h-5 w-5 items-center justify-center rounded-md border ${
                         active
-                          ? 'border-blue-600 bg-blue-600 text-white dark:border-blue-500 dark:bg-blue-500'
+                          ? 'border-tone-sky-border bg-tone-sky-soft text-tone-sky-fg'
                           : 'border-slate-300 dark:border-slate-600'
                       }`}
                     >
@@ -448,7 +448,7 @@ export const VocabTestView: React.FC<VocabTestViewProps> = ({
             type="button"
             disabled={availableCount === 0}
             onClick={() => handleStartTest()}
-            className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 text-base font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+            className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl border border-tone-periwinkle-border bg-tone-periwinkle-soft px-5 text-base font-semibold text-tone-periwinkle-fg hover:bg-tone-periwinkle-border disabled:opacity-50"
           >
             <span>Bắt đầu kiểm tra · {maxCount} câu</span>
             <ArrowRight className="h-4 w-4" />
@@ -488,7 +488,7 @@ export const VocabTestView: React.FC<VocabTestViewProps> = ({
           {/* Progress Bar */}
           <div className="flex-1 mx-2 h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
             <div
-              className="h-full rounded-full bg-blue-600 transition-all duration-300 dark:bg-blue-500"
+              className="h-full rounded-full bg-tone-sky-accent transition-all duration-300"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
@@ -509,7 +509,7 @@ export const VocabTestView: React.FC<VocabTestViewProps> = ({
         <div className="flex flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-card dark:border-slate-800 dark:bg-slate-900 sm:p-8">
           {/* Question Type Badge */}
           <div className="flex items-center justify-between">
-            <span className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
+            <span className="inline-flex items-center gap-1.5 rounded-lg bg-tone-sky px-2.5 py-1 text-xs font-semibold text-tone-sky-fg">
               <TypeIcon className="h-3.5 w-3.5" />
               {QUESTION_TYPE_LABELS[currentQ.type]?.label}
             </span>
@@ -523,7 +523,7 @@ export const VocabTestView: React.FC<VocabTestViewProps> = ({
                 <button
                   type="button"
                   onClick={() => currentQ.audioText && speakText(currentQ.audioText)}
-                  className="flex h-20 w-20 items-center justify-center rounded-full bg-blue-50 text-blue-600 shadow-sm hover:scale-105 active:scale-95 transition-all dark:bg-blue-950/60 dark:text-blue-400"
+                  className="flex h-20 w-20 items-center justify-center rounded-full bg-tone-sky text-tone-sky-fg shadow-sm hover:scale-105 active:scale-95 transition-all"
                   aria-label="Nghe lại phát âm"
                 >
                   <Volume2 className="h-9 w-9" />
@@ -581,18 +581,18 @@ export const VocabTestView: React.FC<VocabTestViewProps> = ({
               const isCorrectAnswer = opt === currentQ.correctAnswer;
               const isSelected = selectedOption === opt;
               let style =
-                'border-slate-200 bg-white hover:border-slate-400 hover:bg-slate-50 text-slate-800 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-100 dark:hover:border-slate-500';
+                'border-slate-200 bg-white hover:border-slate-400 hover:border-tone-periwinkle-border hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg text-slate-800 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-100 dark:hover:border-slate-500';
               let icon = null;
 
               if (isAnswered) {
                 if (isCorrectAnswer) {
                   style =
-                    'border-emerald-500 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-500/20 dark:border-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-200';
-                  icon = <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />;
+                    'border-tone-mint-border bg-tone-mint text-tone-mint-fg ring-2 ring-tone-mint-accent';
+                  icon = <CheckCircle2 className="h-5 w-5 text-tone-mint-fg flex-shrink-0" />;
                 } else if (isSelected) {
                   style =
-                    'border-rose-500 bg-rose-50 text-rose-900 ring-2 ring-rose-500/20 dark:border-rose-600 dark:bg-rose-950/40 dark:text-rose-200';
-                  icon = <XCircle className="h-5 w-5 text-rose-600 dark:text-rose-400 flex-shrink-0" />;
+                    'border-tone-blush-border bg-tone-blush text-tone-blush-fg ring-2 ring-tone-blush-accent';
+                  icon = <XCircle className="h-5 w-5 text-tone-blush-fg flex-shrink-0" />;
                 } else {
                   style =
                     'border-slate-200 bg-slate-50/50 text-slate-400 opacity-60 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-500';
@@ -627,8 +627,8 @@ export const VocabTestView: React.FC<VocabTestViewProps> = ({
                 <span
                   className={`text-sm font-bold ${
                     selectedOption === currentQ.correctAnswer
-                      ? 'text-emerald-600 dark:text-emerald-400'
-                      : 'text-rose-600 dark:text-rose-400'
+                      ? 'text-tone-mint-fg'
+                      : 'text-tone-blush-fg'
                   }`}
                 >
                   {selectedOption === currentQ.correctAnswer
@@ -676,7 +676,7 @@ export const VocabTestView: React.FC<VocabTestViewProps> = ({
               <button
                 type="button"
                 onClick={handleNextQuestion}
-                className="flex min-h-[50px] w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+                className="flex min-h-[50px] w-full items-center justify-center gap-2 rounded-xl border border-tone-periwinkle-border bg-tone-periwinkle-soft px-5 text-sm font-semibold text-tone-periwinkle-fg hover:bg-tone-periwinkle-border"
               >
                 <span>{isLastQuestion ? 'Xem kết quả bài kiểm tra' : 'Câu tiếp theo'}</span>
                 <ArrowRight className="h-4 w-4" />
@@ -696,7 +696,7 @@ export const VocabTestView: React.FC<VocabTestViewProps> = ({
       <div className={shell}>
         {/* Celebration Header */}
         <div className="text-center space-y-2">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-100 text-amber-600 shadow-sm dark:bg-amber-950/40 dark:text-amber-400">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-tone-butter-soft text-tone-butter-fg shadow-sm">
             <Trophy className="h-8 w-8" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
@@ -739,7 +739,7 @@ export const VocabTestView: React.FC<VocabTestViewProps> = ({
               <button
                 type="button"
                 onClick={handleRetestWrong}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-tone-sky-fg hover:text-tone-sky-fg"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
                 Kiểm tra lại từ sai
@@ -777,8 +777,8 @@ export const VocabTestView: React.FC<VocabTestViewProps> = ({
                   </p>
 
                   <div className="flex items-center gap-2 text-xs">
-                    <span className="text-rose-500 line-through">Bạn chọn: {item.userAnswer}</span>
-                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">Đáp án: {item.correctAnswer}</span>
+                    <span className="text-tone-blush-fg line-through">Bạn chọn: {item.userAnswer}</span>
+                    <span className="text-tone-mint-fg font-medium">Đáp án: {item.correctAnswer}</span>
                   </div>
                 </div>
               ))}
@@ -792,7 +792,7 @@ export const VocabTestView: React.FC<VocabTestViewProps> = ({
             <button
               type="button"
               onClick={handleRetestWrong}
-              className="flex min-h-[50px] w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+              className="flex min-h-[50px] w-full items-center justify-center gap-2 rounded-xl bg-tone-sky-soft px-5 text-sm font-semibold text-tone-sky-fg hover:bg-tone-sky-soft"
             >
               <RotateCcw className="h-4 w-4" />
               <span>Kiểm tra lại {testSummary.wrongItems.length} từ sai</span>
@@ -802,7 +802,7 @@ export const VocabTestView: React.FC<VocabTestViewProps> = ({
           <button
             type="button"
             onClick={() => setPhase('setup')}
-            className="flex min-h-[50px] w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+            className="flex min-h-[50px] w-full items-center justify-center gap-2 rounded-xl border border-tone-periwinkle-border bg-tone-periwinkle-soft px-5 text-sm font-semibold text-tone-periwinkle-fg hover:bg-tone-periwinkle-border"
           >
             <span>Làm bài kiểm tra mới</span>
           </button>
@@ -810,7 +810,7 @@ export const VocabTestView: React.FC<VocabTestViewProps> = ({
           <button
             type="button"
             onClick={onBack}
-            className="flex min-h-[46px] w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+            className="flex min-h-[46px] w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 hover:border-tone-periwinkle-border hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
           >
             Về trang chủ
           </button>

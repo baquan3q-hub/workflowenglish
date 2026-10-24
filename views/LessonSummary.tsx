@@ -4,6 +4,7 @@ import type { GeneratedLesson, WordMasteryRecord } from '../types';
 import { getWordsByWords } from '../services/vocabLibraryService';
 import { nextReviewLabel, summarizeLesson, type StepResult } from '../services/lessonSummaryLogic';
 import { Skeleton } from '../components/ui/States';
+import { panel, primaryBtn, secondaryBtn } from '../components/ui/styles';
 
 interface LessonSummaryProps {
   lesson: GeneratedLesson;
@@ -14,11 +15,6 @@ interface LessonSummaryProps {
   onReviewWords: (ids: string[]) => void;
 }
 
-const primaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200';
-const secondaryBtn =
-  'inline-flex min-h-touch items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800';
-const panel = 'rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900';
 
 const scoreText = (r: StepResult | null) => (r ? `${r.score}/${r.total}` : '—');
 
@@ -67,7 +63,7 @@ const LessonSummary: React.FC<LessonSummaryProps> = ({ lesson, userId, topic, on
   return (
     <div className="mx-auto max-w-xl space-y-6 animate-fade-in">
       <header className="space-y-3 text-center">
-        <span className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
+        <span className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-full bg-tone-mint text-tone-mint-fg">
           <CheckCircle2 className="h-6 w-6" aria-hidden="true" />
         </span>
         <div>
@@ -99,7 +95,7 @@ const LessonSummary: React.FC<LessonSummaryProps> = ({ lesson, userId, topic, on
                   <p className="font-semibold text-slate-900 dark:text-white">{m.word}</p>
                   {m.meaning && <p className="truncate text-sm text-slate-500 dark:text-slate-400">{m.meaning}</p>}
                 </div>
-                <span className="flex-shrink-0 text-caption tabular-nums text-rose-600 dark:text-rose-300">
+                <span className="flex-shrink-0 text-caption tabular-nums text-tone-blush-fg">
                   Sai {m.misses} lần
                 </span>
               </li>
@@ -110,7 +106,7 @@ const LessonSummary: React.FC<LessonSummaryProps> = ({ lesson, userId, topic, on
 
       {summary.nextReview && (
         <p className="flex items-center justify-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-          <CalendarClock className="h-4 w-4 text-slate-400" aria-hidden="true" />
+          <CalendarClock className="h-4 w-4 text-tone-butter-fg" aria-hidden="true" />
           {nextReviewLabel(summary.nextReview)}
         </p>
       )}

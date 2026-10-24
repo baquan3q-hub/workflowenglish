@@ -24,7 +24,7 @@ export const LessonStepper: React.FC<LessonStepperProps> = ({ steps, onSelect, o
         <button
           type="button"
           onClick={onExit}
-          className="inline-flex min-h-touch min-w-touch flex-shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+          className="press inline-flex min-h-touch min-w-touch flex-shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
           aria-label="Thoát bài học"
           title="Thoát bài học"
         >
@@ -56,9 +56,9 @@ export const LessonStepper: React.FC<LessonStepperProps> = ({ steps, onSelect, o
                   <span
                     className={`h-1 w-full rounded-full ${
                       step.status === 'current'
-                        ? 'bg-slate-900 dark:bg-white'
+                        ? 'bg-tone-periwinkle-accent'
                         : step.status === 'done'
-                          ? 'bg-emerald-500'
+                          ? 'bg-tone-mint-accent'
                           : 'bg-slate-200 dark:bg-slate-700'
                     }`}
                   />
@@ -76,7 +76,7 @@ export const LessonStepper: React.FC<LessonStepperProps> = ({ steps, onSelect, o
                 type="button"
                 onClick={() => onSelect(step.phase)}
                 aria-current={step.status === 'current' ? 'step' : undefined}
-                className={`inline-flex min-h-touch items-center gap-2 rounded-xl px-2 text-sm transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 ${
+                className={`press inline-flex min-h-touch items-center gap-2 rounded-xl px-2 text-sm transition-colors hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg ${
                   step.status === 'current'
                     ? 'font-semibold text-slate-900 dark:text-white'
                     : step.status === 'done'
@@ -87,9 +87,9 @@ export const LessonStepper: React.FC<LessonStepperProps> = ({ steps, onSelect, o
                 <span
                   className={`inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-caption font-semibold tabular-nums ${
                     step.status === 'current'
-                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                      ? 'border border-tone-periwinkle-border bg-tone-periwinkle-soft text-tone-periwinkle-fg'
                       : step.status === 'done'
-                        ? 'bg-emerald-500 text-white'
+                        ? 'bg-tone-mint-soft text-tone-mint-fg'
                         : 'border border-slate-300 text-slate-500 dark:border-slate-600 dark:text-slate-400'
                   }`}
                   aria-hidden="true"
@@ -101,7 +101,7 @@ export const LessonStepper: React.FC<LessonStepperProps> = ({ steps, onSelect, o
               </button>
               {i < steps.length - 1 && (
                 <span
-                  className={`mx-2 h-px flex-1 ${step.status === 'done' ? 'bg-emerald-300 dark:bg-emerald-700' : 'bg-slate-200 dark:bg-slate-700'}`}
+                  className={`mx-2 h-px flex-1 ${step.status === 'done' ? 'bg-tone-mint-accent' : 'bg-slate-200 dark:bg-slate-700'}`}
                   aria-hidden="true"
                 />
               )}

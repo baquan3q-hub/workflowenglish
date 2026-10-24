@@ -175,12 +175,12 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
             {questions.map((q, idx) => (
               <div key={q.id} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                 <div className="flex gap-4">
-                  <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-blue-100 text-blue-600 rounded-full font-bold text-sm">
+                  <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-tone-sky-soft text-tone-sky-fg rounded-full font-bold text-sm">
                     {idx + 1}
                   </span>
                   <div className="space-y-2 w-full">
                     <h3 className="font-semibold text-slate-800">{q.question}</h3>
-                    <div className="p-3 bg-green-50 border border-green-100 rounded-lg text-sm text-green-800">
+                    <div className="p-3 bg-tone-mint border border-tone-mint-border rounded-lg text-sm text-tone-mint-fg">
                       <span className="font-bold">Đáp án đúng:</span> {q.correctAnswer}
                     </div>
                     <p className="text-slate-500 text-sm italic">{q.explanation}</p>
@@ -195,12 +195,12 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
 
     return (
       <div className="max-w-md mx-auto text-center space-y-6 pt-8 sm:pt-12 animate-fade-in px-4">
-        <div className="w-20 h-20 sm:w-24 sm:h-24 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6">
-          <Award className="w-10 h-10 sm:w-12 sm:h-12 text-yellow-600" />
+        <div className="w-20 h-20 sm:w-24 sm:h-24 bg-tone-butter-soft rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6">
+          <Award className="w-10 h-10 sm:w-12 sm:h-12 text-tone-butter-fg" />
         </div>
         <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">Hoàn thành Quiz!</h2>
         <p className="text-slate-600 text-lg">
-          Điểm: <span className="font-bold text-blue-600">{score}/{questions.length}</span> — {Math.round((score / questions.length) * 100)}% chính xác
+          Điểm: <span className="font-bold text-tone-sky-fg">{score}/{questions.length}</span> — {Math.round((score / questions.length) * 100)}% chính xác
         </p>
 
         <div className="flex flex-col gap-3">
@@ -237,7 +237,7 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
       {/* Question Card */}
       <div className="bg-white p-5 sm:p-8 rounded-2xl shadow-lg border border-slate-100">
         <div className="flex justify-between items-center mb-4">
-          <span className="inline-block px-3 py-1 bg-indigo-50 text-indigo-600 text-xs font-bold rounded-full uppercase tracking-wide">
+          <span className="inline-block px-3 py-1 bg-tone-periwinkle text-tone-periwinkle-fg text-xs font-bold rounded-full uppercase tracking-wide">
             Kiểm tra nghĩa của từ
           </span>
         </div>
@@ -248,21 +248,21 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
 
         <div className="space-y-3">
           {(shuffledOptions[currentIndex] ?? currentQuestion.options).map((option, idx) => {
-            let stateClass = "border-slate-200 hover:border-blue-400 hover:bg-slate-50";
+            let stateClass = "border-slate-200 hover:border-tone-sky-border hover:bg-slate-50";
             let icon = null;
 
             // Logic for visual states
             if (selectedOption === option) {
               if (status === 'correct') {
-                stateClass = "border-green-500 bg-green-50 text-green-800";
-                icon = <Check className="w-5 h-5 text-green-600" />;
+                stateClass = "border-tone-mint-border bg-tone-mint text-tone-mint-fg";
+                icon = <Check className="w-5 h-5 text-tone-mint-fg" />;
               } else if (status === 'wrong') {
-                stateClass = "border-red-300 bg-red-50 text-red-800";
-                icon = <X className="w-5 h-5 text-red-500" />;
+                stateClass = "border-tone-blush-border bg-tone-blush text-tone-blush-fg";
+                icon = <X className="w-5 h-5 text-tone-blush-fg" />;
               }
             } else if (status === 'correct' && option === currentQuestion.correctAnswer) {
-              stateClass = "border-green-500 bg-green-50 text-green-800";
-              icon = <Check className="w-5 h-5 text-green-600" />;
+              stateClass = "border-tone-mint-border bg-tone-mint text-tone-mint-fg";
+              icon = <Check className="w-5 h-5 text-tone-mint-fg" />;
             }
 
             return (
@@ -288,14 +288,14 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
       {/* Feedback & Navigation Area */}
       <div className="h-24">
         {status === 'correct' && (
-          <div className="bg-green-100 border border-green-200 p-4 rounded-xl flex items-center justify-between animate-fade-in">
+          <div className="bg-tone-mint-soft border border-tone-mint-border p-4 rounded-xl flex items-center justify-between animate-fade-in">
             <div className="flex items-center gap-3">
-              <div className="bg-green-200 p-2 rounded-full">
-                <Check className="w-5 h-5 text-green-700" />
+              <div className="bg-tone-mint-border p-2 rounded-full">
+                <Check className="w-5 h-5 text-tone-mint-fg" />
               </div>
               <div>
-                <p className="font-bold text-green-800">Chính xác!</p>
-                <p className="text-sm text-green-700">{currentQuestion.explanation}</p>
+                <p className="font-bold text-tone-mint-fg">Chính xác!</p>
+                <p className="text-sm text-tone-mint-fg">{currentQuestion.explanation}</p>
               </div>
             </div>
             <Button onClick={handleNext}>
@@ -305,11 +305,11 @@ const QuizMode: React.FC<QuizModeProps> = ({ questions, onRestart, onComplete, o
         )}
 
         {status === 'wrong' && (
-          <div className="bg-red-50 border border-red-100 p-4 rounded-xl flex items-center gap-3 animate-shake">
-            <AlertCircle className="w-6 h-6 text-red-500" />
+          <div className="bg-tone-blush border border-tone-blush-border p-4 rounded-xl flex items-center gap-3 animate-shake">
+            <AlertCircle className="w-6 h-6 text-tone-blush-fg" />
             <div>
-              <p className="font-bold text-red-800">Chưa đúng.</p>
-              <p className="text-sm text-red-700">Thử lại nhé! Trả lời đúng mới được tính là đã thuộc.</p>
+              <p className="font-bold text-tone-blush-fg">Chưa đúng.</p>
+              <p className="text-sm text-tone-blush-fg">Thử lại nhé! Trả lời đúng mới được tính là đã thuộc.</p>
             </div>
           </div>
         )}
