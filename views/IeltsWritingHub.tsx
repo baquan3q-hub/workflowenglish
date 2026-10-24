@@ -182,7 +182,7 @@ export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttemp
       <div className="space-y-3">
         {questions.length === 0 ? (
           <div className="text-center py-12">
-            <BookOpen className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+            <BookOpen className="w-10 h-10 text-tone-lavender-accent mx-auto mb-3" />
             <p className="text-sm text-slate-500 dark:text-slate-400">Không tìm thấy đề bài phù hợp. Hãy thử đổi bộ lọc.</p>
           </div>
         ) : (

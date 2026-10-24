@@ -365,7 +365,7 @@ const Practice: React.FC<{ summary: ErrorSummary; grade: typeof gradeSentence; o
       <section aria-labelledby="rewrite-own" className="space-y-3">
         <div>
           <h2 id="rewrite-own" className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
-            <PenLine className="h-4 w-4 text-slate-500 dark:text-slate-400" /> Sửa lại câu của bạn
+            <PenLine className="h-4 w-4 text-tone-lavender-fg" /> Sửa lại câu của bạn
           </h2>
           <p className="mt-0.5 text-caption text-slate-500 dark:text-slate-400">Câu gốc trong bài của bạn. Sửa trực tiếp rồi kiểm tra.</p>
         </div>

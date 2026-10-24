@@ -280,7 +280,7 @@ const SentencePractice: React.FC<SentencePracticeProps> = ({
           </div>
         ) : (
           <div className={`${panel} flex flex-col items-center gap-3 px-6 py-10 text-center`}>
-            <Sparkles className="h-6 w-6 text-slate-400" aria-hidden="true" />
+            <Sparkles className="h-6 w-6 text-tone-mint-fg" aria-hidden="true" />
             <p className="font-semibold text-slate-900 dark:text-white">Bài này chưa có câu luyện</p>
             <p className="max-w-sm text-sm text-slate-500 dark:text-slate-400">
               Tạo 5–8 câu tiếng Việt dùng các từ trong bài để bạn dịch sang tiếng Anh.

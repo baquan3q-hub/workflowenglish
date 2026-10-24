@@ -61,7 +61,7 @@ export default function IeltsSpeakingFeedback({ userId, question, userTranscript
       {feedback.partBands && feedback.partBands.length > 0 && (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5 space-y-3">
           <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
-            <Layers className="w-4 h-4 text-slate-500" aria-hidden="true" />
+            <Layers className="w-4 h-4 text-tone-peach-fg" aria-hidden="true" />
             Band từng phần
           </h3>
           <ul className="grid gap-3 sm:grid-cols-3">
@@ -121,7 +121,7 @@ export default function IeltsSpeakingFeedback({ userId, question, userTranscript
           className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors"
         >
           <div className="flex items-center gap-2">
-            <Mic className="w-4 h-4 text-slate-500" />
+            <Mic className="w-4 h-4 text-tone-peach-fg" />
             <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Transcript của bạn</span>
           </div>
           {showOriginal ? <ChevronUp className="w-4 h-4 text-slate-500 dark:text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-500 dark:text-slate-400" />}

@@ -85,7 +85,7 @@ function GuideView({ guide, onPractice }: { guide: WritingGuide; onPractice: (q:
                   onClick={() => onPractice(q)}
                   className={`${panel} flex w-full items-start gap-3 p-4 text-left hover:border-slate-300 dark:hover:border-slate-700`}
                 >
-                  <PenLine className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" />
+                  <PenLine className="mt-0.5 h-4 w-4 flex-shrink-0 text-tone-lavender-fg" />
                   <span className="min-w-0 flex-1">
                     <span className="block text-caption font-medium text-slate-500 dark:text-slate-400">{q.topic}</span>
                     <span className="mt-0.5 line-clamp-3 block text-sm text-slate-800 dark:text-slate-200">{q.prompt}</span>

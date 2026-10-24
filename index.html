@@ -157,7 +157,8 @@
 
     /* Keyboard focus is always visible; mouse clicks don't draw a ring. */
     :focus-visible {
-      outline: 2px solid rgb(59 130 246);
+      /* Periwinkle fg: dark in light mode, light in dark mode, AA on every surface. */
+      outline: 2px solid rgb(var(--tone-periwinkle-fg));
       outline-offset: 2px;
     }
 

@@ -252,10 +252,10 @@ export default function IeltsSpeakingMock({
         </ol>
         <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
           <li className="flex gap-2">
-            <Headphones className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" /> Nên đeo tai nghe để micro không thu tiếng giám khảo.
+            <Headphones className="mt-0.5 h-4 w-4 flex-shrink-0 text-tone-sky-fg" /> Nên đeo tai nghe để micro không thu tiếng giám khảo.
           </li>
           <li className="flex gap-2">
-            <Volume2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" /> Không nghe rõ thì bấm Nghe lại, như khi xin giám khảo nhắc lại câu hỏi.
+            <Volume2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-tone-peach-fg" /> Không nghe rõ thì bấm Nghe lại, như khi xin giám khảo nhắc lại câu hỏi.
           </li>
           <li className="flex gap-2">
             <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" /> Trả lời xong thì bấm Dừng để sang câu tiếp. Câu nào cũng có giới hạn thời gian.

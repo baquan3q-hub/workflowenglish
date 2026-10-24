@@ -376,7 +376,7 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
                   <select
                     value={playbackSpeed}
                     onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
-                    className="text-xs font-medium text-slate-700 dark:text-slate-200 bg-transparent outline-none cursor-pointer"
+                    className="rounded text-xs font-medium text-slate-700 dark:text-slate-200 bg-transparent outline-none cursor-pointer focus-visible:ring-2 focus-visible:ring-tone-sky-border"
                   >
                     <option value={0.75}>0.75x</option>
                     <option value={0.9}>0.9x</option>

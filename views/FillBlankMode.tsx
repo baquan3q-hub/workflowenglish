@@ -338,7 +338,7 @@ const FillBlankMode: React.FC<FillBlankModeProps> = ({ cards, onFinish, onComple
                             onChange={(e) => setUserAnswer(e.target.value)}
                             disabled={status === 'correct' || status === 'exhausted'}
                             placeholder="Gõ đáp án..."
-                            className={`w-full px-4 py-3 rounded-xl border-2 text-base sm:text-lg font-medium outline-none transition-all ${
+                            className={`w-full px-4 py-3 rounded-xl border-2 text-base sm:text-lg font-medium outline-none focus-visible:ring-2 focus-visible:ring-tone-periwinkle-border transition-all ${
                                 status === 'correct'
                                     ? 'border-tone-mint-border bg-tone-mint text-tone-mint-fg'
                                     : status === 'wrong'

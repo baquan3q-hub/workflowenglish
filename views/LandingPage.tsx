@@ -1,9 +1,37 @@
 import React, { useEffect, useRef } from 'react';
-import { BookOpen, Sparkles, Brain, Target, Headphones, ArrowRight, Zap, BarChart3, Repeat, Shield, Users, Trophy, ChevronRight } from 'lucide-react';
+import { ArrowRight, BarChart3, BookOpen, Brain, ChevronRight, GraduationCap, Headphones, Repeat, Shield, Sparkles, Target, Trophy, Users, Zap } from 'lucide-react';
+import { IconTile } from '../components/ui/IconTile';
+import { toneClasses, type Tone } from '../components/ui/palette';
+import { primaryBtn, secondaryBtn } from '../components/ui/styles';
 
 interface LandingPageProps {
     onGetStarted: () => void;
 }
+
+const STATS: { icon: typeof Zap; tone: Tone; value: string; label: string }[] = [
+    { icon: Zap, tone: 'butter', value: 'AI', label: 'Tạo bài tự động' },
+    { icon: Shield, tone: 'mint', value: 'Free', label: 'Miễn phí hoàn toàn' },
+    { icon: BarChart3, tone: 'sky', value: 'A1→C2', label: '6 cấp độ CEFR' },
+    { icon: Repeat, tone: 'lavender', value: 'SRS', label: 'Ôn tập thông minh' },
+];
+
+const FEATURES: { icon: typeof Zap; tone: Tone; title: string; desc: string }[] = [
+    { icon: Brain, tone: 'sky', title: 'Smart Flashcards', desc: 'IPA, nghĩa Việt, ví dụ mẫu, TTS phát âm chuẩn. Theo dõi mức độ thành thạo từng từ.' },
+    { icon: Headphones, tone: 'lavender', title: 'Story Mode + Audio', desc: 'AI viết câu chuyện sử dụng từ vựng. Nghe Gemini TTS, highlight từng từ theo thời gian thực.' },
+    { icon: Target, tone: 'mint', title: 'Quiz & Fill-blank', desc: 'Trắc nghiệm nghĩa Việt + điền từ vào câu. Mastery learning — phải đúng mới qua.' },
+    { icon: Repeat, tone: 'butter', title: 'Spaced Repetition', desc: 'Thuật toán SM-2 lên lịch ôn tập tối ưu. Không bao giờ quên từ đã học.' },
+    { icon: BarChart3, tone: 'aqua', title: 'Analytics Dashboard', desc: 'Heatmap hoạt động, biểu đồ tiến trình, streak, phát hiện điểm yếu bằng AI.' },
+    { icon: GraduationCap, tone: 'peach', title: 'IELTS Academic', desc: 'Luyện đủ 4 kỹ năng Listening, Reading, Writing, Speaking với chấm điểm và giải thích từ AI.' },
+];
+
+const STEPS: { step: string; tone: Tone; title: string; desc: string }[] = [
+    { step: '01', tone: 'sky', title: 'Nhập từ vựng', desc: 'Gõ, dán, hoặc import file .txt. Chọn level CEFR (A1→C2) và chủ đề bạn quan tâm.' },
+    { step: '02', tone: 'periwinkle', title: 'AI tạo bài học hoàn chỉnh', desc: 'Gemini AI sinh flashcard chi tiết, câu chuyện ngữ cảnh, quiz trắc nghiệm, và bài điền từ — trong vài giây.' },
+    { step: '03', tone: 'mint', title: 'Học → Ôn → Thành thạo', desc: 'Hệ thống SRS tự động nhắc ôn tập đúng lúc. Streak, analytics, và AI gợi ý giúp bạn tiến bộ mỗi ngày.' },
+];
+
+const heroBtn = primaryBtn.replace('px-5', 'px-8').replace('text-sm', 'text-lg').replace('min-h-touch', 'min-h-[56px]');
+const heroSecondary = secondaryBtn.replace('px-4', 'px-8').replace('text-sm', 'text-lg').replace('min-h-touch', 'min-h-[56px]');
 
 const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
     const observerRef = useRef<IntersectionObserver | null>(null);
@@ -29,34 +57,26 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
     }, []);
 
     return (
-        <div className="min-h-screen bg-[#0a0a1a] text-white overflow-hidden">
-            {/* Animated background particles */}
-            <div className="fixed inset-0 pointer-events-none overflow-hidden">
-                <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-blue-600/10 rounded-full blur-[120px] anim-float"></div>
-                <div className="absolute bottom-1/4 right-1/4 w-[600px] h-[600px] bg-purple-600/10 rounded-full blur-[120px] anim-float" style={{ animationDelay: '3s' }}></div>
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-indigo-600/5 rounded-full blur-[150px]"></div>
+        <div className="min-h-screen overflow-hidden bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-white">
+            {/* Soft colour blobs */}
+            <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true">
+                <div className="anim-float absolute left-[10%] top-[15%] h-[420px] w-[420px] rounded-full bg-tone-sky-soft opacity-70 blur-[100px]"></div>
+                <div className="anim-float absolute bottom-[10%] right-[10%] h-[480px] w-[480px] rounded-full bg-tone-lavender-soft opacity-70 blur-[110px]" style={{ animationDelay: '3s' }}></div>
+                <div className="absolute left-1/2 top-1/2 h-[560px] w-[560px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-tone-mint-soft opacity-50 blur-[130px]"></div>
             </div>
 
             {/* Nav */}
-            <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0a0a1a]/80 backdrop-blur-xl border-b border-white/5">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-18 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="relative">
-                            <div className="absolute inset-0 bg-blue-500 rounded-xl blur-md opacity-50"></div>
-                            <div className="relative bg-gradient-to-br from-blue-500 to-indigo-600 text-white p-2 rounded-xl">
-                                <BookOpen className="w-5 h-5" />
-                            </div>
-                        </div>
-                        <span className="font-bold text-xl tracking-tight">VocabMaster</span>
+            <nav className="fixed left-0 right-0 top-0 z-50 border-b border-slate-200/70 bg-white/80 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/80">
+                <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
+                    <div className="group flex items-center gap-3">
+                        <IconTile icon={BookOpen} tone="periwinkle" />
+                        <span className="text-xl font-bold tracking-tight">VocabMaster</span>
                     </div>
                     <div className="flex items-center gap-3 sm:gap-5">
-                        <button onClick={onGetStarted} className="text-sm font-medium text-slate-300 hover:text-white transition-colors hidden sm:block">
+                        <button onClick={onGetStarted} className="hidden text-sm font-medium text-slate-600 transition-colors hover:text-tone-periwinkle-fg dark:text-slate-300 sm:block">
                             Đăng nhập
                         </button>
-                        <button
-                            onClick={onGetStarted}
-                            className="px-5 py-2.5 bg-white text-slate-900 text-sm font-bold rounded-full hover:shadow-lg hover:shadow-white/10 transition-all hover:-translate-y-0.5"
-                        >
+                        <button onClick={onGetStarted} className={`${primaryBtn} rounded-full`}>
                             Bắt đầu miễn phí
                         </button>
                     </div>
@@ -64,68 +84,44 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
             </nav>
 
             {/* Hero Section */}
-            <section className="relative pt-32 sm:pt-40 pb-20 sm:pb-32 px-4 sm:px-6">
-                <div className="max-w-5xl mx-auto text-center relative z-10">
-                    {/* Badge */}
+            <section className="relative px-4 pb-20 pt-32 sm:px-6 sm:pb-28 sm:pt-40">
+                <div className="relative z-10 mx-auto max-w-5xl text-center">
                     <div className="anim-fade-up anim-fade-up-d1">
-                        <span className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 backdrop-blur-sm text-blue-300 text-sm font-semibold rounded-full mb-8 border border-white/10">
-                            <Sparkles className="w-4 h-4" />
+                        <span className="mb-8 inline-flex items-center gap-2 rounded-full border border-tone-sky-border bg-tone-sky px-4 py-2 text-sm font-semibold text-tone-sky-fg">
+                            <Sparkles className="h-4 w-4" />
                             Powered by Gemini AI — Spaced Repetition
                         </span>
                     </div>
 
-                    {/* Headline */}
-                    <h1 className="text-5xl sm:text-6xl md:text-8xl font-black leading-[0.9] mb-8 anim-fade-up anim-fade-up-d2 tracking-tight">
-                        <span className="block text-white">Chinh phục</span>
-                        <span className="block mt-2 bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent anim-gradient">
-                            tiếng Anh
-                        </span>
-                        <span className="block mt-2 text-white/90">mỗi ngày</span>
+                    <h1 className="anim-fade-up anim-fade-up-d2 mb-8 text-5xl font-black leading-[0.95] tracking-tight sm:text-6xl md:text-8xl">
+                        <span className="block">Chinh phục</span>
+                        <span className="mt-2 block text-tone-periwinkle-fg">tiếng Anh</span>
+                        <span className="mt-2 block text-slate-700 dark:text-slate-200">mỗi ngày</span>
                     </h1>
 
-                    {/* Subheadline */}
-                    <p className="text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto mb-12 anim-fade-up anim-fade-up-d3 leading-relaxed">
+                    <p className="anim-fade-up anim-fade-up-d3 mx-auto mb-12 max-w-2xl text-lg leading-relaxed text-slate-600 dark:text-slate-300 sm:text-xl">
                         AI tạo bài học cá nhân hóa từ danh sách từ vựng của bạn.
                         <br className="hidden sm:block" />
-                        <span className="text-white/80 font-medium">Flashcard → Story → Quiz → Spaced Repetition</span> — 
-                        ghi nhớ sâu, không bao giờ quên.
+                        <span className="font-medium text-slate-800 dark:text-white">Flashcard → Story → Quiz → Spaced Repetition</span> — ghi nhớ sâu, không bao giờ quên.
                     </p>
 
-                    {/* CTA Buttons */}
-                    <div className="flex flex-col sm:flex-row gap-4 justify-center anim-fade-up anim-fade-up-d4">
-                        <button
-                            onClick={onGetStarted}
-                            className="group relative px-8 py-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold rounded-2xl shadow-2xl shadow-blue-500/25 hover:shadow-blue-500/40 transition-all hover:-translate-y-1 text-lg overflow-hidden"
-                        >
-                            <span className="relative z-10 flex items-center justify-center gap-2">
-                                Bắt đầu học ngay
-                                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                            </span>
-                            <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    <div className="anim-fade-up anim-fade-up-d4 flex flex-col justify-center gap-4 sm:flex-row">
+                        <button onClick={onGetStarted} className={`${heroBtn} group lift rounded-2xl`}>
+                            Bắt đầu học ngay
+                            <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
                         </button>
-                        <button
-                            onClick={onGetStarted}
-                            className="px-8 py-4 bg-white/5 backdrop-blur-sm text-white font-semibold rounded-2xl border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all text-lg"
-                        >
+                        <button onClick={onGetStarted} className={`${heroSecondary} lift rounded-2xl`}>
                             Đăng nhập với Google
                         </button>
                     </div>
 
-                    {/* Social proof */}
-                    <div className="mt-16 flex flex-wrap items-center justify-center gap-8 sm:gap-12 anim-fade-up anim-fade-up-d5">
-                        {[
-                            { icon: <Zap className="w-5 h-5 text-amber-400" />, value: 'AI', label: 'Tạo bài tự động' },
-                            { icon: <Shield className="w-5 h-5 text-emerald-400" />, value: 'Free', label: 'Miễn phí hoàn toàn' },
-                            { icon: <BarChart3 className="w-5 h-5 text-blue-400" />, value: 'A1→C2', label: '6 cấp độ CEFR' },
-                            { icon: <Repeat className="w-5 h-5 text-purple-400" />, value: 'SRS', label: 'Ôn tập thông minh' },
-                        ].map((stat, idx) => (
-                            <div key={idx} className="flex items-center gap-3">
-                                <div className="p-2 bg-white/5 rounded-lg border border-white/10">
-                                    {stat.icon}
-                                </div>
+                    <div className="anim-fade-up anim-fade-up-d5 mt-16 flex flex-wrap items-center justify-center gap-6 sm:gap-10">
+                        {STATS.map((stat) => (
+                            <div key={stat.label} className="group flex items-center gap-3">
+                                <IconTile icon={stat.icon} tone={stat.tone} size="sm" />
                                 <div className="text-left">
-                                    <div className="text-lg font-bold text-white">{stat.value}</div>
-                                    <div className="text-xs text-slate-500">{stat.label}</div>
+                                    <div className="text-lg font-bold">{stat.value}</div>
+                                    <div className="text-xs text-slate-500 dark:text-slate-400">{stat.label}</div>
                                 </div>
                             </div>
                         ))}
@@ -134,80 +130,28 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
             </section>
 
             {/* Features Section */}
-            <section className="relative py-24 sm:py-32 px-4 sm:px-6">
-                <div className="absolute inset-0 bg-gradient-to-b from-transparent via-blue-950/20 to-transparent"></div>
-                <div className="max-w-7xl mx-auto relative z-10">
-                    <div className="text-center mb-20 reveal" style={{ opacity: 0 }}>
-                        <span className="text-blue-400 font-semibold text-sm uppercase tracking-widest">Tính năng</span>
-                        <h2 className="text-4xl sm:text-5xl font-bold text-white mt-4 mb-5">
-                            Hệ thống học tập <span className="text-blue-400">toàn diện</span>
+            <section className="relative px-4 py-24 sm:px-6 sm:py-28">
+                <div className="relative z-10 mx-auto max-w-7xl">
+                    <div className="reveal mb-16 text-center" style={{ opacity: 0 }}>
+                        <span className="text-sm font-semibold uppercase tracking-widest text-tone-sky-fg">Tính năng</span>
+                        <h2 className="mb-5 mt-4 text-4xl font-bold sm:text-5xl">
+                            Hệ thống học tập <span className="text-tone-sky-fg">toàn diện</span>
                         </h2>
-                        <p className="text-slate-400 text-lg max-w-2xl mx-auto">
+                        <p className="mx-auto max-w-2xl text-lg text-slate-600 dark:text-slate-300">
                             Từ nhập liệu đến thành thạo — mọi thứ được AI cá nhân hóa cho riêng bạn
                         </p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {[
-                            {
-                                icon: <Brain className="w-7 h-7" />,
-                                title: "Smart Flashcards",
-                                desc: "IPA, nghĩa Việt, ví dụ mẫu, TTS phát âm chuẩn. Theo dõi mức độ thành thạo từng từ.",
-                                gradient: "from-blue-500/20 to-blue-600/5",
-                                iconBg: "from-blue-500 to-blue-600",
-                                border: "border-blue-500/20",
-                            },
-                            {
-                                icon: <Headphones className="w-7 h-7" />,
-                                title: "Story Mode + Audio",
-                                desc: "AI viết câu chuyện sử dụng từ vựng. Nghe Gemini TTS, highlight từng từ theo thời gian thực.",
-                                gradient: "from-purple-500/20 to-purple-600/5",
-                                iconBg: "from-purple-500 to-purple-600",
-                                border: "border-purple-500/20",
-                            },
-                            {
-                                icon: <Target className="w-7 h-7" />,
-                                title: "Quiz & Fill-blank",
-                                desc: "Trắc nghiệm nghĩa Việt + điền từ vào câu. Mastery learning — phải đúng mới qua.",
-                                gradient: "from-emerald-500/20 to-emerald-600/5",
-                                iconBg: "from-emerald-500 to-emerald-600",
-                                border: "border-emerald-500/20",
-                            },
-                            {
-                                icon: <Repeat className="w-7 h-7" />,
-                                title: "Spaced Repetition",
-                                desc: "Thuật toán SM-2 lên lịch ôn tập tối ưu. Không bao giờ quên từ đã học.",
-                                gradient: "from-amber-500/20 to-amber-600/5",
-                                iconBg: "from-amber-500 to-amber-600",
-                                border: "border-amber-500/20",
-                            },
-                            {
-                                icon: <BarChart3 className="w-7 h-7" />,
-                                title: "Analytics Dashboard",
-                                desc: "Heatmap hoạt động, biểu đồ tiến trình, streak, phát hiện điểm yếu bằng AI.",
-                                gradient: "from-rose-500/20 to-rose-600/5",
-                                iconBg: "from-rose-500 to-rose-600",
-                                border: "border-rose-500/20",
-                            },
-                            {
-                                icon: <Sparkles className="w-7 h-7" />,
-                                title: "AI Recommendations",
-                                desc: "Gợi ý từ vựng mới phù hợp trình độ. Tự động điều chỉnh level khi bạn tiến bộ.",
-                                gradient: "from-indigo-500/20 to-indigo-600/5",
-                                iconBg: "from-indigo-500 to-indigo-600",
-                                border: "border-indigo-500/20",
-                            },
-                        ].map((feature, idx) => (
+                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                        {FEATURES.map((feature, idx) => (
                             <div
-                                key={idx}
-                                className={`reveal group relative p-7 rounded-2xl bg-gradient-to-br ${feature.gradient} border ${feature.border} backdrop-blur-sm hover:scale-[1.02] transition-all duration-500`}
+                                key={feature.title}
+                                className={`reveal lift group relative rounded-2xl border p-7 ${toneClasses(feature.tone).surface}`}
                                 style={{ opacity: 0, animationDelay: `${idx * 0.1}s` }}
                             >
-                                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${feature.iconBg} flex items-center justify-center text-white mb-5 shadow-lg`}>
-                                    {feature.icon}
-                                </div>
-                                <h3 className="text-lg font-bold text-white mb-2">{feature.title}</h3>
-                                <p className="text-slate-400 text-sm leading-relaxed">{feature.desc}</p>
+                                <IconTile icon={feature.icon} tone={feature.tone} size="lg" className="mb-5" />
+                                <h3 className="mb-2 text-lg font-bold">{feature.title}</h3>
+                                <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">{feature.desc}</p>
                             </div>
                         ))}
                     </div>
@@ -215,43 +159,28 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
             </section>
 
             {/* How it works */}
-            <section className="relative py-24 sm:py-32 px-4 sm:px-6">
-                <div className="max-w-4xl mx-auto">
-                    <div className="text-center mb-20 reveal" style={{ opacity: 0 }}>
-                        <span className="text-indigo-400 font-semibold text-sm uppercase tracking-widest">Quy trình</span>
-                        <h2 className="text-4xl sm:text-5xl font-bold text-white mt-4 mb-5">
-                            3 bước. <span className="text-indigo-400">Vậy thôi.</span>
+            <section className="relative px-4 py-24 sm:px-6 sm:py-28">
+                <div className="mx-auto max-w-4xl">
+                    <div className="reveal mb-16 text-center" style={{ opacity: 0 }}>
+                        <span className="text-sm font-semibold uppercase tracking-widest text-tone-periwinkle-fg">Quy trình</span>
+                        <h2 className="mb-5 mt-4 text-4xl font-bold sm:text-5xl">
+                            3 bước. <span className="text-tone-periwinkle-fg">Vậy thôi.</span>
                         </h2>
                     </div>
 
-                    <div className="space-y-8">
-                        {[
-                            { 
-                                step: '01', 
-                                title: 'Nhập từ vựng', 
-                                desc: 'Gõ, dán, hoặc import file .txt. Chọn level CEFR (A1→C2) và chủ đề bạn quan tâm.',
-                                accent: 'text-blue-400 border-blue-500/30 bg-blue-500/5'
-                            },
-                            { 
-                                step: '02', 
-                                title: 'AI tạo bài học hoàn chỉnh', 
-                                desc: 'Gemini AI sinh flashcard chi tiết, câu chuyện ngữ cảnh, quiz trắc nghiệm, và bài điền từ — trong vài giây.',
-                                accent: 'text-indigo-400 border-indigo-500/30 bg-indigo-500/5'
-                            },
-                            { 
-                                step: '03', 
-                                title: 'Học → Ôn → Thành thạo', 
-                                desc: 'Hệ thống SRS tự động nhắc ôn tập đúng lúc. Streak, analytics, và AI gợi ý giúp bạn tiến bộ mỗi ngày.',
-                                accent: 'text-purple-400 border-purple-500/30 bg-purple-500/5'
-                            },
-                        ].map((item, idx) => (
-                            <div key={idx} className={`reveal flex items-start gap-6 p-6 rounded-2xl border ${item.accent} transition-all`} style={{ opacity: 0, animationDelay: `${idx * 0.15}s` }}>
-                                <div className={`flex-shrink-0 w-14 h-14 rounded-xl bg-gradient-to-br from-white/10 to-white/5 border border-white/10 flex items-center justify-center font-mono font-bold text-lg ${item.accent.split(' ')[0]}`}>
+                    <div className="space-y-6">
+                        {STEPS.map((item, idx) => (
+                            <div
+                                key={item.step}
+                                className={`reveal lift flex items-start gap-6 rounded-2xl border p-6 ${toneClasses(item.tone).surface}`}
+                                style={{ opacity: 0, animationDelay: `${idx * 0.15}s` }}
+                            >
+                                <div className={`flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl font-mono text-lg font-bold ${toneClasses(item.tone).tile}`}>
                                     {item.step}
                                 </div>
                                 <div>
-                                    <h3 className="text-xl font-bold text-white mb-2">{item.title}</h3>
-                                    <p className="text-slate-400 leading-relaxed">{item.desc}</p>
+                                    <h3 className="mb-2 text-xl font-bold">{item.title}</h3>
+                                    <p className="leading-relaxed text-slate-600 dark:text-slate-300">{item.desc}</p>
                                 </div>
                             </div>
                         ))}
@@ -260,25 +189,25 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
             </section>
 
             {/* Testimonial / Trust */}
-            <section className="relative py-20 px-4 sm:px-6">
-                <div className="max-w-4xl mx-auto reveal" style={{ opacity: 0 }}>
-                    <div className="text-center p-8 sm:p-12 rounded-3xl bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 backdrop-blur-sm">
-                        <div className="flex items-center justify-center gap-1 mb-6">
+            <section className="relative px-4 py-20 sm:px-6">
+                <div className="reveal mx-auto max-w-4xl" style={{ opacity: 0 }}>
+                    <div className="rounded-3xl border border-tone-butter-border bg-tone-butter p-8 text-center sm:p-12">
+                        <div className="mb-6 flex items-center justify-center gap-1">
                             {[...Array(5)].map((_, i) => (
-                                <Trophy key={i} className="w-5 h-5 text-amber-400" />
+                                <Trophy key={i} className="h-5 w-5 text-tone-butter-fg" />
                             ))}
                         </div>
-                        <blockquote className="text-xl sm:text-2xl font-medium text-white/90 leading-relaxed mb-6">
-                            "Từ việc nhập 10 từ vựng đến có bài học hoàn chỉnh với audio chỉ mất 5 giây. 
+                        <blockquote className="mb-6 text-xl font-medium leading-relaxed text-slate-800 dark:text-slate-100 sm:text-2xl">
+                            "Từ việc nhập 10 từ vựng đến có bài học hoàn chỉnh với audio chỉ mất 5 giây.
                             Hệ thống SRS giúp tôi không quên từ nào đã học."
                         </blockquote>
                         <div className="flex items-center justify-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-                                <Users className="w-5 h-5 text-white" />
-                            </div>
+                            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-tone-periwinkle-soft text-tone-periwinkle-fg">
+                                <Users className="h-5 w-5" />
+                            </span>
                             <div className="text-left">
-                                <p className="text-sm font-semibold text-white">Người học tiếng Anh</p>
-                                <p className="text-xs text-slate-500">Sử dụng VocabMaster hàng ngày</p>
+                                <p className="text-sm font-semibold">Người học tiếng Anh</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">Sử dụng VocabMaster hàng ngày</p>
                             </div>
                         </div>
                     </div>
@@ -286,41 +215,30 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
             </section>
 
             {/* Final CTA */}
-            <section className="relative py-24 sm:py-32 px-4 sm:px-6">
-                <div className="max-w-3xl mx-auto text-center reveal" style={{ opacity: 0 }}>
-                    <h2 className="text-4xl sm:text-5xl md:text-6xl font-black text-white mb-6 leading-tight">
-                        Sẵn sàng <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">chinh phục</span> từ vựng?
+            <section className="relative px-4 py-24 sm:px-6 sm:py-28">
+                <div className="reveal mx-auto max-w-3xl text-center" style={{ opacity: 0 }}>
+                    <h2 className="mb-6 text-4xl font-black leading-tight sm:text-5xl md:text-6xl">
+                        Sẵn sàng <span className="text-tone-lavender-fg">chinh phục</span> từ vựng?
                     </h2>
-                    <p className="text-slate-400 text-lg mb-10 max-w-xl mx-auto">
+                    <p className="mx-auto mb-10 max-w-xl text-lg text-slate-600 dark:text-slate-300">
                         Miễn phí. Không cần thẻ tín dụng. Đăng nhập bằng Google hoặc GitHub và bắt đầu ngay.
                     </p>
-                    <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                        <button
-                            onClick={onGetStarted}
-                            className="group px-10 py-5 bg-white text-slate-900 font-bold rounded-2xl shadow-2xl shadow-white/10 hover:shadow-white/20 transition-all hover:-translate-y-1 text-lg"
-                        >
-                            Tạo tài khoản miễn phí
-                            <ChevronRight className="w-5 h-5 inline ml-1 group-hover:translate-x-1 transition-transform" />
-                        </button>
-                    </div>
-                    <p className="mt-6 text-xs text-slate-600">
-                        Hỗ trợ đăng nhập Google, GitHub, và Email
-                    </p>
+                    <button onClick={onGetStarted} className={`${heroBtn} group lift rounded-2xl`}>
+                        Tạo tài khoản miễn phí
+                        <ChevronRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+                    </button>
+                    <p className="mt-6 text-xs text-slate-500 dark:text-slate-400">Hỗ trợ đăng nhập Google, GitHub, và Email</p>
                 </div>
             </section>
 
             {/* Footer */}
-            <footer className="relative py-10 border-t border-white/5 text-center">
-                <div className="max-w-6xl mx-auto px-4">
-                    <div className="flex items-center justify-center gap-2 mb-4">
-                        <div className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white p-1.5 rounded-lg">
-                            <BookOpen className="w-4 h-4" />
-                        </div>
-                        <span className="font-bold text-white">VocabMaster</span>
+            <footer className="relative border-t border-slate-200 py-10 text-center dark:border-slate-800">
+                <div className="mx-auto max-w-6xl px-4">
+                    <div className="group mb-4 flex items-center justify-center gap-2">
+                        <IconTile icon={BookOpen} tone="periwinkle" size="sm" />
+                        <span className="font-bold">VocabMaster</span>
                     </div>
-                    <p className="text-slate-600 text-sm">
-                        © 2025 VocabMaster. Powered by Gemini AI + Supabase. Made with 💙
-                    </p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">© 2025 VocabMaster. Powered by Gemini AI + Supabase.</p>
                 </div>
             </footer>
         </div>
