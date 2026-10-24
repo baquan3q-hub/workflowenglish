@@ -1,169 +1,110 @@
 import React, { useState } from 'react';
-import { Volume2, Bookmark, Check, Sparkles, Loader2, ArrowRight } from 'lucide-react';
+import { Bookmark, BookmarkCheck, Loader2, Sparkles, Volume2 } from 'lucide-react';
 import { ScaffoldVocabItem } from '../../../services/scaffoldActionTypes';
 import { speakText } from '../../../services/browserSpeech';
-import { upsertWordMastery } from '../../../services/masteryService';
+import { addWordsToReview } from '../../../services/masteryService';
 
-interface InteractiveVocabCardProps {
-  vocab: ScaffoldVocabItem;
-  userId?: string | null;
-  onSaved?: (word: string) => void;
-}
+type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
-export function InteractiveVocabCard({ vocab, userId, onSaved }: InteractiveVocabCardProps) {
-  const [isSaved, setIsSaved] = useState(vocab.savedToSrs || false);
-  const [isSaving, setIsSaving] = useState(false);
+const toItem = (v: ScaffoldVocabItem) => ({ word: v.word, meaningVi: v.meaningVi, example: v.exampleSentence });
 
-  const handleSpeak = () => {
-    speakText(vocab.word);
-  };
-
-  const handleSaveToSrs = async () => {
-    if (isSaved || isSaving) return;
-    setIsSaving(true);
-    try {
-      if (userId) {
-        await upsertWordMastery({
-          user_id: userId,
-          word: vocab.word,
-        });
-      }
-      setIsSaved(true);
-      onSaved?.(vocab.word);
-    } catch (err) {
-      console.error('[VocabCard] Failed to save word:', err);
-      // Still set saved locally so user gets optimistic feedback
-      setIsSaved(true);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
+/** One word: meaning, example, collocations and a save-to-review button. */
+export function InteractiveVocabCard({ vocab, state, onSave }: { vocab: ScaffoldVocabItem; state: SaveState; onSave?: () => void }) {
   return (
-    <div className="bg-white dark:bg-slate-800/95 border border-slate-200/90 dark:border-slate-700/80 rounded-xl p-3 shadow-sm hover:shadow-md transition-all text-slate-800 dark:text-slate-100 flex flex-col justify-between">
-      {/* Header with Word, IPA, POS, and Badges */}
-      <div>
-        <div className="flex items-start justify-between gap-2 mb-1.5">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-bold text-base text-slate-900 dark:text-white selection:bg-indigo-100">
-              {vocab.word}
-            </span>
-            {vocab.ipa && (
-              <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
-                /{vocab.ipa.replace(/^\/|\/$/g, '')}/
-              </span>
-            )}
-            <button
-              onClick={handleSpeak}
-              className="p-1 rounded-full text-indigo-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors"
-              title="Phát âm"
-            >
-              <Volume2 className="w-3.5 h-3.5" />
-            </button>
+    <div className="flex flex-col rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-baseline gap-x-1.5">
+            <span className="text-[14.5px] font-bold text-slate-900 dark:text-white">{vocab.word}</span>
+            {vocab.ipa && <span className="font-mono text-[11.5px] text-slate-500 dark:text-slate-400">/{vocab.ipa.replace(/^\/|\/$/g, '')}/</span>}
           </div>
-
-          <div className="flex items-center gap-1 flex-shrink-0">
-            {vocab.level && (
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700/50">
-                {vocab.level}
-              </span>
-            )}
-            {vocab.partOfSpeech && (
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
-                {vocab.partOfSpeech}
-              </span>
-            )}
+          <div className="mt-0.5 flex flex-wrap gap-1">
+            {vocab.partOfSpeech && <span className="rounded bg-slate-100 px-1.5 text-[10.5px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">{vocab.partOfSpeech}</span>}
+            {vocab.level && <span className="rounded bg-tone-lavender-soft px-1.5 text-[10.5px] font-semibold text-tone-lavender-fg">{vocab.level}</span>}
           </div>
         </div>
-
-        {/* Meaning in Vietnamese */}
-        <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-2">
-          🇻🇳 {vocab.meaningVi}
-        </p>
-
-        {/* Example sentence */}
-        {vocab.exampleSentence && (
-          <div className="bg-slate-50 dark:bg-slate-900/40 rounded-lg p-2 text-[11.5px] border-l-2 border-indigo-400 mb-2 space-y-0.5">
-            <p className="text-slate-700 dark:text-slate-300 italic">{vocab.exampleSentence}</p>
-            {vocab.exampleTranslationVi && (
-              <p className="text-slate-500 dark:text-slate-400 text-[11px]">{vocab.exampleTranslationVi}</p>
-            )}
-          </div>
-        )}
-
-        {/* Collocations */}
-        {vocab.collocations && vocab.collocations.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-2">
-            {vocab.collocations.map((c, i) => (
-              <span
-                key={i}
-                className="text-[10px] px-2 py-0.5 rounded bg-indigo-50/60 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-900/40"
-              >
-                + {c}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Save to SRS Button */}
-      <div className="pt-2 border-t border-slate-100 dark:border-slate-700/40 flex justify-end">
-        <button
-          onClick={handleSaveToSrs}
-          disabled={isSaved || isSaving}
-          className={`
-            inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all
-            ${
-              isSaved
-                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 cursor-default'
-                : 'bg-gradient-to-r from-indigo-500 to-violet-600 text-white shadow-sm hover:shadow hover:from-indigo-600 hover:to-violet-700 active:scale-95'
-            }
-          `}
-        >
-          {isSaving ? (
-            <>
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              <span>Đang lưu...</span>
-            </>
-          ) : isSaved ? (
-            <>
-              <Check className="w-3.5 h-3.5" />
-              <span>Đã lưu vào SRS</span>
-            </>
-          ) : (
-            <>
-              <Bookmark className="w-3.5 h-3.5" />
-              <span>Lưu vào bộ từ (SRS)</span>
-            </>
-          )}
+        <button type="button" onClick={() => speakText(vocab.word)} className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800" aria-label={`Nghe ${vocab.word}`}>
+          <Volume2 className="h-3.5 w-3.5" />
         </button>
       </div>
+
+      <p className="mt-1.5 text-[12.5px] font-medium text-slate-800 dark:text-slate-100">{vocab.meaningVi}</p>
+      {vocab.exampleSentence && (
+        <div className="mt-1.5 border-l-2 border-tone-butter-accent pl-2 text-[12px]">
+          <p className="italic text-slate-700 dark:text-slate-200">{vocab.exampleSentence}</p>
+          {vocab.exampleTranslationVi && <p className="text-[11.5px] text-slate-500 dark:text-slate-400">{vocab.exampleTranslationVi}</p>}
+        </div>
+      )}
+      {vocab.collocations && vocab.collocations.length > 0 && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {vocab.collocations.map((c, i) => (
+            <span key={i} className="rounded-md bg-tone-butter px-1.5 py-0.5 text-[11px] text-tone-butter-fg">{c}</span>
+          ))}
+        </div>
+      )}
+
+      {onSave && (
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={state === 'saving' || state === 'saved'}
+          className={`press mt-2.5 inline-flex h-8 items-center justify-center gap-1.5 rounded-lg text-[12px] font-semibold transition-colors ${
+            state === 'saved'
+              ? 'bg-tone-mint text-tone-mint-fg'
+              : state === 'error'
+                ? 'bg-tone-blush text-tone-blush-fg hover:bg-tone-blush-soft'
+                : 'bg-tone-butter-soft text-tone-butter-fg hover:bg-tone-butter-border'
+          }`}
+        >
+          {state === 'saving' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : state === 'saved' ? <BookmarkCheck className="h-3.5 w-3.5" /> : <Bookmark className="h-3.5 w-3.5" />}
+          {state === 'saving' ? 'Đang lưu…' : state === 'saved' ? 'Đã thêm vào ôn tập' : state === 'error' ? 'Lưu lỗi, thử lại' : 'Thêm vào ôn tập'}
+        </button>
+      )}
     </div>
   );
 }
 
-export function InteractiveVocabGrid({
-  vocabulary,
-  userId,
-}: {
-  vocabulary: ScaffoldVocabItem[];
-  userId?: string | null;
-}) {
-  if (!vocabulary || vocabulary.length === 0) return null;
+/** Word cards plus "save all" into the learner's spaced-repetition queue. */
+export function InteractiveVocabGrid({ vocabulary, userId }: { vocabulary: ScaffoldVocabItem[]; userId?: string | null }) {
+  const [states, setStates] = useState<Record<string, SaveState>>({});
+  if (!vocabulary?.length) return null;
+
+  const save = async (items: ScaffoldVocabItem[]) => {
+    if (!userId) return;
+    const todo = items.filter((v) => states[v.word] !== 'saved');
+    if (!todo.length) return;
+    setStates((s) => ({ ...s, ...Object.fromEntries(todo.map((v) => [v.word, 'saving' as const])) }));
+    try {
+      await addWordsToReview(userId, todo.map(toItem));
+      setStates((s) => ({ ...s, ...Object.fromEntries(todo.map((v) => [v.word, 'saved' as const])) }));
+    } catch (err) {
+      console.error('[VocabCard] save failed', err);
+      setStates((s) => ({ ...s, ...Object.fromEntries(todo.map((v) => [v.word, 'error' as const])) }));
+    }
+  };
+
+  const allSaved = vocabulary.every((v) => states[v.word] === 'saved');
+
   return (
-    <div className="my-3 space-y-2">
-      <div className="flex items-center justify-between px-1 mb-1">
-        <div className="flex items-center gap-1.5">
-          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">
-            Từ vựng trọng tâm ({vocabulary.length} từ)
-          </h4>
-        </div>
-        <span className="text-[10px] text-slate-500 dark:text-slate-400">1-click lưu vào SRS</span>
+    <div className="my-2 w-full space-y-2">
+      <div className="flex items-center gap-2">
+        <p className="flex flex-1 items-center gap-1.5 text-[12px] font-semibold text-slate-700 dark:text-slate-200">
+          <Sparkles className="h-3.5 w-3.5 text-tone-butter-fg" aria-hidden /> {vocabulary.length} từ vựng đáng học
+        </p>
+        {userId && (
+          <button
+            type="button"
+            onClick={() => void save(vocabulary)}
+            disabled={allSaved}
+            className="inline-flex h-7 items-center gap-1 rounded-lg px-2 text-[11.5px] font-semibold text-tone-butter-fg hover:bg-tone-butter disabled:opacity-60"
+          >
+            <Bookmark className="h-3.5 w-3.5" /> {allSaved ? 'Đã lưu tất cả' : 'Lưu tất cả'}
+          </button>
+        )}
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-        {vocabulary.map((item, idx) => (
-          <InteractiveVocabCard key={item.id || idx} vocab={item} userId={userId} />
+      <div className="chat-wide-grid grid grid-cols-1 gap-2">
+        {vocabulary.map((v, i) => (
+          <InteractiveVocabCard key={v.id || i} vocab={v} state={states[v.word] ?? 'idle'} onSave={userId ? () => void save([v]) : undefined} />
         ))}
       </div>
     </div>

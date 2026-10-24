@@ -5,6 +5,7 @@ import {
   getPhaseContextTip,
   extractDocumentText,
 } from '../scaffoldChatService';
+import { requestedQuizSize } from '../chatLogic';
 
 describe('scaffoldChatService', () => {
   it('builds sentence_breakdown prompt containing required JSON block indicator', () => {
@@ -23,11 +24,12 @@ describe('scaffoldChatService', () => {
     expect(prompt).toContain('ipa');
   });
 
-  it('builds quiz_generate prompt containing required JSON block indicator', () => {
+  it('builds quiz_generate prompt in the shared quiz format, with hints', () => {
     const prompt = buildScaffoldActionPrompt('quiz_generate', 'Artificial intelligence transforms medicine.');
-    expect(prompt).toContain('```json:scaffold_quiz');
-    expect(prompt).toContain('scaffoldHint');
-    expect(prompt).toContain('multiple_choice');
+    expect(prompt).toContain('```quiz');
+    expect(prompt).toContain('"hint"');
+    expect(prompt).toContain('Artificial intelligence transforms medicine.');
+    expect(requestedQuizSize(prompt)).toBe(5);
   });
 
   it('returns proactive suggestions for images', () => {

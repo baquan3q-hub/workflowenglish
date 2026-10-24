@@ -29,6 +29,8 @@ const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  // Lets the chat show which model answered.
+  'Access-Control-Expose-Headers': 'x-ai-model',
 };
 
 const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
@@ -214,15 +216,15 @@ Deno.serve(async (req) => {
   const apiKey = Deno.env.get('GEMINI_API_KEY');
   if (!apiKey) return fail(500, 'server', 'Máy chủ AI chưa được cấu hình.', { reason: 'not_configured' });
   const startedAt = Date.now();
-  const models = resolveModels(spec.models, modelEnv());
+  const models = resolveModels(spec.modelsFor?.(body.payload) ?? spec.models, modelEnv());
 
   try {
     if (spec.kind === 'stream') {
-      const stream = await streamWithFallback(apiKey, spec, request, (model, ok) => {
-        void logUsage(userId, op, model, startedAt, ok);
+      const { model, stream } = await streamWithFallback(apiKey, spec, request, (used, ok) => {
+        void logUsage(userId, op, used, startedAt, ok);
       }, models);
       return new Response(stream, {
-        headers: { ...CORS, 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
+        headers: { ...CORS, 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'x-ai-model': model },
       });
     }
     const { model, data } = await callWithFallback(apiKey, spec, request, models);

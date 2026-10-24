@@ -1,204 +1,158 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { InteractiveSentenceList } from './InteractiveSentenceCard';
 import { InteractiveVocabGrid } from './InteractiveVocabCard';
-import { InteractiveQuizList } from './InteractiveQuizCard';
-import { SentenceBreakdownItem, ScaffoldVocabItem, InteractiveQuizItem } from '../../../services/scaffoldActionTypes';
+import { ChatMarkdown } from '../../chat/ChatMarkdown';
+import { ChatProgress } from '../../chat/ChatProgress';
+import { QuizCard } from '../../chat/QuizCard';
+import { scaffoldQuizToQuiz, toQuiz, type ChatMode, type ChatPhase, type QuizResult } from '../../../services/chatLogic';
+import type { ScaffoldVocabItem, SentenceBreakdownItem } from '../../../services/scaffoldActionTypes';
 
-interface ScaffoldMarkdownRendererProps {
+export interface LiveReply {
+  phase: ChatPhase;
+  mode: ChatMode;
+  startedAt: number;
+  usesData: boolean;
+  /** Items the request asked for, when known (quiz size). */
+  expected?: number;
+}
+
+interface Props {
   content: string;
   userId?: string | null;
+  /** Set while this reply is still streaming. */
+  live?: LiveReply | null;
+  quizResult?: QuizResult;
+  onQuizFinish?: (r: QuizResult) => void;
+  onReviewMistakes?: (summary: string) => void;
+  onAnotherQuiz?: () => void;
+  onRetry?: () => void;
 }
 
-export function ScaffoldMarkdownRenderer({ content, userId }: ScaffoldMarkdownRendererProps) {
-  // Check if content contains structured blocks
-  const segments: React.ReactNode[] = [];
-  let remaining = content;
-  let keyIndex = 0;
+type Segment =
+  | { kind: 'text'; text: string }
+  | { kind: 'sentences'; items: SentenceBreakdownItem[] }
+  | { kind: 'vocab'; items: ScaffoldVocabItem[] }
+  | { kind: 'quiz'; quiz: NonNullable<ReturnType<typeof toQuiz>> }
+  | { kind: 'broken'; what: string }
+  | { kind: 'pending'; what: 'sentences' | 'vocab' | 'quiz'; written: number };
 
-  // Pattern to find structured blocks like ```json:scaffold_sentences ... ```
-  // or ```json:scaffold_vocab ... ``` or ```json:scaffold_quiz ... ```
-  const blockRegex = /```(?:json:)?(scaffold_sentences|scaffold_vocab|scaffold_quiz)\s*([\s\S]*?)```/g;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
+const STRUCTURED = /^(?:json:)?(scaffold_sentences|scaffold_vocab|scaffold_quiz|quiz)$/;
+const COUNT_KEY = { sentences: /"original"\s*:/g, vocab: /"word"\s*:/g, quiz: /"q(?:uestion)?"\s*:/g };
+const LABEL = { sentences: 'câu', vocab: 'từ', quiz: 'câu hỏi' } as const;
 
-  while ((match = blockRegex.exec(remaining)) !== null) {
-    const textBefore = remaining.substring(lastIndex, match.index);
-    if (textBefore.trim()) {
-      segments.push(
-        <div key={`md-${keyIndex++}`}>
-          {renderStandardMarkdown(textBefore)}
-        </div>
-      );
+/** Splits a reply into text and interactive blocks. Exported for tests. */
+export function splitReply(content: string): Segment[] {
+  const out: Segment[] = [];
+  let at = 0;
+  while (at < content.length) {
+    const open = content.indexOf('```', at);
+    if (open === -1) {
+      out.push({ kind: 'text', text: content.slice(at) });
+      break;
     }
-
-    const blockType = match[1];
-    const rawJson = match[2].trim();
-
+    const lineEnd = content.indexOf('\n', open);
+    const tag = content.slice(open + 3, lineEnd === -1 ? content.length : lineEnd).trim().toLowerCase();
+    const bodyStart = lineEnd === -1 ? content.length : lineEnd + 1;
+    const close = content.indexOf('```', bodyStart);
+    const m = STRUCTURED.exec(tag);
+    const isJsonQuiz = tag === 'json' && (close === -1 ? content.slice(bodyStart) : content.slice(bodyStart, close)).includes('"questions"');
+    if (!m && !isJsonQuiz) {
+      // Ordinary code block: leave it to the Markdown renderer.
+      const end = close === -1 ? content.length : close + 3;
+      out.push({ kind: 'text', text: content.slice(at, end) });
+      at = end;
+      continue;
+    }
+    if (open > at) out.push({ kind: 'text', text: content.slice(at, open) });
+    const what = m?.[1] === 'scaffold_sentences' ? 'sentences' : m?.[1] === 'scaffold_vocab' ? 'vocab' : 'quiz';
+    if (close === -1) {
+      out.push({ kind: 'pending', what, written: (content.slice(bodyStart).match(COUNT_KEY[what]) ?? []).length });
+      break;
+    }
+    const body = content.slice(bodyStart, close).trim();
+    let parsed: unknown = null;
     try {
-      const parsedData = JSON.parse(rawJson);
-      if (blockType === 'scaffold_sentences' && Array.isArray(parsedData)) {
-        segments.push(
-          <InteractiveSentenceList
-            key={`sentences-${keyIndex++}`}
-            sentences={parsedData as SentenceBreakdownItem[]}
-          />
-        );
-      } else if (blockType === 'scaffold_vocab' && Array.isArray(parsedData)) {
-        segments.push(
-          <InteractiveVocabGrid
-            key={`vocab-${keyIndex++}`}
-            vocabulary={parsedData as ScaffoldVocabItem[]}
-            userId={userId}
-          />
-        );
-      } else if (blockType === 'scaffold_quiz' && Array.isArray(parsedData)) {
-        segments.push(
-          <InteractiveQuizList
-            key={`quiz-${keyIndex++}`}
-            quizzes={parsedData as InteractiveQuizItem[]}
-          />
-        );
-      } else {
-        // Fallback to json code block
-        segments.push(
-          <pre key={`code-${keyIndex++}`} className="bg-slate-100 dark:bg-slate-800 p-2.5 rounded-lg text-xs font-mono overflow-x-auto">
-            {rawJson}
-          </pre>
-        );
-      }
+      parsed = JSON.parse(body);
     } catch {
-      // While streaming, JSON might be incomplete; show typing or clean text
-      segments.push(
-        <div key={`incomplete-${keyIndex++}`} className="p-3 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 rounded-xl my-2 text-xs text-indigo-700 dark:text-indigo-300 animate-pulse">
-          ⚡ Đang tạo dữ liệu tương tác chuyên sâu...
-        </div>
-      );
+      parsed = null;
     }
-
-    lastIndex = match.index + match[0].length;
+    if (what === 'sentences' && Array.isArray(parsed)) out.push({ kind: 'sentences', items: parsed as SentenceBreakdownItem[] });
+    else if (what === 'vocab' && Array.isArray(parsed)) out.push({ kind: 'vocab', items: parsed as ScaffoldVocabItem[] });
+    else if (what === 'quiz') {
+      const quiz = m?.[1] === 'scaffold_quiz' ? scaffoldQuizToQuiz(parsed) : toQuiz(parsed);
+      out.push(quiz ? { kind: 'quiz', quiz } : { kind: 'broken', what: 'quiz' });
+    } else out.push({ kind: 'broken', what });
+    at = close + 3;
   }
+  return out.filter((s) => s.kind !== 'text' || s.text.trim());
+}
 
-  const trailingText = remaining.substring(lastIndex);
-  if (trailingText.trim()) {
-    segments.push(
-      <div key={`md-trailing-${keyIndex++}`}>
-        {renderStandardMarkdown(trailingText)}
-      </div>
-    );
-  }
-
+/** A mentor reply: Markdown plus sentence, vocabulary and quiz cards, with progress while they are written. */
+export const ScaffoldMarkdownRenderer = memo(function ScaffoldMarkdownRenderer({
+  content,
+  userId,
+  live,
+  quizResult,
+  onQuizFinish,
+  onReviewMistakes,
+  onAnotherQuiz,
+  onRetry,
+}: Props) {
+  const segments = splitReply(content);
+  let quizSeen = false;
   return (
-    <div className="space-y-1">
-      {segments.length > 0 ? segments : renderStandardMarkdown(content)}
+    <div className="w-full space-y-2">
+      {segments.map((s, i) => {
+        switch (s.kind) {
+          case 'text':
+            return <ChatMarkdown key={i} text={s.text} />;
+          case 'sentences':
+            return <InteractiveSentenceList key={i} sentences={s.items} />;
+          case 'vocab':
+            return <InteractiveVocabGrid key={i} vocabulary={s.items} userId={userId} />;
+          case 'quiz': {
+            const first = !quizSeen;
+            quizSeen = true;
+            return (
+              <QuizCard
+                key={i}
+                quiz={s.quiz}
+                result={first ? quizResult : undefined}
+                onFinish={(r) => first && onQuizFinish?.(r)}
+                onReviewMistakes={onReviewMistakes}
+                onAnother={onAnotherQuiz}
+              />
+            );
+          }
+          case 'pending':
+            return live ? (
+              <ChatProgress
+                key={i}
+                phase="writing"
+                mode={live.mode}
+                startedAt={live.startedAt}
+                chars={content.length}
+                usesData={live.usesData}
+                building={{ done: s.written, total: live.expected ?? Math.max(s.written + 1, s.what === 'quiz' ? 5 : 6), unit: LABEL[s.what] }}
+              />
+            ) : (
+              <p key={i} className="text-[12.5px] text-slate-500 dark:text-slate-400">Câu trả lời bị dừng giữa chừng.</p>
+            );
+          case 'broken':
+            return (
+              <div key={i} className="rounded-xl border border-tone-butter-border bg-tone-butter px-3 py-2 text-[12.5px] text-tone-butter-fg">
+                AI trả dữ liệu sai định dạng.{' '}
+                {onRetry && (
+                  <button type="button" onClick={onRetry} className="font-semibold underline">
+                    Tạo lại
+                  </button>
+                )}
+              </div>
+            );
+        }
+      })}
     </div>
   );
-}
+});
 
-// ─── Standard Markdown Parser ──────────────────────────────────────────
-
-function renderStandardMarkdown(text: string): React.ReactNode[] {
-  const lines = text.split('\n');
-  const elements: React.ReactNode[] = [];
-  let listItems: string[] = [];
-  let listType: 'ul' | 'ol' | null = null;
-
-  const flushList = () => {
-    if (listItems.length > 0 && listType) {
-      const Tag = listType === 'ol' ? 'ol' : 'ul';
-      elements.push(
-        <Tag key={`list-${elements.length}`} className={`${listType === 'ol' ? 'list-decimal' : 'list-disc'} pl-5 my-1.5 space-y-0.5`}>
-          {listItems.map((item, i) => (
-            <li key={i} className="text-[13px] leading-relaxed">
-              {formatInline(item)}
-            </li>
-          ))}
-        </Tag>
-      );
-      listItems = [];
-      listType = null;
-    }
-  };
-
-  const formatInline = (line: string): React.ReactNode => {
-    // Bold: **text**
-    const parts = line.split(/(\*\*[^*]+\*\*)/g);
-    return parts.map((part, i) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        return (
-          <strong key={i} className="font-semibold text-slate-800 dark:text-slate-100">
-            {part.slice(2, -2)}
-          </strong>
-        );
-      }
-      // Inline code: `text`
-      const codeParts = part.split(/(`[^`]+`)/g);
-      return codeParts.map((cp, j) => {
-        if (cp.startsWith('`') && cp.endsWith('`')) {
-          return (
-            <code key={`${i}-${j}`} className="bg-slate-100 dark:bg-slate-700 text-rose-600 dark:text-rose-400 px-1.5 py-0.5 rounded text-xs font-mono">
-              {cp.slice(1, -1)}
-            </code>
-          );
-        }
-        return cp;
-      });
-    });
-  };
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
-    // Headers
-    if (line.startsWith('### ')) {
-      flushList();
-      elements.push(<h4 key={i} className="font-bold text-sm text-slate-800 dark:text-slate-100 mt-3 mb-1">{formatInline(line.slice(4))}</h4>);
-    } else if (line.startsWith('## ')) {
-      flushList();
-      elements.push(<h3 key={i} className="font-bold text-sm text-slate-800 dark:text-slate-100 mt-3 mb-1">{formatInline(line.slice(3))}</h3>);
-    } else if (line.startsWith('# ')) {
-      flushList();
-      elements.push(<h2 key={i} className="font-bold text-base text-slate-800 dark:text-slate-100 mt-3 mb-1.5">{formatInline(line.slice(2))}</h2>);
-    }
-    // Unordered lists
-    else if (/^[-*•] /.test(line)) {
-      if (listType !== 'ul') { flushList(); listType = 'ul'; }
-      listItems.push(line.replace(/^[-*•] /, ''));
-    }
-    // Ordered lists
-    else if (/^\d+\.\s/.test(line)) {
-      if (listType !== 'ol') { flushList(); listType = 'ol'; }
-      listItems.push(line.replace(/^\d+\.\s/, ''));
-    }
-    // Horizontal rule
-    else if (/^---+$/.test(line.trim())) {
-      flushList();
-      elements.push(<hr key={i} className="border-slate-200 dark:border-slate-600 my-2" />);
-    }
-    // Empty line
-    else if (line.trim() === '') {
-      flushList();
-    }
-    // Simple table row
-    else if (line.includes('|') && line.trim().startsWith('|')) {
-      flushList();
-      const cells = line.split('|').filter(c => c.trim() !== '');
-      if (cells.every(c => /^[\s-:]+$/.test(c))) continue;
-      const isHeader = i + 1 < lines.length && /^\|[\s-:|]+\|$/.test(lines[i + 1]?.trim() || '');
-      elements.push(
-        <div key={i} className={`flex gap-2 px-2 py-1 text-xs ${isHeader ? 'font-semibold bg-slate-50 dark:bg-slate-700/50 rounded' : ''}`}>
-          {cells.map((cell, ci) => (
-            <span key={ci} className="flex-1 truncate">{formatInline(cell.trim())}</span>
-          ))}
-        </div>
-      );
-    }
-    // Normal paragraph
-    else {
-      flushList();
-      elements.push(<p key={i} className="text-[13px] leading-relaxed my-1">{formatInline(line)}</p>);
-    }
-  }
-
-  flushList();
-  return elements;
-}
+export default ScaffoldMarkdownRenderer;

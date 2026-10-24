@@ -6,7 +6,7 @@
  * vocabulary extraction with SRS integration, and interactive quiz generation.
  */
 
-import { ChatMessage, ChatAttachment, compressImage, audioFileToBase64, streamChatResponse } from './ieltsChatService';
+import { QUIZ_FORMAT, type ChatAttachment } from './chatLogic';
 import { ScaffoldActionType } from './scaffoldActionTypes';
 
 // ─── Document / Text File Extraction ─────────────────────────────
@@ -115,28 +115,9 @@ Nội dung cần trích xuất từ vựng:
 "${targetContent}"`;
 
     case 'quiz_generate':
-      return `Bạn là chuyên gia khảo thí IELTS. Dựa trên nội dung sau, hãy thiết kế 3 câu hỏi ôn tập tương tác (Trắc nghiệm 4 đáp án A/B/C/D hoặc điền từ) kiểm tra độ hiểu từ vựng, ngữ pháp và nội dung.
-Mỗi câu hỏi cần có gợi ý tư duy sư phạm (scaffoldHint) và giải thích chi tiết cho từng phương án.
-
-BẮT BUỘC trả về khối JSON tương tác sau đây:
-\`\`\`json:scaffold_quiz
-[
-  {
-    "id": "q1",
-    "type": "multiple_choice",
-    "question": "Câu hỏi ôn tập...",
-    "contextSentence": "Câu văn trích dẫn...",
-    "scaffoldHint": "Gợi ý tư duy trước khi chọn...",
-    "options": [
-      {"id": "a", "text": "Phương án A", "isCorrect": false, "explanation": "Tại sao sai..."},
-      {"id": "b", "text": "Phương án B", "isCorrect": true, "explanation": "Tại sao đúng..."},
-      {"id": "c", "text": "Phương án C", "isCorrect": false, "explanation": "Tại sao sai..."},
-      {"id": "d", "text": "Phương án D", "isCorrect": false, "explanation": "Tại sao sai..."}
-    ],
-    "explanation": "Tổng kết lời giải thích..."
-  }
-]
-\`\`\`
+      return `Bạn là chuyên gia khảo thí IELTS. Dựa trên nội dung sau, tạo quiz trắc nghiệm 5 câu kiểm tra từ vựng, ngữ pháp và ý chính của nội dung.
+Mỗi câu có "hint" là gợi ý tư duy (không lộ đáp án) và "context" là câu trích từ nội dung khi phù hợp.
+${QUIZ_FORMAT}
 
 Nội dung cần tạo câu hỏi:
 "${targetContent}"`;

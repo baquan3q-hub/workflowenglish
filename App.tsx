@@ -2067,11 +2067,7 @@ function App() {
 
       {/* IELTS AI ChatBox — floating widget, always visible when logged in */}
       {currentUser && showHeader && (
-        <IeltsChatBox
-          darkMode={darkMode}
-          currentUser={currentUser}
-          currentPhase={phase}
-        />
+        <IeltsChatBox key={currentUser.id} darkMode={darkMode} currentUser={currentUser} currentPhase={phase} />
       )}
     </div>
   );

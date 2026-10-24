@@ -119,7 +119,7 @@ export async function streamWithFallback(
   req: GeminiRequest,
   onDone: (model: string, ok: boolean) => void,
   models: readonly string[] = spec.models,
-): Promise<ReadableStream<Uint8Array>> {
+): Promise<{ model: string; stream: ReadableStream<Uint8Array> }> {
   let last: UpstreamError = new UpstreamError('no model tried', 0);
   for (const model of models) {
     if (usesInteractions(model)) continue;
@@ -164,7 +164,7 @@ export async function streamWithFallback(
         onDone(model, false);
       },
     };
-    return res.body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>(transformer));
+    return { model, stream: res.body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>(transformer)) };
   }
   throw last;
 }

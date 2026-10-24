@@ -29,6 +29,8 @@ export interface InvokeOptions {
   /** Whole request, including the server's model fallback. */
   timeoutMs?: number;
   signal?: AbortSignal;
+  /** Called once the proxy answers OK, before the body is read (headers such as x-ai-model). */
+  onResponse?: (res: Response) => void;
 }
 
 const DEFAULT_TIMEOUT_MS = 90_000;
@@ -155,17 +157,23 @@ export async function invokeAi<T>(op: string, payload: unknown, opts: InvokeOpti
 /** Streamed text, chunk by chunk (the mentor chat). */
 export async function* streamAi(op: string, payload: unknown, opts: InvokeOptions = {}): AsyncGenerator<string> {
   const res = await post(op, payload, { timeoutMs: 120_000, ...opts });
+  opts.onResponse?.(res);
   if (!res.body) return;
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
+  // Stop pressed: cancel the body so a pending read ends now and the download stops.
+  const onAbort = () => void reader.cancel().catch(() => undefined);
+  opts.signal?.addEventListener('abort', onAbort, { once: true });
   try {
-    while (true) {
+    while (!opts.signal?.aborted) {
       const { done, value } = await reader.read();
       if (done) break;
       const text = decoder.decode(value, { stream: true });
       if (text) yield text;
     }
   } finally {
+    opts.signal?.removeEventListener('abort', onAbort);
+    if (opts.signal?.aborted) await reader.cancel().catch(() => undefined);
     reader.releaseLock();
   }
 }
