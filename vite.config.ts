@@ -30,7 +30,18 @@ export default defineConfig(({ mode }) => {
           // Don't cache API calls or Supabase requests
           navigateFallbackDenylist: [/^\/auth/, /supabase/],
         },
-        includeAssets: ['avatarandlogo.png', 'logo.svg'],
+        includeAssets: [
+          'app-logo.png',
+          'avatarandlogo.png',
+          'favicon.ico',
+          'favicon.png',
+          'favicon-32.png',
+          'favicon-16.png',
+          'apple-touch-icon.png',
+          'icon-192.png',
+          'icon-512.png',
+          'logo.svg'
+        ],
         manifest: {
           name: 'Work-FlowEnglish - AI English Learning',
           short_name: 'Work-FlowEnglish',
@@ -42,16 +53,22 @@ export default defineConfig(({ mode }) => {
           start_url: '/',
           icons: [
             {
-              src: '/avatarandlogo.png',
+              src: '/icon-192.png',
               sizes: '192x192',
               type: 'image/png',
               purpose: 'any maskable'
             },
             {
-              src: '/avatarandlogo.png',
+              src: '/icon-512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any maskable'
+            },
+            {
+              src: '/app-logo.png',
+              sizes: '1254x1254',
+              type: 'image/png',
+              purpose: 'any'
             }
           ]
         }

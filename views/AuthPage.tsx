@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BookOpen, Eye, EyeOff, UserPlus, LogIn, ArrowLeft, AlertCircle, CheckCircle, Mail } from 'lucide-react';
+import { Eye, EyeOff, UserPlus, LogIn, ArrowLeft, AlertCircle, CheckCircle, Mail } from 'lucide-react';
 import { signUp, signIn, signInWithGoogle, signInWithGithub } from '../services/supabaseClient';
 
 interface AuthPageProps {
@@ -100,9 +100,12 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onBack }) => {
                 <div className="bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl rounded-3xl shadow-xl border border-tone-periwinkle-border p-8 anim-scale-in">
                     {/* Logo */}
                     <div className="text-center mb-8">
-                        <div className="group inline-flex items-center justify-center p-3 bg-tone-periwinkle-soft text-tone-periwinkle-fg rounded-2xl mb-4">
-                            <BookOpen className="icon-pop w-7 h-7" />
-                        </div>
+                        <img
+                            src="/app-logo.png"
+                            alt="VocabMaster Logo"
+                            className="w-16 h-16 sm:w-20 sm:h-20 object-contain rounded-2xl shadow-md mx-auto mb-4 hover:scale-105 transition-transform select-none"
+                            draggable={false}
+                        />
                         <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
                             {mode === 'login' ? 'Đăng nhập' : 'Tạo tài khoản'}
                         </h1>

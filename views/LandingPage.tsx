@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
     ArrowRight,
     BarChart3,
-    BookOpen,
     BookOpenText,
     Brain,
     ChevronRight,
@@ -33,9 +32,15 @@ interface LandingPageProps {
 
 type Icon = typeof Zap;
 
-/** The app logo. */
+/** The app logo (public/app-logo.png). */
 function Logo({ size }: { size: 'md' | 'sm' }) {
-    return <IconTile icon={BookOpen} tone="periwinkle" size={size === 'md' ? 'md' : 'sm'} />;
+    return (
+        <img
+            src="/app-logo.png"
+            alt="VocabMaster Logo"
+            className={`object-contain shadow-sm transition-transform group-hover:scale-105 ${size === 'md' ? 'h-9 w-9 rounded-xl' : 'h-6 w-6 rounded-lg'}`}
+        />
+    );
 }
 
 const STATS: { icon: Icon; tone: Tone; value: string; label: string }[] = [

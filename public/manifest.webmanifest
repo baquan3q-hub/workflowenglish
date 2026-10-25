@@ -10,16 +10,22 @@
     "scope": "/",
     "icons": [
         {
-            "src": "/avatarandlogo.png",
+            "src": "/icon-192.png",
             "sizes": "192x192",
             "type": "image/png",
             "purpose": "any maskable"
         },
         {
-            "src": "/avatarandlogo.png",
+            "src": "/icon-512.png",
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "any maskable"
+        },
+        {
+            "src": "/app-logo.png",
+            "sizes": "1254x1254",
+            "type": "image/png",
+            "purpose": "any"
         }
     ]
 }

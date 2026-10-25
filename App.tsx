@@ -89,6 +89,8 @@ interface AppUser {
   id: string;
   username: string;
   displayName: string;
+  /** Profile picture from Google or GitHub sign-in, when there is one. */
+  photoURL?: string;
 }
 
 /** Back button of the IELTS Library, by the screen it was opened from. */
@@ -105,6 +107,7 @@ function appUserFromAuthUser(user: any): AppUser {
     id: user.id,
     username: fallbackName,
     displayName: user?.user_metadata?.full_name || user?.user_metadata?.name || fallbackName || 'User',
+    photoURL: user?.user_metadata?.avatar_url || user?.user_metadata?.picture || undefined,
   };
 }
 
@@ -1786,11 +1789,11 @@ function App() {
             {/* Logo */}
             <button
               type="button"
-              className="flex min-h-touch items-center gap-2 flex-shrink-0 rounded-lg"
+              className="flex min-h-touch items-center gap-2 flex-shrink-0 rounded-lg group"
               onClick={() => navigateWithConfirm(AppPhase.DASHBOARD)}
               aria-label="VocabMaster, về trang chủ"
             >
-              <img src="/avatarandlogo.png" className="w-7 h-7 sm:w-8 sm:h-8 object-contain rounded-lg shadow-sm border border-slate-100 dark:border-slate-700" alt="" />
+              <img src="/app-logo.png" className="w-7 h-7 sm:w-8 sm:h-8 object-contain rounded-lg shadow-sm transition-transform group-hover:scale-105" alt="VocabMaster Logo" />
               <span className="font-bold text-sm sm:text-base tracking-tight hidden sm:inline">VocabMaster</span>
             </button>
 
@@ -1860,7 +1863,7 @@ function App() {
                 </button>
 
                 <div className="hidden xl:flex items-center gap-1.5 bg-tone-periwinkle px-2.5 py-1 rounded-full border border-tone-periwinkle-border">
-                  <img src="/avatarandlogo.png" className="w-5 h-5 rounded-full object-cover border border-blue-100 dark:border-slate-700 shadow-sm" alt="" />
+                  <img src={currentUser.photoURL || "/app-logo.png"} className="w-5 h-5 rounded-full object-cover border border-blue-100 dark:border-slate-700 shadow-sm" alt="" />
                   <span className="text-xs font-semibold text-tone-periwinkle-fg max-w-[100px] truncate">{currentUser.displayName}</span>
                 </div>
 
