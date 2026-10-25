@@ -43,7 +43,8 @@ export interface ListConfig<T extends ListItem> {
 interface Props<T extends ListItem> {
   config: ListConfig<T>;
   items: T[];
-  onNew: (kind: any) => void;
+  /** One of the config's newKinds (full or practice when it has none). */
+  onNew: (kind: string) => void;
   onEdit: (item: T) => void;
   onDuplicate: (item: T) => void;
   onDelete: (item: T) => void;

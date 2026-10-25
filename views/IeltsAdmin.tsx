@@ -271,7 +271,7 @@ export default function IeltsAdmin({ userId, onBack, onPreview, editing: editing
               config={WRITING_LIST}
               items={writing.items}
               busyId={writing.busyId}
-              onNew={(task) => setEditing({ skill: 'writing', item: emptyWritingItem(newId(), task), saved: null })}
+              onNew={(task) => setEditing({ skill: 'writing', item: emptyWritingItem(newId(), task === 'task_1' ? 'task_1' : 'task_2'), saved: null })}
               onEdit={(item) => setEditing({ skill: 'writing', item, saved: item })}
               onDuplicate={(item) => writing.duplicate(item, duplicateWritingItem(item, newId()))}
               onDelete={writing.remove}
@@ -288,7 +288,7 @@ export default function IeltsAdmin({ userId, onBack, onPreview, editing: editing
               config={READING_LIST}
               items={reading.items}
               busyId={reading.busyId}
-              onNew={(kind) => setEditing({ skill: 'reading', item: emptyReadingItem(newId(), kind), saved: null })}
+              onNew={(kind) => setEditing({ skill: 'reading', item: emptyReadingItem(newId(), kind === 'full' ? 'full' : 'practice'), saved: null })}
               onEdit={(item) => setEditing({ skill: 'reading', item, saved: item })}
               onDuplicate={(item) => reading.duplicate(item, duplicateReadingItem(item, newId()))}
               onDelete={reading.remove}
@@ -304,7 +304,7 @@ export default function IeltsAdmin({ userId, onBack, onPreview, editing: editing
             config={LISTENING_LIST}
             items={listening.items}
             busyId={listening.busyId}
-            onNew={(kind) => setEditing({ skill: 'listening', item: emptyItem(newId(), kind), saved: null })}
+            onNew={(kind) => setEditing({ skill: 'listening', item: emptyItem(newId(), kind === 'full' ? 'full' : 'practice'), saved: null })}
             onEdit={(item) => setEditing({ skill: 'listening', item, saved: item })}
             onDuplicate={(item) => listening.duplicate(item, duplicateItem(item, newId()))}
             onDelete={listening.remove}

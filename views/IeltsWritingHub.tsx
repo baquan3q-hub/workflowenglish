@@ -12,7 +12,7 @@ import type { LucideIcon } from 'lucide-react';
 import { BookOpen, CheckCheck, ChevronDown, ChevronRight, ChevronUp, FileText, Filter, Languages, LayoutList, Lightbulb, PenLine, PenTool, TrendingUp } from 'lucide-react';
 import { WRITING_GUIDES } from '../data/ielts/writingGuides';
 import { questionTopics } from '../services/writingStudyLogic';
-import { countWords, listWritingDrafts, progressByPrompt, readWritingMode, saveWritingMode, summarizeWriting, type WritingDraft, type WritingMode } from '../services/writingPracticeLogic';
+import { countWords, listWritingDrafts, progressByPrompt, progressFor, readWritingMode, saveWritingMode, summarizeWriting, type WritingDraft, type WritingMode } from '../services/writingPracticeLogic';
 import type { WritingStudyTab } from './IeltsWritingStudy';
 import { IconTile } from '../components/ui/IconTile';
 import { toneClasses, type Tone } from '../components/ui/palette';
@@ -112,6 +112,11 @@ export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttemp
   );
 
   const writingFrameworks = ieltsFrameworks.filter((f) => f.skill === 'writing');
+  // The tile counts every prompt of the task, whatever the filters show.
+  const taskTotal = useMemo(
+    () => getWritingQuestions({ taskOrPart: activeTab }).filter((q) => !isGeneratedWritingQuestionId(q.id)).length,
+    [activeTab, libraryLoads],
+  );
   const topics = useMemo(
     () => questionTopics(getWritingQuestions({ taskOrPart: activeTab }).filter((q) => !isGeneratedWritingQuestionId(q.id))),
     [activeTab, libraryLoads],
@@ -208,7 +213,7 @@ export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttemp
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat icon={BookOpen} tone="lavender" value={questions.length} label={`Đề ${activeTab === 'task_1' ? 'Task 1' : 'Task 2'}`} />
+        <Stat icon={BookOpen} tone="lavender" value={taskTotal} label={`Đề ${activeTab === 'task_1' ? 'Task 1' : 'Task 2'}`} />
         <Stat icon={CheckCheck} tone="mint" value={summary.attempts} label="Bài đã chấm" />
         <Stat icon={TrendingUp} tone="aqua" value={summary.averageBand != null ? summary.averageBand.toFixed(1) : '—'} label="Band trung bình" />
         <Stat icon={Lightbulb} tone="butter" value={summary.bestBand != null ? summary.bestBand.toFixed(1) : '—'} label="Band cao nhất" />
@@ -278,7 +283,7 @@ export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttemp
             <p className="text-sm text-slate-600 dark:text-slate-400">Không tìm thấy đề bài phù hợp. Hãy thử đổi bộ lọc.</p>
           </div>
         ) : (
-          questions.map((q) => <QuestionCard key={q.id} question={q} onSelect={(sel) => onSelectQuestion(sel, mode)} progress={progress.get(q.prompt)} />)
+          questions.map((q) => <QuestionCard key={q.id} question={q} onSelect={(sel) => onSelectQuestion(sel, mode)} progress={progressFor(progress, q)} />)
         )}
       </div>
     </div>

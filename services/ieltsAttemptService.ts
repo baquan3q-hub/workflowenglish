@@ -11,6 +11,7 @@ import { supabase, withTimeout } from './supabaseClient';
 import type { ReadingAttemptDetails } from './readingLogic';
 import { IeltsAiFeedback, IeltsAttempt, IeltsQuestion, IeltsSkill } from '../types';
 import { allWritingQuestions } from './writingQuestionRegistry';
+import { questionFromDetails } from './writingPracticeLogic';
 import { speakingPart1Questions } from '../data/ieltsSpeakingQuestions';
 
 const TABLE = 'ielts_attempts';
@@ -86,6 +87,13 @@ function rowToAttempt(row: IeltsAttemptRow): IeltsAttempt {
  */
 export function resolveAttemptQuestion(attempt: IeltsAttempt): IeltsQuestion {
   const bank = attempt.skill === 'writing' ? allWritingQuestions() : speakingPart1Questions;
+  if (attempt.skill === 'writing') {
+    // By the saved id first, then the copy kept for library and AI prompts (which a reload forgets).
+    const id = attempt.details?.questionId;
+    const byId = typeof id === 'string' ? bank.find(q => q.id === id) : undefined;
+    const kept = byId ?? questionFromDetails(attempt.details);
+    if (kept) return kept;
+  }
   const match = bank.find(q => q.prompt === attempt.questionPrompt);
   if (match) return match;
   return {

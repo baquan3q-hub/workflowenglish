@@ -53,7 +53,7 @@ import { readingAttemptLabels, scorePassages, sessionPassages as readingSessionP
 import { appendDrillLog, groupRecords, isDrillTestId, parseDrillTestId, resolveReadingTest } from './services/readingDrill';
 import type { ReadingKind } from './data/ielts/readingLessons';
 import { gradeWritingTask } from './services/ieltsWritingService';
-import { clearWritingDraft, type WritingMode } from './services/writingPracticeLogic';
+import { clearWritingDraft, examInfo, writingAttemptDetails, type WritingMode } from './services/writingPracticeLogic';
 import { gradeSpeakingAnswer } from './services/ieltsSpeakingService';
 import { fluencySummaryForGrader, isFluencyMetrics, type FluencyMetrics } from './services/fluencyLogic';
 import { saveIeltsAttempt, saveListeningAttempt, saveReadingAttempt, resolveAttemptQuestion, isListeningDetails, isReadingDetails, getPreviousWritingAttempt } from './services/ieltsAttemptService';
@@ -178,6 +178,8 @@ function App() {
   const [selectedIeltsQuestion, setSelectedIeltsQuestion] = useState<IeltsQuestion | null>(null);
   const [ieltsWritingDraft, setIeltsWritingDraft] = useState<string>('');
   const [ieltsWritingMode, setIeltsWritingMode] = useState<WritingMode>('practice');
+  /** How the essay on the feedback screen was written, when it was an exam. */
+  const [ieltsWritingExam, setIeltsWritingExam] = useState<{ autoSubmitted: boolean } | null>(null);
   const [ieltsFeedbackData, setIeltsFeedbackData] = useState<IeltsAiFeedback | null>(null);
   const [ieltsUserAnswer, setIeltsUserAnswer] = useState<string>('');
   /** The attempt before the one on screen (same prompt), for the band change and the diff. */
@@ -970,6 +972,7 @@ function App() {
 
   const startIeltsWriting = (q: IeltsQuestion, mode: WritingMode = 'practice') => {
     setIeltsWritingMode(mode);
+    setIeltsWritingExam(null);
     setSelectedIeltsQuestion(q);
     setIeltsWritingDraft('');
     setIeltsFeedbackData(null);
@@ -1113,6 +1116,7 @@ function App() {
     if (attempt.skill === 'writing') {
       setIeltsWritingDraft('');
       setIeltsWritingPrevious(null);
+      setIeltsWritingExam(examInfo(attempt.details));
       setPhase(AppPhase.IELTS_WRITING_FEEDBACK);
       if (attempt.createdAt && (attempt.attemptNumber ?? 1) > 1) {
         void findPreviousWriting(attempt.questionPrompt, attempt.createdAt).then(setIeltsWritingPrevious);
@@ -1623,6 +1627,7 @@ function App() {
                 );
                 setIeltsWritingPrevious(await previous);
                 setIeltsFeedbackData(feedback);
+                setIeltsWritingExam(meta.mode === 'exam' ? { autoSubmitted: meta.autoSubmitted } : null);
                 setPhase(AppPhase.IELTS_WRITING_FEEDBACK);
                 // Graded: the draft on this device is done with (a rewrite starts from the answer).
                 clearWritingDraft(currentUser?.id ?? '', selectedIeltsQuestion.id);
@@ -1632,7 +1637,7 @@ function App() {
                   answerText: answer,
                   durationSeconds,
                   feedback,
-                  details: meta.mode === 'exam' ? { mode: 'exam', autoSubmitted: meta.autoSubmitted } : undefined,
+                  details: writingAttemptDetails(selectedIeltsQuestion, meta),
                 });
               } catch (err) {
                 console.error('Writing grading failed:', err);
@@ -1655,6 +1660,7 @@ function App() {
             userAnswer={ieltsUserAnswer}
             feedback={ieltsFeedbackData}
             previous={ieltsWritingPrevious}
+            exam={ieltsWritingExam}
             onRewrite={() => {
               setIeltsWritingPrevious({ answer: ieltsUserAnswer, feedback: ieltsFeedbackData });
               setIeltsWritingDraft(ieltsUserAnswer);

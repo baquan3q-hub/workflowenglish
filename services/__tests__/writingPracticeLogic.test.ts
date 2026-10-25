@@ -152,3 +152,54 @@ describe('exam mode', () => {
     expect(readWritingMode({ getItem: () => { throw new Error('blocked'); } })).toBe('practice');
   });
 });
+
+import { examInfo, progressFor, questionFromDetails, writingAttemptDetails } from '../writingPracticeLogic';
+import { resolveAttemptQuestion } from '../ieltsAttemptService';
+import { writingTask2Questions } from '../../data/ieltsWritingQuestions';
+
+describe('what an attempt keeps about its prompt', () => {
+  const base = writingTask2Questions[0];
+  const lib = { ...base, id: 'wlib_abc', prompt: 'A library prompt that is not in the bank. To what extent do you agree?' };
+  const writing = (details?: Record<string, unknown>, prompt = base.prompt, band?: number): IeltsAttempt => ({
+    userId: 'u1',
+    skill: 'writing',
+    taskOrPart: 'task_2',
+    questionType: 'opinion',
+    topic: 't',
+    questionPrompt: prompt,
+    answerText: 'a',
+    estimatedBand: band,
+    details,
+  });
+
+  it('saves the id always, a copy only for library and AI prompts, and how an exam ended', () => {
+    expect(writingAttemptDetails(base)).toEqual({ questionId: base.id });
+    expect(writingAttemptDetails(lib)).toEqual({ questionId: 'wlib_abc', question: lib });
+    expect(writingAttemptDetails(base, { mode: 'exam', autoSubmitted: true })).toEqual({ questionId: base.id, mode: 'exam', autoSubmitted: true });
+    expect(writingAttemptDetails(base, { mode: 'practice', autoSubmitted: false })).toEqual({ questionId: base.id });
+  });
+
+  it('reads back the copy and the exam info, ignoring broken values', () => {
+    expect(questionFromDetails({ question: lib })?.id).toBe('wlib_abc');
+    expect(questionFromDetails({ question: { id: 'x', prompt: 'p', taskOrPart: 'part_1' } })).toBeNull();
+    expect(questionFromDetails(undefined)).toBeNull();
+    expect(examInfo({ mode: 'exam', autoSubmitted: true })).toEqual({ autoSubmitted: true });
+    expect(examInfo({ mode: 'exam' })).toEqual({ autoSubmitted: false });
+    expect(examInfo({ questionId: 'x' })).toBeNull();
+  });
+
+  it('reopens an attempt on its prompt by id, then by the kept copy, then by text', () => {
+    expect(resolveAttemptQuestion(writing({ questionId: base.id }, 'edited text')).id).toBe(base.id);
+    const reopened = resolveAttemptQuestion(writing({ questionId: 'wlib_abc', question: lib }, lib.prompt));
+    expect(reopened).toEqual(lib);
+    expect(resolveAttemptQuestion(writing(undefined)).id).toBe(base.id);
+    expect(resolveAttemptQuestion(writing(undefined, 'unknown prompt')).id).toMatch(/^attempt-/);
+  });
+
+  it('counts progress by id and merges older attempts matched by text', () => {
+    const map = progressByPrompt([writing({ questionId: base.id }, base.prompt, 6), writing(undefined, base.prompt, 7), writing({ questionId: 'wlib_abc' }, lib.prompt, 5)]);
+    expect(progressFor(map, base)).toEqual({ attempts: 2, bestBand: 7 });
+    expect(progressFor(map, lib)).toEqual({ attempts: 1, bestBand: 5 });
+    expect(progressFor(map, { id: 'none', prompt: 'none' })).toBeUndefined();
+  });
+});

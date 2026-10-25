@@ -28,8 +28,12 @@ import { dangerBtn, ghostBtn, hint, input, panel, primaryBtn, secondaryBtn, sele
 
 const DIFFICULTY_LABELS: Record<string, string> = { easy: 'Dễ', medium: 'Vừa', hard: 'Khó' };
 
-/** Asks the AI for a draft prompt to start from; resolves with the body to load. */
-export type DraftWriter = (task: WritingLibraryItem['kind'], questionType: string) => Promise<WritingQuestionBody>;
+/** Asks the AI for a draft prompt to start from, at the editor's level and topic; resolves with the body to load. */
+export type DraftWriter = (
+  task: WritingLibraryItem['kind'],
+  questionType: string,
+  opts: { difficulty: WritingQuestionBody['difficulty']; topic: string },
+) => Promise<WritingQuestionBody>;
 
 interface Props {
   item: WritingLibraryItem;
@@ -48,6 +52,7 @@ export default function WritingEditor({ item, saved: savedProp, onSave, onClose,
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
+  const [confirmAi, setConfirmAi] = useState(false);
 
   const dirty = !saved || JSON.stringify(draft) !== JSON.stringify(saved);
   const problems = useMemo(() => writingItemProblems(draft), [draft]);
@@ -89,13 +94,19 @@ export default function WritingEditor({ item, saved: savedProp, onSave, onClose,
     }
   };
 
+  /** The AI writes over the prompt, hints and chart: ask first when there is something to lose. */
+  const askAi = () => (q.prompt.trim() || (q.planningPrompts ?? []).length ? setConfirmAi(true) : void writeWithAi());
+
   const writeWithAi = async () => {
     if (!draftWithAi) return;
+    setConfirmAi(false);
     setAiBusy(true);
     setMessage(null);
     try {
-      const body = await draftWithAi(draft.kind, q.questionType);
-      setDraft((d) => ({ ...d, question: body }));
+      const sent = { difficulty: q.difficulty, topic: q.topic };
+      const body = await draftWithAi(draft.kind, q.questionType, sent);
+      // Keep the level and topic the admin chose; the band follows the level.
+      setDraft((d) => ({ ...d, question: { ...body, difficulty: sent.difficulty, topic: sent.topic.trim() || body.topic } }));
       setMessage({ kind: 'ok', text: 'AI đã soạn đề nháp. Hãy đọc lại và sửa trước khi xuất bản.' });
     } catch (err) {
       setMessage({ kind: 'error', text: aiErrorMessage(err) });
@@ -120,7 +131,7 @@ export default function WritingEditor({ item, saved: savedProp, onSave, onClose,
         {dirty && <span className="text-caption text-tone-butter-fg">Chưa lưu</span>}
         <div className="ml-auto flex gap-2">
           {draftWithAi && (
-            <button type="button" onClick={writeWithAi} disabled={aiBusy} className={secondaryBtn}>
+            <button type="button" onClick={askAi} disabled={aiBusy} className={secondaryBtn}>
               {aiBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4 text-tone-lavender-fg" />}
               <span className="hidden sm:inline">{aiBusy ? 'Đang soạn…' : 'AI soạn đề nháp'}</span>
             </button>
@@ -153,6 +164,20 @@ export default function WritingEditor({ item, saved: savedProp, onSave, onClose,
             </button>
             <button type="button" onClick={onClose} className={dangerBtn}>
               Bỏ thay đổi
+            </button>
+          </div>
+        </div>
+      )}
+
+      {confirmAi && (
+        <div role="alert" className="flex flex-col gap-2 rounded-xl bg-tone-lavender p-3 sm:flex-row sm:items-center">
+          <p className="flex-1 text-sm text-tone-lavender-fg">AI sẽ viết đè đề bài, gợi ý và số liệu đang có (giữ mức độ và chủ đề). Tiếp tục?</p>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setConfirmAi(false)} className={secondaryBtn}>
+              Giữ bản đang sửa
+            </button>
+            <button type="button" onClick={() => void writeWithAi()} className={primaryBtn}>
+              Để AI viết
             </button>
           </div>
         </div>

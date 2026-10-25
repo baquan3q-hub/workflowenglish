@@ -128,7 +128,7 @@ export function writingQuestionProblems(q: WritingQuestionLike): string[] {
     if (!isTask1Type(q.questionType) && q.chartData === undefined) {
       // Process, map and mixed prompts of the bank carry their own drawings; the editor only makes data charts.
       problems.push(`Task 1 type must be one of ${TASK1_DATA_TYPES.join(', ')}`);
-    } else if (isTask1Type(q.questionType) || q.chartData !== undefined) {
+    } else {
       problems.push(...chartProblems(q.chartData, q.questionType));
     }
     if (prompt && !/summari[sz]e|report|describe|compare/i.test(prompt)) problems.push('a Task 1 prompt asks the candidate to summarise or compare the data');

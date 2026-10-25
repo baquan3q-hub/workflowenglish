@@ -114,17 +114,63 @@ export interface PromptProgress {
   bestBand: number | null;
 }
 
-/** Attempts and best band per prompt text, from the learner's graded Writing attempts. */
+/** The prompt id an attempt was written on (saved since the library phase), else its text. */
+const attemptKey = (a: IeltsAttempt): string => {
+  const id = a.details?.questionId;
+  return typeof id === 'string' && id ? id : a.questionPrompt;
+};
+
+/** Attempts and best band per prompt (by id, or by text for older attempts). */
 export function progressByPrompt(attempts: readonly IeltsAttempt[]): Map<string, PromptProgress> {
   const map = new Map<string, PromptProgress>();
   for (const a of attempts) {
     if (a.skill !== 'writing') continue;
-    const cur = map.get(a.questionPrompt) ?? { attempts: 0, bestBand: null };
+    const key = attemptKey(a);
+    const cur = map.get(key) ?? { attempts: 0, bestBand: null };
     cur.attempts += 1;
     if (a.estimatedBand != null) cur.bestBand = cur.bestBand == null ? a.estimatedBand : Math.max(cur.bestBand, a.estimatedBand);
-    map.set(a.questionPrompt, cur);
+    map.set(key, cur);
   }
   return map;
+}
+
+/** A prompt's progress: attempts saved with its id plus older ones matched by its text. */
+export function progressFor(map: ReadonlyMap<string, PromptProgress>, q: Pick<IeltsQuestion, 'id' | 'prompt'>): PromptProgress | undefined {
+  const byId = map.get(q.id);
+  const byText = map.get(q.prompt);
+  if (!byId || !byText) return byId ?? byText;
+  const bands = [byId.bestBand, byText.bestBand].filter((b): b is number => b != null);
+  return { attempts: byId.attempts + byText.attempts, bestBand: bands.length ? Math.max(...bands) : null };
+}
+
+// --- What an attempt keeps about its prompt ------------------------------------------------
+
+/** Prompts that live outside the bundled bank (library and AI), which a reload forgets. */
+const isExtraPrompt = (id: string) => id.startsWith('wlib_') || id.startsWith('wgen_');
+
+/**
+ * Details saved with a Writing attempt: the prompt id, a copy of a library or AI
+ * prompt (so its chart and hints come back after a reload, or after it is
+ * deleted), and how it was written.
+ */
+export function writingAttemptDetails(question: IeltsQuestion, meta?: { mode: WritingMode; autoSubmitted: boolean }): Record<string, unknown> {
+  return {
+    questionId: question.id,
+    ...(isExtraPrompt(question.id) ? { question } : {}),
+    ...(meta?.mode === 'exam' ? { mode: 'exam', autoSubmitted: meta.autoSubmitted } : {}),
+  };
+}
+
+/** The prompt copy kept on an attempt, when it has a usable one. */
+export function questionFromDetails(details: Record<string, unknown> | undefined): IeltsQuestion | null {
+  const q = details?.question as Partial<IeltsQuestion> | undefined;
+  if (!q || typeof q !== 'object' || typeof q.id !== 'string' || typeof q.prompt !== 'string' || (q.taskOrPart !== 'task_1' && q.taskOrPart !== 'task_2')) return null;
+  return q as IeltsQuestion;
+}
+
+/** How an exam attempt ended, or null for practice. */
+export function examInfo(details: Record<string, unknown> | undefined): { autoSubmitted: boolean } | null {
+  return details?.mode === 'exam' ? { autoSubmitted: details.autoSubmitted === true } : null;
 }
 
 export interface WritingSummary {

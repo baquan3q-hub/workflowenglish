@@ -163,6 +163,9 @@ export default function IeltsAttemptHistory({ userId, skill, onOpenAttempt, canO
                           <span>{PART_LABELS[a.taskOrPart] || a.taskOrPart}</span>
                           {a.topic && <span>· {a.topic}</span>}
                           {(a.attemptNumber ?? 1) > 1 && <span>· Lần {a.attemptNumber}</span>}
+                          {a.details?.mode === 'exam' && (
+                            <span className="rounded bg-tone-sky-soft px-1 text-tone-sky-fg">Thi thử{a.details.autoSubmitted === true ? ' · tự nộp' : ''}</span>
+                          )}
                           <span className="ml-auto">{formatDate(a.createdAt)}</span>
                         </div>
                         <p className="text-xs text-slate-700 dark:text-slate-200 truncate">{a.questionPrompt}</p>

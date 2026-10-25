@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { IeltsAiFeedback, IeltsQuestion } from '../types';
 import { BandScoreDisplay, CriterionScoreBar, FeedbackList, NextActionsList } from '../components/IeltsCommon';
-import { ArrowLeft, BarChart3, RotateCcw, ChevronDown, Sparkles, LayoutList } from 'lucide-react';
+import { ArrowLeft, BarChart3, RotateCcw, ChevronDown, Sparkles, LayoutList, Timer } from 'lucide-react';
 import { IconTile } from '../components/ui/IconTile';
 import { toneClasses } from '../components/ui/palette';
 import WordPicker from '../components/ielts/WordPicker';
@@ -15,6 +15,8 @@ interface Props {
   feedback: IeltsAiFeedback;
   /** The attempt before this one on the same prompt, when there is one. */
   previous?: { answer: string; feedback: IeltsAiFeedback } | null;
+  /** Set when the essay was written in exam mode. */
+  exam?: { autoSubmitted: boolean } | null;
   onRewrite: () => void;
   onBackToHub: () => void;
 }
@@ -23,7 +25,7 @@ const panel = `${sharedPanel} p-4 sm:p-5`;
 const primaryBtn = `${sharedPrimary} flex-1`;
 const secondaryBtn = `${sharedSecondary.replace('px-4', 'px-5')} flex-1`;
 
-export default function IeltsWritingFeedback({ userId, question, userAnswer, feedback, previous, onRewrite, onBackToHub }: Props) {
+export default function IeltsWritingFeedback({ userId, question, userAnswer, feedback, previous, exam, onRewrite, onBackToHub }: Props) {
   const [showImproved, setShowImproved] = useState(false);
 
   return (
@@ -45,6 +47,11 @@ export default function IeltsWritingFeedback({ userId, question, userAnswer, fee
       <section className={`space-y-3 rounded-2xl border p-4 text-center sm:p-5 ${toneClasses('lavender').surface}`}>
         <p className="text-caption font-semibold uppercase tracking-wide text-tone-lavender-fg">Band ước lượng</p>
         <BandScoreDisplay score={feedback.estimatedBand} targetBand={question.targetBand} label="" />
+        {exam && (
+          <p className="inline-flex items-center gap-1.5 rounded-full bg-tone-sky-soft px-2.5 py-1 text-caption font-semibold text-tone-sky-fg">
+            <Timer className="h-3.5 w-3.5" aria-hidden /> Bài thi thử{exam.autoSubmitted ? ' · tự nộp khi hết giờ' : ''}
+          </p>
+        )}
         <p className="text-caption text-slate-600 dark:text-slate-300">Điểm do AI ước lượng, không phải điểm IELTS chính thức.</p>
       </section>
 

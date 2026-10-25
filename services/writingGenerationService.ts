@@ -69,9 +69,13 @@ export async function generateWriting(userId: string, req: GenerateWritingReques
   return item;
 }
 
-/** A prompt for the admin editor to start from; nothing is saved. */
-export async function draftWritingPrompt(task: GenerateWritingRequest['task'], questionType: string): Promise<WritingQuestionBody> {
-  const g = await ask({ task, questionType, topic: '', difficulty: 'medium' });
+/** A prompt for the admin editor to start from, at its level and topic; nothing is saved. */
+export async function draftWritingPrompt(
+  task: GenerateWritingRequest['task'],
+  questionType: string,
+  opts: { difficulty?: GenerateWritingRequest['difficulty']; topic?: string } = {},
+): Promise<WritingQuestionBody> {
+  const g = await ask({ task, questionType, topic: opts.topic ?? '', difficulty: opts.difficulty ?? 'medium' });
   return g.question;
 }
 
