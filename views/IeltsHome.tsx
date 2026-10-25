@@ -6,16 +6,18 @@ import {
   CalendarDays,
   CheckCircle2,
   Compass,
+  GraduationCap,
   Headphones,
   Library,
   Mic,
   Minus,
   NotebookPen,
   PenTool,
+  ShieldCheck,
+  Sparkles,
   Target,
   TrendingDown,
   TrendingUp,
-  ShieldCheck,
 } from 'lucide-react';
 import { AppPhase, type IeltsAttempt, type IeltsSkill } from '../types';
 import { getIeltsAttempts } from '../services/ieltsAttemptService';
@@ -112,6 +114,17 @@ const fmtBand = (b: number | null) => (b == null ? '–' : b.toFixed(1));
 function todayIso(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function getAction3dIcon(target?: NextActionTarget): string {
+  if (!target) return '/ielts-3d-checklist.png';
+  if (target.kind === 'phase') {
+    if (target.phase === AppPhase.IELTS_WRITING_HUB) return '/ielts-3d-checklist.png';
+    if (target.phase === AppPhase.IELTS_READING_HUB) return '/reading-3d.png';
+    if (target.phase === AppPhase.IELTS_LISTENING_HUB) return '/listening-3d.png';
+    if (target.phase === AppPhase.IELTS_SPEAKING_HUB) return '/speaking-3d.png';
+  }
+  return '/ielts-3d-checklist.png';
 }
 
 const SkillCard: React.FC<{ def: SkillDef; progress: SkillProgress | null; loading: boolean; onOpen: () => void }> = ({
@@ -338,110 +351,214 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
   const updateGoal = (patch: Parameters<typeof setPreferences>[1]) => setPrefs(setPreferences(userId, patch));
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 anim-fade-up">
-      <header className="flex items-start gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-caption font-medium text-slate-500 dark:text-slate-400">IELTS Academic</p>
-          <h1 className="mt-1 text-heading font-bold text-slate-900 dark:text-white">Lộ trình IELTS của bạn</h1>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Học trong Thư viện, luyện đề, xem phản hồi rồi làm lại để lên band.</p>
-        </div>
-        {onOpenAdmin && (
-          <button
-            type="button"
-            onClick={onOpenAdmin}
-            className={`group ${secondaryBtn} flex-shrink-0 !gap-1.5 !px-3`}
-          >
-            <ShieldCheck className={`icon-pop h-4 w-4 ${toneClasses(NAV_TONE.admin).text}`} /> <span className="hidden sm:inline">Quản trị</span>
-            <span className="sr-only sm:hidden">Quản trị</span>
-          </button>
-        )}
-      </header>
+    <div className="relative mx-auto max-w-4xl space-y-6 anim-fade-up">
+      {/* Ambient pastel glow background lights */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-16 -left-10 -right-10 h-72 select-none overflow-hidden blur-3xl opacity-70 dark:opacity-20"
+      >
+        <div className="absolute top-2 right-12 h-60 w-80 rounded-full bg-gradient-to-br from-sky-200/50 via-indigo-100/40 to-transparent" />
+        <div className="absolute top-8 left-6 h-52 w-72 rounded-full bg-gradient-to-tr from-rose-200/40 via-orange-100/30 to-amber-100/20" />
+      </div>
 
-      <section aria-labelledby="ielts-next" className={`group rounded-2xl border p-4 sm:p-5 ${toneClasses(NAV_TONE.next).surface}`}>
-        <p className={`flex items-center gap-1.5 text-caption font-semibold ${toneClasses(NAV_TONE.next).text}`}>
-          <Compass className="icon-pop h-3.5 w-3.5" /> Việc nên làm tiếp
-        </p>
-        {action ? (
-          <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-center">
-            <div className="min-w-0 flex-1">
-              <h2 id="ielts-next" className="text-base font-semibold text-slate-900 dark:text-white">
-                {action.title}
-              </h2>
-              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{action.reason}</p>
+      {/* ─── 3D Header Section (Image 2 style) ─── */}
+      <div className="relative pt-2 pb-1">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="min-w-0 max-w-xl">
+            {/* Pill Badge */}
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-sky-200/80 bg-sky-50/90 px-3 py-1 text-xs font-semibold text-sky-700 shadow-sm backdrop-blur-md dark:border-sky-800/60 dark:bg-sky-950/40 dark:text-sky-300">
+              <GraduationCap className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
+              <span>IELTS Academic</span>
             </div>
-            <button type="button" onClick={() => onAction(action.target)} className={`${primaryBtn} w-full sm:w-auto`}>
-              {action.cta} <ArrowRight className="h-4 w-4" />
-            </button>
+
+            {/* Main Title with colorful 3D gradient IELTS */}
+            <h1 className="mt-2 text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+              Lộ trình{' '}
+              <span className="bg-gradient-to-r from-[#FF5E62] via-[#FF3366] to-[#FF8E53] bg-clip-text text-transparent">
+                IELTS
+              </span>{' '}
+              của bạn
+            </h1>
+
+            {/* Inspiring Subtitle */}
+            <p className="mt-1.5 text-sm sm:text-base text-slate-600 dark:text-slate-300">
+              Học thông minh. Luyện đúng trọng tâm. Đạt band như mong muốn.
+            </p>
           </div>
-        ) : (
-          <div className="mt-2 space-y-2" aria-hidden>
-            <h2 id="ielts-next" className="sr-only">
-              Việc nên làm tiếp
-            </h2>
-            <Skeleton className="h-5 w-2/3" />
-            <Skeleton className="h-4 w-full" />
+
+          {/* Right Header: Admin Button + 3D Study Composition */}
+          <div className="flex items-center gap-3 self-start md:self-auto">
+            {onOpenAdmin && (
+              <button
+                type="button"
+                onClick={onOpenAdmin}
+                className="group inline-flex items-center gap-1.5 rounded-full border border-white/80 bg-white/75 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm backdrop-blur-md transition-all hover:bg-white/95 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 dark:border-slate-700/80 dark:bg-slate-800/80 dark:text-slate-200"
+              >
+                <ShieldCheck className="h-4 w-4 text-sky-600 transition-transform group-hover:scale-110 dark:text-sky-400" />
+                <span className="hidden sm:inline">Quản trị</span>
+                <span className="sr-only sm:hidden">Quản trị</span>
+              </button>
+            )}
+
+            {/* 3D IELTS Study Composition Illustration */}
+            <div className="hidden sm:block relative -my-6 h-32 w-36 lg:h-36 lg:w-44 flex-shrink-0 select-none pointer-events-none">
+              <img
+                src="/ielts-study-composition.png"
+                alt="IELTS Study 3D Composition"
+                className="h-full w-full object-contain drop-shadow-[0_16px_28px_rgba(255,94,98,0.2)] anim-float"
+                loading="eager"
+              />
+            </div>
           </div>
-        )}
+        </div>
+      </div>
+
+      {/* ─── Next Action Card (Image 2 style) ─── */}
+      <section
+        aria-labelledby="ielts-next"
+        className="group relative overflow-hidden rounded-[28px] border border-white/90 bg-gradient-to-r from-white/95 via-white/90 to-rose-50/40 p-4 sm:p-5 shadow-[0_12px_36px_rgba(255,94,98,0.06)] backdrop-blur-xl transition-all hover:shadow-[0_16px_40px_rgba(255,94,98,0.1)] dark:border-slate-800/80 dark:bg-gradient-to-r dark:from-slate-900/90 dark:via-slate-900/80 dark:to-rose-950/20"
+      >
+        {/* Soft background glow */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-8 -top-8 h-36 w-36 rounded-full bg-rose-200/30 blur-2xl dark:bg-rose-900/20"
+        />
+
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center">
+          {/* 3D Action Checklist Icon */}
+          <div className="flex-shrink-0 self-center sm:self-auto">
+            <div className="relative flex h-20 w-20 sm:h-24 sm:w-24 items-center justify-center">
+              <img
+                src={getAction3dIcon(action?.target)}
+                alt="Bảng kiểm bóng bẩy với bút và quỹ đạo"
+                className="h-full w-full object-contain drop-shadow-[0_8px_18px_rgba(59,130,246,0.22)] transition-transform duration-300 group-hover:scale-105"
+                loading="eager"
+              />
+            </div>
+          </div>
+
+          {/* Action Text Content */}
+          <div className="min-w-0 flex-1">
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-rose-100/80 bg-rose-50/60 px-3 py-0.5 text-xs font-medium text-rose-500/90 backdrop-blur-sm dark:border-rose-900/30 dark:bg-rose-950/20 dark:text-rose-300/90">
+              <Sparkles className="h-3 w-3 text-rose-400" />
+              <span>Lets go bros</span>
+            </div>
+
+            {action ? (
+              <div className="mt-1">
+                <h2 id="ielts-next" className="text-lg sm:text-xl font-bold tracking-tight text-slate-900 dark:text-white">
+                  {action.title}
+                </h2>
+              </div>
+            ) : (
+              <div className="mt-2 space-y-2" aria-hidden>
+                <h2 id="ielts-next" className="sr-only">Việc nên làm tiếp</h2>
+                <Skeleton className="h-5 w-2/3" />
+              </div>
+            )}
+          </div>
+
+          {/* Action CTA Button (Soft pastel rounded button, icon only) */}
+          {action && (
+            <div className="flex-shrink-0 self-end sm:self-center">
+              <button
+                type="button"
+                onClick={() => onAction(action.target)}
+                aria-label={action.cta}
+                title={action.cta}
+                className="group/btn flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full border border-rose-200/70 bg-gradient-to-br from-rose-100/80 to-orange-100/70 text-rose-500 shadow-sm backdrop-blur-md transition-all hover:bg-gradient-to-br hover:from-rose-200/80 hover:to-orange-200/80 hover:scale-105 hover:shadow-md hover:text-rose-600 active:scale-95 dark:border-rose-900/40 dark:from-rose-950/50 dark:to-orange-950/30 dark:text-rose-300"
+              >
+                <ArrowRight className="h-5 w-5 transition-transform group-hover/btn:translate-x-0.5" />
+                <span className="sr-only">{action.cta}</span>
+              </button>
+            </div>
+          )}
+        </div>
       </section>
 
-      <section aria-labelledby="ielts-goal" className={`${panel} p-4 sm:p-5`}>
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h2 id="ielts-goal" className="text-caption font-medium text-slate-500 dark:text-slate-400">
-              Band ước tính
-            </h2>
-            {attempts === null ? (
-              <Skeleton className="mt-2 h-9 w-16" />
-            ) : (
-              <p className={`mt-1 text-[2rem] font-bold leading-none tabular-nums ${toneClasses(NAV_TONE.goal).text}`}>{fmtBand(overall)}</p>
-            )}
-            <p className="mt-2 text-caption text-slate-500 dark:text-slate-400">{overallNote(skillBands.length)}</p>
+      {/* ─── Band Estimate & Goal Card (Image 2 style) ─── */}
+      <section
+        aria-labelledby="ielts-goal"
+        className="relative rounded-[28px] border border-white/90 bg-white/85 p-5 sm:p-6 shadow-[0_16px_40px_rgba(0,0,0,0.04)] backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/85"
+      >
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          {/* Left: 3D Badge + Score Typography */}
+          <div className="flex items-center gap-4 sm:gap-5">
+            <div className="relative flex h-20 w-20 sm:h-24 sm:w-24 flex-shrink-0 items-center justify-center">
+              <img
+                src="/ielts-3d-target-dart.png"
+                alt="Biểu tượng bia phi tiêu 3D bóng bẩy"
+                className="h-full w-full object-contain drop-shadow-[0_10px_20px_rgba(244,63,94,0.22)] transition-transform duration-300 hover:scale-105"
+                loading="eager"
+              />
+            </div>
+
+            <div className="min-w-0">
+              <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                <h2 id="ielts-goal" className="font-semibold">Band ước tính</h2>
+              </div>
+
+              {attempts === null ? (
+                <Skeleton className="mt-2 h-9 w-16" />
+              ) : (
+                <p className="mt-1 text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white leading-none">
+                  {fmtBand(overall)}
+                </p>
+              )}
+
+              {days != null && (
+                <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                    {days > 0 ? `${days} ngày nữa tới kỳ thi` : days === 0 ? 'Hôm nay là ngày thi' : 'Ngày thi đã qua'}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
-          <div className="text-right">
-            {gap != null && (
-              <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                {gap === 0 ? 'Đã đạt mục tiêu' : `Còn ${gap.toFixed(1)} band tới mục tiêu`}
-              </p>
-            )}
-            {days != null && (
-              <p className="text-caption text-slate-500 dark:text-slate-400">
-                {days > 0 ? `${days} ngày nữa tới kỳ thi` : days === 0 ? 'Hôm nay là ngày thi' : 'Ngày thi đã qua'}
-              </p>
-            )}
+
+          {/* Right: Target Band & Exam Date Pill Inputs */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 lg:w-auto lg:min-w-[360px]">
+            {/* Band mục tiêu */}
+            <div className="flex flex-col">
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                <Target className="h-3.5 w-3.5 text-sky-500" />
+                <span>Band mục tiêu</span>
+              </span>
+              <div className="relative mt-1.5 flex items-center rounded-2xl border border-slate-200/90 bg-slate-50/80 px-3.5 py-2.5 shadow-sm backdrop-blur-md transition-all hover:border-slate-300 focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-400/20 dark:border-slate-700/80 dark:bg-slate-800/80">
+                <select
+                  className="w-full bg-transparent text-sm font-semibold text-slate-800 focus:outline-none dark:text-slate-100 cursor-pointer"
+                  value={prefs.ieltsTargetBand ?? ''}
+                  onChange={(e) => updateGoal({ ieltsTargetBand: e.target.value ? Number(e.target.value) : null })}
+                >
+                  <option value="">Chưa đặt</option>
+                  {IELTS_TARGET_BANDS.map((b) => (
+                    <option key={b} value={b}>
+                      {b.toFixed(1)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Ngày thi */}
+            <div className="flex flex-col">
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                <CalendarDays className="h-3.5 w-3.5 text-rose-500" />
+                <span>Ngày thi</span>
+              </span>
+              <div className="relative mt-1.5 flex items-center rounded-2xl border border-slate-200/90 bg-slate-50/80 px-3.5 py-2.5 shadow-sm backdrop-blur-md transition-all hover:border-slate-300 focus-within:border-rose-400 focus-within:ring-2 focus-within:ring-rose-400/20 dark:border-slate-700/80 dark:bg-slate-800/80">
+                <input
+                  type="date"
+                  className="w-full bg-transparent text-sm font-semibold text-slate-800 focus:outline-none dark:text-slate-100 cursor-pointer"
+                  min={todayIso()}
+                  value={prefs.ieltsExamDate ?? ''}
+                  onChange={(e) => updateGoal({ ieltsExamDate: e.target.value || null })}
+                />
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <label className="block">
-            <span className="flex items-center gap-1.5 text-caption font-medium text-slate-600 dark:text-slate-300">
-              <Target className={`h-3.5 w-3.5 ${toneClasses(NAV_TONE.goal).text}`} /> Band mục tiêu
-            </span>
-            <select
-              className={`${field} mt-1`}
-              value={prefs.ieltsTargetBand ?? ''}
-              onChange={(e) => updateGoal({ ieltsTargetBand: e.target.value ? Number(e.target.value) : null })}
-            >
-              <option value="">Chưa đặt</option>
-              {IELTS_TARGET_BANDS.map((b) => (
-                <option key={b} value={b}>
-                  {b.toFixed(1)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="flex items-center gap-1.5 text-caption font-medium text-slate-600 dark:text-slate-300">
-              <CalendarDays className={`h-3.5 w-3.5 ${toneClasses('butter').text}`} /> Ngày thi
-            </span>
-            <input
-              type="date"
-              className={`${field} mt-1`}
-              min={todayIso()}
-              value={prefs.ieltsExamDate ?? ''}
-              onChange={(e) => updateGoal({ ieltsExamDate: e.target.value || null })}
-            />
-          </label>
-        </div>
         {loadFailed && (
           <p className={`mt-3 text-caption ${toneClasses('butter').text}`}>
             Chưa tải được lịch sử luyện tập.{' '}

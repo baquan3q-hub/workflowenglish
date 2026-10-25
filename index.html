@@ -595,6 +595,78 @@
     .anim-waveform {
       animation: waveformBar 0.8s ease-in-out infinite alternate;
     }
+
+    /* ─── Sui Overflow 2025/2026 Neo-Brutalist & 3D Isometric Styles ─── */
+    .bg-blueprint-grid {
+      background-color: #f8fafc;
+      background-image: 
+        linear-gradient(to right, rgba(37, 99, 235, 0.09) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(37, 99, 235, 0.09) 1px, transparent 1px);
+      background-size: 32px 32px;
+    }
+
+    .dark .bg-blueprint-grid {
+      background-color: #090d16;
+      background-image: 
+        linear-gradient(to right, rgba(96, 165, 250, 0.08) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(96, 165, 250, 0.08) 1px, transparent 1px);
+      background-size: 32px 32px;
+    }
+
+    @keyframes marqueeInfinite {
+      0% { transform: translateX(0%); }
+      100% { transform: translateX(-50%); }
+    }
+
+    /* Marquee Infinite Smooth Auto-moving Animation (Always moves, never paused) */
+    @keyframes marqueeScrollX {
+      0% {
+        transform: translate3d(0, 0, 0);
+        -webkit-transform: translate3d(0, 0, 0);
+      }
+      100% {
+        transform: translate3d(-100%, 0, 0);
+        -webkit-transform: translate3d(-100%, 0, 0);
+      }
+    }
+
+    .anim-marquee-track {
+      display: flex;
+      flex-shrink: 0;
+      min-width: 100%;
+      align-items: center;
+      animation: marqueeScrollX 22s linear infinite !important;
+      -webkit-animation: marqueeScrollX 22s linear infinite !important;
+      will-change: transform;
+    }
+
+    /* Keycaps Emotion Floating & Bobbing */
+    @keyframes keycapBob1 {
+      0%, 100% { transform: translateY(0px) rotate(0deg); }
+      50% { transform: translateY(-7px) rotate(-1.5deg); }
+    }
+    @keyframes keycapBob2 {
+      0%, 100% { transform: translateY(0px) rotate(0deg); }
+      50% { transform: translateY(-9px) rotate(1.5deg); }
+    }
+    @keyframes keycapBob3 {
+      0%, 100% { transform: translateY(0px) rotate(0deg); }
+      50% { transform: translateY(-6px) rotate(-1deg); }
+    }
+
+    .anim-keycap-1 { animation: keycapBob1 3.2s ease-in-out infinite; }
+    .anim-keycap-2 { animation: keycapBob2 2.8s ease-in-out infinite 0.4s; }
+    .anim-keycap-3 { animation: keycapBob3 3.5s ease-in-out infinite 0.8s; }
+
+    /* Emotion Eye Blinking Animation */
+    @keyframes emotionBlink {
+      0%, 92%, 100% { transform: scaleY(1); }
+      95% { transform: scaleY(0.1); }
+    }
+    .anim-emotion-blink {
+      transform-origin: center;
+      animation: emotionBlink 3.8s ease-in-out infinite;
+    }
   </style>
   <script type="importmap">
 {
