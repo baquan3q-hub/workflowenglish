@@ -3,10 +3,12 @@
  * search, status filter, new, edit, duplicate and delete.
  */
 import React, { useMemo, useState } from 'react';
-import { BookOpenText, Copy, FilePlus2, Headphones, Pencil, Search, Trash2, Youtube } from 'lucide-react';
+import { BookOpenText, Copy, FilePlus2, Headphones, PenLine, Pencil, Search, Trash2, Youtube } from 'lucide-react';
 import { filterLibrary, itemStats, STATUS_LABELS_VI, type LibraryItem, type LibraryKind, type StatusFilter } from '../../../services/listeningLibraryLogic';
 import { filterReadingLibrary, readingItemStats, type ReadingLibraryItem } from '../../../services/readingLibraryLogic';
+import { filterWritingLibrary, QUESTION_TYPE_LABELS, TASK_LABELS, writingItemStats, type WritingLibraryItem } from '../../../services/writingLibraryLogic';
 import { formatTimestamp } from '../../../services/youtubeLogic';
+import type { WritingTaskId } from '../../../supabase/functions/ai-proxy/ops/writingRules.ts';
 import { Segmented } from '../../ui/Segmented';
 import { dangerBtn, hint, iconBtn, input, panel, primaryBtn, secondaryBtn, tag } from './styles';
 import { toneClasses } from '../../ui/palette';
@@ -17,7 +19,7 @@ const publishedTag = `inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 te
 interface ListItem {
   id: string;
   title: string;
-  kind: LibraryKind;
+  kind: string;
   status: LibraryItem['status'];
   updatedAt: string;
 }
@@ -28,6 +30,8 @@ export interface ListConfig<T extends ListItem> {
   description: string;
   newFull: string;
   newPractice: string;
+  /** The kinds the two "new" buttons make; Listening and Reading use full and practice. */
+  newKinds?: [string, string];
   searchPlaceholder: string;
   emptyIcon: React.ComponentType<{ className?: string }>;
   emptyHint: string;
@@ -39,7 +43,7 @@ export interface ListConfig<T extends ListItem> {
 interface Props<T extends ListItem> {
   config: ListConfig<T>;
   items: T[];
-  onNew: (kind: LibraryKind) => void;
+  onNew: (kind: any) => void;
   onEdit: (item: T) => void;
   onDuplicate: (item: T) => void;
   onDelete: (item: T) => void;
@@ -101,6 +105,32 @@ export const READING_LIST: ListConfig<ReadingLibraryItem> = {
   },
 };
 
+export const WRITING_LIST: ListConfig<WritingLibraryItem> = {
+  heading: 'Đề Writing',
+  description: 'Đề đã xuất bản hiện trong danh sách đề Writing của học viên, cùng các đề có sẵn.',
+  newFull: 'Đề Task 1',
+  newPractice: 'Đề Task 2',
+  newKinds: ['task_1', 'task_2'],
+  searchPlaceholder: 'Tìm theo tên, chủ đề hoặc nội dung đề',
+  emptyIcon: PenLine,
+  emptyHint: 'Viết đề Task 1 với số liệu biểu đồ hoặc đề Task 2, hoặc để AI soạn bản nháp.',
+  filter: filterWritingLibrary,
+  meta: (item) => {
+    const stats = writingItemStats(item);
+    return {
+      tags: [
+        <span key="task" className={tag}>
+          {TASK_LABELS[item.kind as WritingTaskId]}
+        </span>,
+        <span key="type" className={tag}>
+          {QUESTION_TYPE_LABELS[item.question.questionType] ?? item.question.questionType}
+        </span>,
+      ],
+      line: `${item.question.topic || 'Chưa có chủ đề'} · ${stats.words} từ${stats.chart ? ' · có biểu đồ' : ''}`,
+    };
+  },
+};
+
 export default function LibraryList<T extends ListItem>({ config, items, onNew, onEdit, onDuplicate, onDelete, busyId }: Props<T>) {
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
@@ -118,10 +148,10 @@ export default function LibraryList<T extends ListItem>({ config, items, onNew, 
           <p className={`mt-1 ${hint}`}>{config.description}</p>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex">
-          <button type="button" onClick={() => onNew('full')} className={primaryBtn}>
+          <button type="button" onClick={() => onNew(config.newKinds?.[0] ?? 'full')} className={primaryBtn}>
             <FilePlus2 className="h-4 w-4" /> {config.newFull}
           </button>
-          <button type="button" onClick={() => onNew('practice')} className={secondaryBtn}>
+          <button type="button" onClick={() => onNew(config.newKinds?.[1] ?? 'practice')} className={secondaryBtn}>
             <FilePlus2 className="h-4 w-4" /> {config.newPractice}
           </button>
         </div>

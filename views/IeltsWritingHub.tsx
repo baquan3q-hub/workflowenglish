@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { IeltsAttempt, IeltsQuestion } from '../types';
 import { getWritingQuestionById, getWritingQuestions } from '../services/ieltsWritingService';
+import { getPublishedWritingLibrary } from '../services/writingLibraryService';
+import { isGeneratedWritingQuestionId } from '../services/writingGenerationLogic';
+import GeneratedPrompts, { type GeneratedPromptsApi } from '../components/ielts/writing/GeneratedPrompts';
 import { getIeltsAttempts } from '../services/ieltsAttemptService';
 import { ieltsFrameworks } from '../data/ieltsFrameworks';
 import { QuestionCard, FilterBar, FrameworkCard } from '../components/IeltsCommon';
@@ -43,6 +46,10 @@ interface Props {
   onOpenStudy: (tab: WritingStudyTab) => void;
   /** Writing attempts of the learner; injectable for previews and tests. */
   loadAttempts?: (userId: string) => Promise<IeltsAttempt[]>;
+  /** Published prompts from the admin library; injectable for previews and tests. */
+  loadLibrary?: () => Promise<IeltsQuestion[]>;
+  /** "Đề AI tạo" service calls; injectable for previews and tests. */
+  generatedApi?: GeneratedPromptsApi;
 }
 
 const loadWritingAttempts = (userId: string) => getIeltsAttempts(userId, 'writing', 100);
@@ -57,7 +64,7 @@ function Stat({ icon: Icon, tone, value, label }: { icon: React.ElementType; ton
   );
 }
 
-export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttempt, onOpenStudy, loadAttempts = loadWritingAttempts }: Props) {
+export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttempt, onOpenStudy, loadAttempts = loadWritingAttempts, loadLibrary = getPublishedWritingLibrary, generatedApi }: Props) {
   const [activeTab, setActiveTab] = useState<'task_1' | 'task_2'>('task_1');
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [showFrameworks, setShowFrameworks] = useState(false);
@@ -68,6 +75,18 @@ export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttemp
   };
   const [attempts, setAttempts] = useState<IeltsAttempt[]>([]);
   const [drafts] = useState<WritingDraft[]>(() => (userId ? listWritingDrafts(userId) : []));
+
+  // Library prompts register themselves when they load; this redraws the list with them.
+  const [libraryLoads, setLibraryLoads] = useState(0);
+  useEffect(() => {
+    let live = true;
+    loadLibrary()
+      .catch(() => [])
+      .then(() => live && setLibraryLoads((n) => n + 1));
+    return () => {
+      live = false;
+    };
+  }, [loadLibrary]);
 
   useEffect(() => {
     if (!userId) return;
@@ -80,6 +99,7 @@ export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttemp
     };
   }, [userId, loadAttempts]);
 
+  // The AI's prompts have their own section below; the list holds the bank and the library.
   const questions = useMemo(
     () =>
       getWritingQuestions({
@@ -87,12 +107,15 @@ export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttemp
         essayType: filters.essayType || undefined,
         topic: filters.topic || undefined,
         difficulty: filters.difficulty || undefined,
-      }),
-    [activeTab, filters],
+      }).filter((q) => !isGeneratedWritingQuestionId(q.id)),
+    [activeTab, filters, libraryLoads],
   );
 
   const writingFrameworks = ieltsFrameworks.filter((f) => f.skill === 'writing');
-  const topics = useMemo(() => questionTopics(getWritingQuestions({ taskOrPart: activeTab })), [activeTab]);
+  const topics = useMemo(
+    () => questionTopics(getWritingQuestions({ taskOrPart: activeTab }).filter((q) => !isGeneratedWritingQuestionId(q.id))),
+    [activeTab, libraryLoads],
+  );
   const progress = useMemo(() => progressByPrompt(attempts), [attempts]);
   const summary = useMemo(() => summarizeWriting(attempts), [attempts]);
   const resume = useMemo(
@@ -100,7 +123,8 @@ export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttemp
       drafts
         .map((d) => ({ draft: d, question: getWritingQuestionById(d.questionId) }))
         .filter((r): r is { draft: WritingDraft; question: IeltsQuestion } => !!r.question),
-    [drafts],
+    // Library and AI prompts register when they load, so their drafts show up then.
+    [drafts, libraryLoads],
   );
 
   const filterOptions = [
@@ -212,6 +236,8 @@ export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttemp
           ))}
         </ul>
       </section>
+
+      <GeneratedPrompts userId={userId} api={generatedApi} onStart={(q) => onSelectQuestion(q, mode)} onListed={() => setLibraryLoads((n) => n + 1)} />
 
       {/* Practice history */}
       <IeltsAttemptHistory userId={userId} skill="writing" onOpenAttempt={onOpenAttempt} />

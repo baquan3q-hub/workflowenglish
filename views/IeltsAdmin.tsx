@@ -6,15 +6,19 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, CircleAlert, Loader2, ShieldCheck } from 'lucide-react';
 import AiHealthPanel from '../components/ielts/admin/AiHealthPanel';
-import LibraryList, { LISTENING_LIST, READING_LIST } from '../components/ielts/admin/LibraryList';
+import LibraryList, { LISTENING_LIST, READING_LIST, WRITING_LIST } from '../components/ielts/admin/LibraryList';
 import ListeningEditor from '../components/ielts/admin/ListeningEditor';
 import ReadingEditor from '../components/ielts/admin/ReadingEditor';
+import WritingEditor, { type DraftWriter } from '../components/ielts/admin/WritingEditor';
 import { hint, panel, secondaryBtn } from '../components/ielts/admin/styles';
 import { Tabs } from '../components/ui/Tabs';
 import { duplicateItem, emptyItem, type LibraryItem } from '../services/listeningLibraryLogic';
 import { deleteLibraryItem, getAllLibrary, isAppAdmin, LIBRARY_LIST_LIMIT, saveLibraryItem } from '../services/listeningLibraryService';
 import { duplicateReadingItem, emptyReadingItem, type ReadingLibraryItem } from '../services/readingLibraryLogic';
 import { deleteReadingLibraryItem, getAllReadingLibrary, READING_LIST_LIMIT, saveReadingLibraryItem } from '../services/readingLibraryService';
+import { duplicateWritingItem, emptyWritingItem, type WritingLibraryItem } from '../services/writingLibraryLogic';
+import { deleteWritingLibraryItem, getAllWritingLibrary, saveWritingLibraryItem, WRITING_LIST_LIMIT } from '../services/writingLibraryService';
+import { draftWritingPrompt } from '../services/writingGenerationService';
 
 /** Reads and writes one skill's library. */
 export interface LibraryApi<T> {
@@ -26,6 +30,9 @@ export interface LibraryApi<T> {
 export interface AdminApi extends LibraryApi<LibraryItem> {
   isAdmin: (userId: string) => Promise<boolean>;
   reading: LibraryApi<ReadingLibraryItem>;
+  writing: LibraryApi<WritingLibraryItem>;
+  /** Asks the AI for a draft prompt; omit to hide the button. */
+  draftWriting?: DraftWriter;
 }
 
 const defaultApi: AdminApi = {
@@ -34,13 +41,15 @@ const defaultApi: AdminApi = {
   save: saveLibraryItem,
   remove: deleteLibraryItem,
   reading: { list: getAllReadingLibrary, save: saveReadingLibraryItem, remove: deleteReadingLibraryItem },
+  writing: { list: getAllWritingLibrary, save: saveWritingLibraryItem, remove: deleteWritingLibraryItem },
+  draftWriting: draftWritingPrompt,
 };
 
 interface Props {
   userId: string;
   onBack: () => void;
   /** Opens a test on the practice screen without saving an attempt; the editor's state is kept. */
-  onPreview: (editing: AdminEditing) => void;
+  onPreview: (editing: Extract<AdminEditing, { skill: 'listening' | 'reading' }>) => void;
   /** The test being edited when coming back from a preview. */
   editing?: AdminEditing | null;
   onEditingChange?: (editing: AdminEditing | null) => void;
@@ -51,9 +60,10 @@ interface Props {
 /** The test open in the editor: its draft and what is stored (null when never saved). */
 export type AdminEditing =
   | { skill: 'listening'; item: LibraryItem; saved: LibraryItem | null }
-  | { skill: 'reading'; item: ReadingLibraryItem; saved: ReadingLibraryItem | null };
+  | { skill: 'reading'; item: ReadingLibraryItem; saved: ReadingLibraryItem | null }
+  | { skill: 'writing'; item: WritingLibraryItem; saved: WritingLibraryItem | null };
 
-type Tab = 'listening' | 'reading' | 'health';
+type Tab = 'listening' | 'reading' | 'writing' | 'health';
 
 const ADMIN_SQL = `insert into public.app_admins (user_id)
 select id from auth.users where email = '<email của bạn>'
@@ -120,6 +130,7 @@ export default function IeltsAdmin({ userId, onBack, onPreview, editing: editing
   const setEditing = (e: AdminEditing | null) => (onEditingChange ? onEditingChange(e) : setEditingLocal(e));
   const listening = useLibrary(api, !!admin);
   const reading = useLibrary(api.reading, !!admin);
+  const writing = useLibrary(api.writing, !!admin);
 
   useEffect(() => {
     let live = true;
@@ -140,6 +151,13 @@ export default function IeltsAdmin({ userId, onBack, onPreview, editing: editing
     const stored = await api.reading.save(item);
     reading.stored(stored);
     setEditing({ skill: 'reading', item: stored, saved: stored });
+    return stored;
+  };
+
+  const saveWriting = async (item: WritingLibraryItem) => {
+    const stored = await api.writing.save(item);
+    writing.stored(stored);
+    setEditing({ skill: 'writing', item: stored, saved: stored });
     return stored;
   };
 
@@ -184,9 +202,9 @@ export default function IeltsAdmin({ userId, onBack, onPreview, editing: editing
     );
   }
 
-  const lib = tab === 'reading' ? reading : listening;
+  const lib = tab === 'reading' ? reading : tab === 'writing' ? writing : listening;
   const error = editing ? '' : tab === 'health' ? '' : lib.error;
-  const limit = tab === 'reading' ? READING_LIST_LIMIT : LIBRARY_LIST_LIMIT;
+  const limit = tab === 'reading' ? READING_LIST_LIMIT : tab === 'writing' ? WRITING_LIST_LIMIT : LIBRARY_LIST_LIMIT;
   const loading = <p className={`flex items-center gap-2 ${hint}`}><Loader2 className="h-4 w-4 animate-spin" /> Đang tải đề…</p>;
   const limitNote = (n: number) => n >= limit && <p className={hint}>Đang hiện {limit} đề sửa gần nhất; đề cũ hơn không có trong danh sách.</p>;
 
@@ -201,6 +219,7 @@ export default function IeltsAdmin({ userId, onBack, onPreview, editing: editing
           items={[
             { id: 'listening', label: 'Đề Listening', count: listening.items?.length },
             { id: 'reading', label: 'Đề Reading', count: reading.items?.length },
+            { id: 'writing', label: 'Đề Writing', count: writing.items?.length },
             { id: 'health', label: 'Kiểm tra AI' },
           ]}
         />
@@ -231,8 +250,34 @@ export default function IeltsAdmin({ userId, onBack, onPreview, editing: editing
           onClose={() => setEditing(null)}
           onPreview={(item, saved) => onPreview({ skill: 'reading', item, saved })}
         />
+      ) : editing?.skill === 'writing' ? (
+        <WritingEditor
+          key={editing.item.id}
+          item={editing.item}
+          saved={editing.saved}
+          onSave={saveWriting}
+          onClose={() => setEditing(null)}
+          draftWithAi={api.draftWriting}
+        />
       ) : tab === 'health' ? (
         <AiHealthPanel />
+      ) : tab === 'writing' ? (
+        writing.items === null ? (
+          loading
+        ) : (
+          <>
+            {limitNote(writing.items.length)}
+            <LibraryList
+              config={WRITING_LIST}
+              items={writing.items}
+              busyId={writing.busyId}
+              onNew={(task) => setEditing({ skill: 'writing', item: emptyWritingItem(newId(), task), saved: null })}
+              onEdit={(item) => setEditing({ skill: 'writing', item, saved: item })}
+              onDuplicate={(item) => writing.duplicate(item, duplicateWritingItem(item, newId()))}
+              onDelete={writing.remove}
+            />
+          </>
+        )
       ) : tab === 'reading' ? (
         reading.items === null ? (
           loading

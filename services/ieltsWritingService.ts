@@ -1,5 +1,5 @@
 import { IeltsAiFeedback, IeltsQuestion, IeltsWritingIdeas } from '../types';
-import { writingTask2Questions } from '../data/ieltsWritingQuestions';
+import { allWritingQuestions } from './writingQuestionRegistry';
 import { guideForQuestionType } from '../data/ielts/writingGuides';
 import { invokeAi } from './aiClient';
 
@@ -29,7 +29,7 @@ export function getWritingQuestions(filters?: {
   topic?: string;
   difficulty?: string;
 }): IeltsQuestion[] {
-  let questions = writingTask2Questions;
+  let questions = allWritingQuestions();
 
   if (filters?.taskOrPart) {
     questions = questions.filter(q => q.taskOrPart === filters.taskOrPart);
@@ -49,5 +49,5 @@ export function getWritingQuestions(filters?: {
 }
 
 export function getWritingQuestionById(id: string): IeltsQuestion | undefined {
-  return writingTask2Questions.find(q => q.id === id);
+  return allWritingQuestions().find(q => q.id === id);
 }

@@ -10,7 +10,7 @@
 import { supabase, withTimeout } from './supabaseClient';
 import type { ReadingAttemptDetails } from './readingLogic';
 import { IeltsAiFeedback, IeltsAttempt, IeltsQuestion, IeltsSkill } from '../types';
-import { writingTask2Questions } from '../data/ieltsWritingQuestions';
+import { allWritingQuestions } from './writingQuestionRegistry';
 import { speakingPart1Questions } from '../data/ieltsSpeakingQuestions';
 
 const TABLE = 'ielts_attempts';
@@ -85,7 +85,7 @@ function rowToAttempt(row: IeltsAttemptRow): IeltsAttempt {
  * build a minimal stand-in so the feedback screen can still be shown.
  */
 export function resolveAttemptQuestion(attempt: IeltsAttempt): IeltsQuestion {
-  const bank = attempt.skill === 'writing' ? writingTask2Questions : speakingPart1Questions;
+  const bank = attempt.skill === 'writing' ? allWritingQuestions() : speakingPart1Questions;
   const match = bank.find(q => q.prompt === attempt.questionPrompt);
   if (match) return match;
   return {
