@@ -144,3 +144,33 @@ export function summarizeWriting(attempts: readonly IeltsAttempt[]): WritingSumm
     averageBand: bands.length ? Math.round((bands.reduce((s, b) => s + b, 0) / bands.length) * 10) / 10 : null,
   };
 }
+
+// --- Exam mode ---------------------------------------------------------------------------
+
+export type WritingMode = 'practice' | 'exam';
+
+const MODE_KEY = 'ielts-writing-mode';
+
+export function readWritingMode(storage: Pick<Storage, 'getItem'> = localStorage): WritingMode {
+  try {
+    return storage.getItem(MODE_KEY) === 'exam' ? 'exam' : 'practice';
+  } catch {
+    return 'practice';
+  }
+}
+
+export function saveWritingMode(mode: WritingMode, storage: Pick<Storage, 'setItem'> = localStorage) {
+  try {
+    storage.setItem(MODE_KEY, mode);
+  } catch {
+    /* the choice just is not remembered */
+  }
+}
+
+/** Seconds left of the task's time limit; 0 once it is over. */
+export function examSecondsLeft(startMs: number, nowMs: number, minutes: number): number {
+  return Math.max(0, Math.ceil(minutes * 60 - (nowMs - startMs) / 1000));
+}
+
+/** What happens when the time is up: send what is written, or nothing to grade. */
+export const examOutcome = (wordCount: number): 'submit' | 'empty' => (wordCount >= 1 ? 'submit' : 'empty');

@@ -123,3 +123,32 @@ describe('progress per prompt', () => {
     expect(summarizeWriting([])).toEqual({ prompts: 0, attempts: 0, bestBand: null, averageBand: null });
   });
 });
+
+import { examOutcome, examSecondsLeft, readWritingMode, saveWritingMode } from '../writingPracticeLogic';
+
+describe('exam mode', () => {
+  it('counts the seconds left and stops at zero', () => {
+    const start = 1_000_000;
+    expect(examSecondsLeft(start, start, 20)).toBe(1200);
+    expect(examSecondsLeft(start, start + 60_500, 20)).toBe(1140);
+    expect(examSecondsLeft(start, start + 20 * 60_000, 20)).toBe(0);
+    expect(examSecondsLeft(start, start + 99 * 60_000, 20)).toBe(0);
+  });
+
+  it('sends what is written when time is up, and has nothing to grade otherwise', () => {
+    expect(examOutcome(0)).toBe('empty');
+    expect(examOutcome(1)).toBe('submit');
+    expect(examOutcome(300)).toBe('submit');
+  });
+
+  it('remembers the chosen mode', () => {
+    const map = new Map<string, string>();
+    const s = { getItem: (k: string) => map.get(k) ?? null, setItem: (k: string, v: string) => void map.set(k, v) };
+    expect(readWritingMode(s)).toBe('practice');
+    saveWritingMode('exam', s);
+    expect(readWritingMode(s)).toBe('exam');
+    saveWritingMode('practice', s);
+    expect(readWritingMode(s)).toBe('practice');
+    expect(readWritingMode({ getItem: () => { throw new Error('blocked'); } })).toBe('practice');
+  });
+});

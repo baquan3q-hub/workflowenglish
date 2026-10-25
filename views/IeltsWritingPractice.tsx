@@ -3,14 +3,14 @@ import { IeltsQuestion } from '../types';
 import { ieltsFrameworks } from '../data/ieltsFrameworks';
 import { WritingTimer, WordCountDisplay, FrameworkCard } from '../components/IeltsCommon';
 import IeltsChartRenderer from '../components/IeltsChartRenderer';
-import { ArrowLeft, Send, Lightbulb, ChevronDown, ChevronUp, Loader2, BookOpen, Columns2, Maximize2, TriangleAlert, CircleCheck, Save } from 'lucide-react';
+import { ArrowLeft, Send, Lightbulb, ChevronDown, ChevronUp, Loader2, BookOpen, Columns2, Maximize2, TriangleAlert, CircleCheck, Save, Timer } from 'lucide-react';
 import { guideForQuestionType } from '../data/ielts/writingGuides';
 import GuideDrawer from '../components/ielts/writing/GuideDrawer';
 import IdeasPanel from '../components/ielts/writing/IdeasPanel';
 import { IconTile } from '../components/ui/IconTile';
 import { toneClasses } from '../components/ui/palette';
 import { panel, primaryBtn, secondaryBtn } from '../components/ui/styles';
-import { countWords, readWritingDraft, saveWritingDraft, writingLimits } from '../services/writingPracticeLogic';
+import { countWords, examOutcome, readWritingDraft, saveWritingDraft, writingLimits, type WritingMode } from '../services/writingPracticeLogic';
 
 const compactBtn = secondaryBtn.replace('px-4', 'px-3');
 const SAVE_DELAY_MS = 800;
@@ -28,15 +28,18 @@ function WordStatus({ wordCount, minWords }: { wordCount: number; minWords: numb
 interface Props {
   userId: string;
   question: IeltsQuestion;
-  onSubmit: (answer: string, durationSeconds: number) => void;
+  onSubmit: (answer: string, durationSeconds: number, meta: { mode: WritingMode; autoSubmitted: boolean }) => void;
   onBack: () => void;
   isGrading: boolean;
   /** Text to start from when rewriting; otherwise the draft kept on this device. */
   initialDraft?: string;
+  /** Exam: countdown that sends the essay when it ends, no hints, no draft kept. */
+  mode?: WritingMode;
 }
 
-export default function IeltsWritingPractice({ userId, question, onSubmit, onBack, isGrading, initialDraft }: Props) {
-  const [restored] = useState(() => (initialDraft ? null : readWritingDraft(userId, question.id)));
+export default function IeltsWritingPractice({ userId, question, onSubmit, onBack, isGrading, initialDraft, mode = 'practice' }: Props) {
+  const isExam = mode === 'exam';
+  const [restored] = useState(() => (initialDraft || isExam ? null : readWritingDraft(userId, question.id)));
   const [answer, setAnswer] = useState(initialDraft || restored?.text || '');
   const [showFramework, setShowFramework] = useState(false);
   const [showPlanningPrompts, setShowPlanningPrompts] = useState(true);
@@ -45,6 +48,9 @@ export default function IeltsWritingPractice({ userId, question, onSubmit, onBac
   const [isSplit, setIsSplit] = useState(true);
   const [showGuide, setShowGuide] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(restored ? Date.now() : null);
+  const [confirmExit, setConfirmExit] = useState(false);
+  const [timeUpEmpty, setTimeUpEmpty] = useState(false);
+  const sent = useRef(false);
   const guide = guideForQuestionType(question.questionType);
   const closeGuide = useCallback(() => setShowGuide(false), []);
 
@@ -57,9 +63,10 @@ export default function IeltsWritingPractice({ userId, question, onSubmit, onBac
   const latest = useRef(answer);
   latest.current = answer;
   const persist = useCallback(() => {
+    if (isExam) return;
     const elapsed = (Date.now() - startTime) / 1000;
     if (saveWritingDraft(userId, question.id, latest.current, elapsed)) setSavedAt(Date.now());
-  }, [userId, question.id, startTime]);
+  }, [userId, question.id, startTime, isExam]);
 
   useEffect(() => {
     if (isGrading || answer === (initialDraft || restored?.text || '')) return;
@@ -76,21 +83,44 @@ export default function IeltsWritingPractice({ userId, question, onSubmit, onBac
   }, [persist]);
 
   const goBack = () => {
+    // An exam attempt is not kept: ask before throwing away what is written.
+    if (isExam && !isGrading && !timeUpEmpty && countWords(latest.current) > 0 && !confirmExit) {
+      setConfirmExit(true);
+      return;
+    }
     if (!isGrading) persist();
     onBack();
   };
 
-  const handleSubmit = useCallback(() => {
-    if (wordCount < 1 || isGrading) return;
-    onSubmit(answer, Math.floor((Date.now() - startTime) / 1000));
-  }, [answer, wordCount, isGrading, startTime, onSubmit]);
+  const send = useCallback(
+    (auto: boolean) => {
+      if (sent.current || isGrading || countWords(latest.current) < 1) return;
+      sent.current = true;
+      const spent = Math.floor((Date.now() - startTime) / 1000);
+      onSubmit(latest.current, auto ? Math.min(spent, timeLimit * 60) : spent, { mode, autoSubmitted: auto });
+    },
+    [isGrading, startTime, timeLimit, onSubmit, mode],
+  );
+
+  // A failed grading lets the learner send again.
+  useEffect(() => {
+    if (!isGrading) sent.current = false;
+  }, [isGrading]);
+
+  const handleSubmit = useCallback(() => send(false), [send]);
+
+  const handleExpire = useCallback(() => {
+    if (!isExam) return;
+    if (examOutcome(countWords(latest.current)) === 'submit') send(true);
+    else setTimeUpEmpty(true);
+  }, [isExam, send]);
 
   const editor = (
     <div className="space-y-3">
       <textarea
         value={answer}
         onChange={(e) => setAnswer(e.target.value)}
-        disabled={isGrading}
+        disabled={isGrading || timeUpEmpty}
         aria-label={isTask1 ? 'Bài viết Task 1' : 'Bài viết Task 2'}
         placeholder={isTask1 ? 'Start writing your report here...' : 'Start writing your essay here...'}
         className={`w-full resize-y rounded-xl border-2 bg-white p-4 text-sm leading-relaxed text-slate-800 outline-none transition-colors placeholder:text-slate-400 focus:border-tone-sky-border focus:ring-2 focus:ring-tone-sky-accent dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 sm:p-5 ${
@@ -100,7 +130,7 @@ export default function IeltsWritingPractice({ userId, question, onSubmit, onBac
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
           <WordStatus wordCount={wordCount} minWords={minWords} />
-          {savedAt !== null && (
+          {!isExam && savedAt !== null && (
             <p className={`flex items-center gap-1.5 text-caption ${toneClasses('sky').text}`} aria-live="polite">
               <Save className="h-3.5 w-3.5" aria-hidden /> Đã lưu nháp trên máy này
             </p>
@@ -137,13 +167,13 @@ export default function IeltsWritingPractice({ userId, question, onSubmit, onBac
 
       {isTask1 && question.chartData && <IeltsChartRenderer data={question.chartData} />}
 
-      {guide && (
+      {!isExam && guide && (
         <button type="button" onClick={() => setShowGuide(true)} className={`${secondaryBtn} group`}>
           <BookOpen className="icon-pop h-4 w-4 text-tone-lavender-fg" /> Xem hướng dẫn dạng này
         </button>
       )}
 
-      {framework && (
+      {!isExam && framework && (
         <div>
           <button onClick={() => setShowFramework(!showFramework)} className="flex min-h-touch items-center gap-2 text-sm font-bold text-tone-periwinkle-fg">
             <Lightbulb className="h-4 w-4" />
@@ -158,7 +188,7 @@ export default function IeltsWritingPractice({ userId, question, onSubmit, onBac
         </div>
       )}
 
-      {question.planningPrompts && question.planningPrompts.length > 0 && (
+      {!isExam && question.planningPrompts && question.planningPrompts.length > 0 && (
         <div className={`overflow-hidden rounded-xl border ${toneClasses('butter').surface}`}>
           <button onClick={() => setShowPlanningPrompts(!showPlanningPrompts)} aria-expanded={showPlanningPrompts} className="flex min-h-touch w-full items-center justify-between px-4 py-2.5">
             <span className="flex items-center gap-1.5 text-xs font-bold text-tone-butter-fg">
@@ -179,13 +209,37 @@ export default function IeltsWritingPractice({ userId, question, onSubmit, onBac
         </div>
       )}
 
-      {!isTask1 && <IdeasPanel question={question} />}
+      {!isExam && !isTask1 && <IdeasPanel question={question} />}
     </div>
   );
 
   return (
     <div className="space-y-4 anim-fade-up">
       {showGuide && guide && <GuideDrawer guide={guide} onClose={closeGuide} />}
+
+      {isExam && !timeUpEmpty && !confirmExit && (
+        <p className={`flex items-start gap-2 rounded-xl border p-3 text-sm ${toneClasses('sky').surface} ${toneClasses('sky').text}`} role="status">
+          <Timer className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden />
+          Chế độ thi thử: hết {timeLimit} phút bài sẽ tự được gửi chấm, không có gợi ý và không lưu nháp.
+        </p>
+      )}
+      {timeUpEmpty && (
+        <p className={`flex items-start gap-2 rounded-xl border p-3 text-sm ${toneClasses('blush').surface} ${toneClasses('blush').text}`} role="alert">
+          <TriangleAlert className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden />
+          Hết giờ nhưng chưa có bài viết nào để chấm.
+        </p>
+      )}
+      {confirmExit && (
+        <div className={`flex flex-wrap items-center gap-3 rounded-xl border p-3 text-sm ${toneClasses('butter').surface}`} role="alert">
+          <p className={`flex-1 ${toneClasses('butter').text}`}>Thoát bây giờ sẽ mất bài đang viết (chế độ thi thử không lưu nháp).</p>
+          <button type="button" onClick={() => setConfirmExit(false)} className={compactBtn}>
+            Viết tiếp
+          </button>
+          <button type="button" onClick={onBack} className={compactBtn}>
+            Thoát
+          </button>
+        </div>
+      )}
 
       <div className="flex items-center justify-between gap-3">
         <button onClick={goBack} className="inline-flex min-h-touch items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-tone-lavender-fg dark:text-slate-400">
@@ -205,7 +259,7 @@ export default function IeltsWritingPractice({ userId, question, onSubmit, onBac
               </>
             )}
           </button>
-          <WritingTimer startTime={startTime} limitMinutes={timeLimit} />
+          <WritingTimer startTime={startTime} limitMinutes={timeLimit} onExpire={handleExpire} />
           <WordCountDisplay text={answer} minimum={minWords} />
         </div>
       </div>

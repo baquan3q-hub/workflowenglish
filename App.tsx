@@ -53,7 +53,7 @@ import { readingAttemptLabels, scorePassages, sessionPassages as readingSessionP
 import { appendDrillLog, groupRecords, isDrillTestId, parseDrillTestId, resolveReadingTest } from './services/readingDrill';
 import type { ReadingKind } from './data/ielts/readingLessons';
 import { gradeWritingTask } from './services/ieltsWritingService';
-import { clearWritingDraft } from './services/writingPracticeLogic';
+import { clearWritingDraft, type WritingMode } from './services/writingPracticeLogic';
 import { gradeSpeakingAnswer } from './services/ieltsSpeakingService';
 import { fluencySummaryForGrader, isFluencyMetrics, type FluencyMetrics } from './services/fluencyLogic';
 import { saveIeltsAttempt, saveListeningAttempt, saveReadingAttempt, resolveAttemptQuestion, isListeningDetails, isReadingDetails, getPreviousWritingAttempt } from './services/ieltsAttemptService';
@@ -177,6 +177,7 @@ function App() {
   // ─── IELTS Module State ──────────────────────────────
   const [selectedIeltsQuestion, setSelectedIeltsQuestion] = useState<IeltsQuestion | null>(null);
   const [ieltsWritingDraft, setIeltsWritingDraft] = useState<string>('');
+  const [ieltsWritingMode, setIeltsWritingMode] = useState<WritingMode>('practice');
   const [ieltsFeedbackData, setIeltsFeedbackData] = useState<IeltsAiFeedback | null>(null);
   const [ieltsUserAnswer, setIeltsUserAnswer] = useState<string>('');
   /** The attempt before the one on screen (same prompt), for the band change and the diff. */
@@ -967,7 +968,8 @@ function App() {
     });
   };
 
-  const startIeltsWriting = (q: IeltsQuestion) => {
+  const startIeltsWriting = (q: IeltsQuestion, mode: WritingMode = 'practice') => {
+    setIeltsWritingMode(mode);
     setSelectedIeltsQuestion(q);
     setIeltsWritingDraft('');
     setIeltsFeedbackData(null);
@@ -1594,7 +1596,7 @@ function App() {
             initialTab={ieltsWritingStudyTab}
             userId={currentUser?.id ?? ''}
             onBack={() => setPhase(AppPhase.IELTS_WRITING_HUB)}
-            onPractice={startIeltsWriting}
+            onPractice={(q) => startIeltsWriting(q)}
           />
         );
 
@@ -1603,7 +1605,8 @@ function App() {
           <IeltsWritingPractice
             userId={currentUser?.id ?? ''}
             question={selectedIeltsQuestion}
-            onSubmit={async (answer, durationSeconds) => {
+            mode={ieltsWritingMode}
+            onSubmit={async (answer, durationSeconds, meta) => {
               setIsIeltsGrading(true);
               setIeltsUserAnswer(answer);
               // Looked up before this attempt is saved, so it is the one before it.
@@ -1629,6 +1632,7 @@ function App() {
                   answerText: answer,
                   durationSeconds,
                   feedback,
+                  details: meta.mode === 'exam' ? { mode: 'exam', autoSubmitted: meta.autoSubmitted } : undefined,
                 });
               } catch (err) {
                 console.error('Writing grading failed:', err);

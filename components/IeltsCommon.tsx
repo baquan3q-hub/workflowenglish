@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { IeltsAiFeedback, IeltsCriterionScore, IeltsFramework, IeltsQuestion, IeltsSentenceCorrection } from '../types';
 import { Star, ChevronDown, ChevronUp, CheckCircle2, AlertTriangle, ArrowRight, Clock, BookOpen, Target, Mic, Square, Volume2, Lightbulb, TrendingUp, X, Check, ChevronRight } from 'lucide-react';
 import { descriptorBand, findDescriptor, type DescriptorSkill } from '../data/ielts/bandDescriptors';
+import { examSecondsLeft } from '../services/writingPracticeLogic';
 
 // ─── Band Score Display ──────────────────────────────────────────
 
@@ -240,18 +241,27 @@ export function FilterBar({
 
 // ─── Writing Timer ──────────────────────────────────────────
 
-export function WritingTimer({ startTime, limitMinutes }: { startTime: number; limitMinutes: number }) {
-  const [elapsed, setElapsed] = useState(0);
+export function WritingTimer({ startTime, limitMinutes, onExpire }: { startTime: number; limitMinutes: number; onExpire?: () => void }) {
+  const [remaining, setRemaining] = useState(() => examSecondsLeft(startTime, Date.now(), limitMinutes));
+  const expired = useRef(false);
+  const onExpireRef = useRef(onExpire);
+  onExpireRef.current = onExpire;
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - startTime) / 1000));
-    }, 1000);
+    const tick = () => {
+      const left = examSecondsLeft(startTime, Date.now(), limitMinutes);
+      setRemaining(left);
+      // Fires once, when the time first runs out.
+      if (left === 0 && !expired.current) {
+        expired.current = true;
+        onExpireRef.current?.();
+      }
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [startTime]);
+  }, [startTime, limitMinutes]);
 
-  const totalSeconds = limitMinutes * 60;
-  const remaining = Math.max(0, totalSeconds - elapsed);
   const mins = Math.floor(remaining / 60);
   const secs = remaining % 60;
   const isWarning = remaining < 300 && remaining > 0; // < 5 min

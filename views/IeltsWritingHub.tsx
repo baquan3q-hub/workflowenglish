@@ -9,7 +9,7 @@ import type { LucideIcon } from 'lucide-react';
 import { BookOpen, CheckCheck, ChevronDown, ChevronRight, ChevronUp, FileText, Filter, Languages, LayoutList, Lightbulb, PenLine, PenTool, TrendingUp } from 'lucide-react';
 import { WRITING_GUIDES } from '../data/ielts/writingGuides';
 import { questionTopics } from '../services/writingStudyLogic';
-import { countWords, listWritingDrafts, progressByPrompt, summarizeWriting, type WritingDraft } from '../services/writingPracticeLogic';
+import { countWords, listWritingDrafts, progressByPrompt, readWritingMode, saveWritingMode, summarizeWriting, type WritingDraft, type WritingMode } from '../services/writingPracticeLogic';
 import type { WritingStudyTab } from './IeltsWritingStudy';
 import { IconTile } from '../components/ui/IconTile';
 import { toneClasses, type Tone } from '../components/ui/palette';
@@ -22,6 +22,15 @@ const STUDY_LINKS: ReadonlyArray<{ tab: WritingStudyTab; title: string; subtitle
   { tab: 'language', title: 'Từ nối và collocation', subtitle: 'Theo chức năng và chủ đề', icon: Languages, tone: 'mint' },
 ];
 
+const MODE_OPTIONS = [
+  { value: 'practice' as const, label: 'Luyện tập' },
+  { value: 'exam' as const, label: 'Thi thử' },
+];
+const MODE_HINTS: Record<WritingMode, string> = {
+  practice: 'Có gợi ý, dàn ý và hướng dẫn từng dạng; bài viết được lưu nháp trên máy.',
+  exam: 'Giống thi thật: đếm ngược theo task, hết giờ tự gửi chấm, không có gợi ý và không lưu nháp.',
+};
+
 const TASK_OPTIONS = [
   { value: 'task_1' as const, label: 'Task 1 · Biểu đồ' },
   { value: 'task_2' as const, label: 'Task 2 · Luận' },
@@ -30,7 +39,7 @@ const TASK_OPTIONS = [
 interface Props {
   userId: string;
   onOpenAttempt: (attempt: IeltsAttempt) => void;
-  onSelectQuestion: (q: IeltsQuestion) => void;
+  onSelectQuestion: (q: IeltsQuestion, mode: WritingMode) => void;
   onOpenStudy: (tab: WritingStudyTab) => void;
   /** Writing attempts of the learner; injectable for previews and tests. */
   loadAttempts?: (userId: string) => Promise<IeltsAttempt[]>;
@@ -52,6 +61,11 @@ export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttemp
   const [activeTab, setActiveTab] = useState<'task_1' | 'task_2'>('task_1');
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [showFrameworks, setShowFrameworks] = useState(false);
+  const [mode, setMode] = useState<WritingMode>(readWritingMode);
+  const changeMode = (m: WritingMode) => {
+    setMode(m);
+    saveWritingMode(m);
+  };
   const [attempts, setAttempts] = useState<IeltsAttempt[]>([]);
   const [drafts] = useState<WritingDraft[]>(() => (userId ? listWritingDrafts(userId) : []));
 
@@ -132,7 +146,7 @@ export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttemp
               <li key={draft.questionId}>
                 <button
                   type="button"
-                  onClick={() => onSelectQuestion(question)}
+                  onClick={() => onSelectQuestion(question, 'practice')}
                   className={`lift press group flex min-h-touch w-full items-center gap-3 rounded-xl border p-3 text-left ${toneClasses('butter').surface}`}
                 >
                   <IconTile icon={PenLine} tone="butter" size="sm" />
@@ -149,6 +163,12 @@ export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttemp
           </ul>
         </section>
       )}
+
+      {/* Mode */}
+      <div className="mx-auto max-w-md space-y-1.5">
+        <Segmented className="" label="Chế độ làm bài" value={mode} onChange={changeMode} options={MODE_OPTIONS} />
+        <p className="text-center text-caption text-slate-600 dark:text-slate-400">{MODE_HINTS[mode]}</p>
+      </div>
 
       {/* Task tabs */}
       <Segmented
@@ -232,7 +252,7 @@ export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttemp
             <p className="text-sm text-slate-600 dark:text-slate-400">Không tìm thấy đề bài phù hợp. Hãy thử đổi bộ lọc.</p>
           </div>
         ) : (
-          questions.map((q) => <QuestionCard key={q.id} question={q} onSelect={onSelectQuestion} progress={progress.get(q.prompt)} />)
+          questions.map((q) => <QuestionCard key={q.id} question={q} onSelect={(sel) => onSelectQuestion(sel, mode)} progress={progress.get(q.prompt)} />)
         )}
       </div>
     </div>
