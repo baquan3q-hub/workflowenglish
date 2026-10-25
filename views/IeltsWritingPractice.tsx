@@ -1,17 +1,24 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { IeltsQuestion } from '../types';
 import { ieltsFrameworks } from '../data/ieltsFrameworks';
 import { WritingTimer, WordCountDisplay, FrameworkCard } from '../components/IeltsCommon';
 import IeltsChartRenderer from '../components/IeltsChartRenderer';
-import { ArrowLeft, Send, Lightbulb, ChevronDown, ChevronUp, Loader2, BookOpen, Columns2, Maximize2, TriangleAlert, CircleCheck } from 'lucide-react';
+import { ArrowLeft, Send, Lightbulb, ChevronDown, ChevronUp, Loader2, BookOpen, Columns2, Maximize2, TriangleAlert, CircleCheck, Save } from 'lucide-react';
 import { guideForQuestionType } from '../data/ielts/writingGuides';
 import GuideDrawer from '../components/ielts/writing/GuideDrawer';
 import IdeasPanel from '../components/ielts/writing/IdeasPanel';
+import { IconTile } from '../components/ui/IconTile';
+import { toneClasses } from '../components/ui/palette';
+import { panel, primaryBtn, secondaryBtn } from '../components/ui/styles';
+import { countWords, readWritingDraft, saveWritingDraft, writingLimits } from '../services/writingPracticeLogic';
+
+const compactBtn = secondaryBtn.replace('px-4', 'px-3');
+const SAVE_DELAY_MS = 800;
 
 function WordStatus({ wordCount, minWords }: { wordCount: number; minWords: number }) {
   const ok = wordCount >= minWords;
   return (
-    <p className={`flex items-center gap-1.5 text-xs ${ok ? 'text-tone-mint-fg' : 'text-slate-500 dark:text-slate-400'}`}>
+    <p className={`flex items-center gap-1.5 text-xs ${ok ? 'text-tone-mint-fg' : 'text-slate-600 dark:text-slate-400'}`}>
       {ok ? <CircleCheck className="h-3.5 w-3.5" /> : <TriangleAlert className="h-3.5 w-3.5 text-tone-butter-fg" />}
       {ok ? `Đạt yêu cầu tối thiểu (${wordCount} từ)` : `Còn thiếu ${minWords - wordCount} từ (vẫn có thể gửi chấm)`}
     </p>
@@ -19,149 +26,184 @@ function WordStatus({ wordCount, minWords }: { wordCount: number; minWords: numb
 }
 
 interface Props {
+  userId: string;
   question: IeltsQuestion;
   onSubmit: (answer: string, durationSeconds: number) => void;
   onBack: () => void;
   isGrading: boolean;
+  /** Text to start from when rewriting; otherwise the draft kept on this device. */
   initialDraft?: string;
 }
 
-export default function IeltsWritingPractice({ question, onSubmit, onBack, isGrading, initialDraft }: Props) {
-  const [answer, setAnswer] = useState(initialDraft || '');
+export default function IeltsWritingPractice({ userId, question, onSubmit, onBack, isGrading, initialDraft }: Props) {
+  const [restored] = useState(() => (initialDraft ? null : readWritingDraft(userId, question.id)));
+  const [answer, setAnswer] = useState(initialDraft || restored?.text || '');
   const [showFramework, setShowFramework] = useState(false);
   const [showPlanningPrompts, setShowPlanningPrompts] = useState(true);
-  const [startTime] = useState(Date.now());
+  // A resumed draft keeps the time it already took.
+  const [startTime] = useState(() => Date.now() - (restored?.elapsedSeconds ?? 0) * 1000);
   const [isSplit, setIsSplit] = useState(true);
   const [showGuide, setShowGuide] = useState(false);
+  const [savedAt, setSavedAt] = useState<number | null>(restored ? Date.now() : null);
   const guide = guideForQuestionType(question.questionType);
   const closeGuide = useCallback(() => setShowGuide(false), []);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isTask1 = question.taskOrPart === 'task_1';
-  const framework = ieltsFrameworks.find(f => f.id === question.frameworkId);
-  const wordCount = answer.trim() ? answer.trim().split(/\s+/).length : 0;
-  const minWords = isTask1 ? 150 : 250;
-  const timeLimit = isTask1 ? 20 : 40;
+  const framework = ieltsFrameworks.find((f) => f.id === question.frameworkId);
+  const wordCount = countWords(answer);
+  const { minWords, minutes: timeLimit } = writingLimits(question);
+
+  // Keep what the learner has typed on this device, a moment after they stop typing.
+  const latest = useRef(answer);
+  latest.current = answer;
+  const persist = useCallback(() => {
+    const elapsed = (Date.now() - startTime) / 1000;
+    if (saveWritingDraft(userId, question.id, latest.current, elapsed)) setSavedAt(Date.now());
+  }, [userId, question.id, startTime]);
+
+  useEffect(() => {
+    if (isGrading || answer === (initialDraft || restored?.text || '')) return;
+    const timer = setTimeout(persist, SAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [answer, isGrading, persist, initialDraft, restored]);
+
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') persist();
+    };
+    document.addEventListener('visibilitychange', onHide);
+    return () => document.removeEventListener('visibilitychange', onHide);
+  }, [persist]);
+
+  const goBack = () => {
+    if (!isGrading) persist();
+    onBack();
+  };
 
   const handleSubmit = useCallback(() => {
-    if (wordCount < 1) {
-      alert('Vui lòng viết bài trước khi gửi chấm.');
-      return;
-    }
-    const durationSeconds = Math.floor((Date.now() - startTime) / 1000);
-    onSubmit(answer, durationSeconds);
-  }, [answer, wordCount, startTime, onSubmit]);
+    if (wordCount < 1 || isGrading) return;
+    onSubmit(answer, Math.floor((Date.now() - startTime) / 1000));
+  }, [answer, wordCount, isGrading, startTime, onSubmit]);
 
-  const renderLeftSection = () => {
-    return (
-      <div className="space-y-4">
-        {/* Question Details Card */}
-        <div className="bg-tone-lavender rounded-xl border border-tone-lavender-border p-4 sm:p-5">
-          <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-lg bg-tone-lavender-soft flex items-center justify-center flex-shrink-0">
-              <span className="text-tone-lavender-fg text-xs font-black">{isTask1 ? 'T1' : 'T2'}</span>
+  const editor = (
+    <div className="space-y-3">
+      <textarea
+        value={answer}
+        onChange={(e) => setAnswer(e.target.value)}
+        disabled={isGrading}
+        aria-label={isTask1 ? 'Bài viết Task 1' : 'Bài viết Task 2'}
+        placeholder={isTask1 ? 'Start writing your report here...' : 'Start writing your essay here...'}
+        className={`w-full resize-y rounded-xl border-2 bg-white p-4 text-sm leading-relaxed text-slate-800 outline-none transition-colors placeholder:text-slate-400 focus:border-tone-sky-border focus:ring-2 focus:ring-tone-sky-accent dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 sm:p-5 ${
+          isSplit ? 'min-h-[350px] lg:min-h-[450px]' : 'min-h-[400px] sm:min-h-[500px]'
+        } ${wordCount >= minWords ? 'border-tone-mint-border' : 'border-slate-200 dark:border-slate-600'} ${isGrading ? 'cursor-not-allowed opacity-60' : ''}`}
+      />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-1">
+          <WordStatus wordCount={wordCount} minWords={minWords} />
+          {savedAt !== null && (
+            <p className={`flex items-center gap-1.5 text-caption ${toneClasses('sky').text}`} aria-live="polite">
+              <Save className="h-3.5 w-3.5" aria-hidden /> Đã lưu nháp trên máy này
+            </p>
+          )}
+        </div>
+        <button type="button" onClick={handleSubmit} disabled={isGrading || wordCount < 1} className={primaryBtn}>
+          {isGrading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          {isGrading ? 'AI đang chấm...' : 'Gửi bài chấm thật'}
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderLeftSection = () => (
+    <div className="space-y-4">
+      {/* Question details */}
+      <div className={`rounded-xl border p-4 sm:p-5 ${toneClasses('lavender').surface}`}>
+        <div className="flex items-start gap-3">
+          <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-tone-lavender-soft text-xs font-black text-tone-lavender-fg">
+            {isTask1 ? 'T1' : 'T2'}
+          </span>
+          <div className="flex-1 space-y-2">
+            <div className="flex flex-wrap gap-1.5">
+              <span className="rounded-full bg-tone-sky-soft px-2 py-0.5 text-[10px] font-bold text-tone-sky-fg">{question.questionType.replace(/_/g, ' ')}</span>
+              <span className="rounded-full bg-tone-aqua-soft px-2 py-0.5 text-[10px] font-bold text-tone-aqua-fg">{question.topic}</span>
             </div>
-            <div className="space-y-2 flex-1">
-              <div className="flex flex-wrap gap-1.5">
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-tone-sky-soft text-tone-sky-fg">
-                  {question.questionType.replace(/_/g, ' ')}
-                </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
-                  {question.topic}
-                </span>
-              </div>
-              <p className="text-sm sm:text-base text-slate-800 dark:text-slate-100 leading-relaxed font-medium">
-                {question.prompt}
-              </p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 italic">
-                Write at least {minWords} words. You should spend about {timeLimit} minutes on this task.
-              </p>
-            </div>
+            <p className="text-sm font-medium leading-relaxed text-slate-800 dark:text-slate-100 sm:text-base">{question.prompt}</p>
+            <p className="text-xs italic text-slate-600 dark:text-slate-400">
+              Write at least {minWords} words. You should spend about {timeLimit} minutes on this task.
+            </p>
           </div>
         </div>
-
-        {/* Dynamic Chart Renderer for Task 1 */}
-        {isTask1 && question.chartData && (
-          <IeltsChartRenderer data={question.chartData} />
-        )}
-
-        {/* Question-type guide and framework */}
-        {guide && (
-          <button
-            type="button"
-            onClick={() => setShowGuide(true)}
-            className="press inline-flex min-h-touch items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 hover:border-tone-periwinkle-border hover:bg-tone-periwinkle hover:text-tone-periwinkle-fg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-          >
-            <BookOpen className="h-4 w-4" /> Xem hướng dẫn dạng này
-          </button>
-        )}
-
-        {framework && (
-          <div>
-            <button
-              onClick={() => setShowFramework(!showFramework)}
-              className="flex items-center gap-2 text-sm font-bold text-tone-periwinkle-fg hover:text-tone-periwinkle-fg"
-            >
-              <Lightbulb className="w-4 h-4" />
-              {showFramework ? 'Ẩn framework hướng dẫn' : 'Xem framework gợi ý'}
-              {showFramework ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-            </button>
-            {showFramework && (
-              <div className="mt-2">
-                <FrameworkCard framework={framework} />
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Planning Prompts */}
-        {question.planningPrompts && question.planningPrompts.length > 0 && (
-          <div className="bg-tone-butter rounded-xl border border-tone-butter-border overflow-hidden">
-            <button
-              onClick={() => setShowPlanningPrompts(!showPlanningPrompts)}
-              className="w-full px-4 py-2.5 flex items-center justify-between"
-            >
-              <span className="flex items-center gap-1.5 text-xs font-bold text-tone-butter-fg"><Lightbulb className="h-3.5 w-3.5" /> Gợi ý lập dàn ý</span>
-              {showPlanningPrompts ? <ChevronUp className="w-3 h-3 text-tone-butter-fg" /> : <ChevronDown className="w-3 h-3 text-tone-butter-fg" />}
-            </button>
-            {showPlanningPrompts && (
-              <div className="px-4 pb-3 space-y-1.5">
-                {question.planningPrompts.map((p, i) => (
-                  <div key={i} className="flex items-start gap-2 text-xs text-tone-butter-fg">
-                    <span className="font-bold text-tone-butter-fg">{i + 1}.</span>
-                    <span>{p}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {!isTask1 && <IdeasPanel question={question} />}
       </div>
-    );
-  };
+
+      {isTask1 && question.chartData && <IeltsChartRenderer data={question.chartData} />}
+
+      {guide && (
+        <button type="button" onClick={() => setShowGuide(true)} className={`${secondaryBtn} group`}>
+          <BookOpen className="icon-pop h-4 w-4 text-tone-lavender-fg" /> Xem hướng dẫn dạng này
+        </button>
+      )}
+
+      {framework && (
+        <div>
+          <button onClick={() => setShowFramework(!showFramework)} className="flex min-h-touch items-center gap-2 text-sm font-bold text-tone-periwinkle-fg">
+            <Lightbulb className="h-4 w-4" />
+            {showFramework ? 'Ẩn framework hướng dẫn' : 'Xem framework gợi ý'}
+            {showFramework ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          </button>
+          {showFramework && (
+            <div className="mt-2">
+              <FrameworkCard framework={framework} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {question.planningPrompts && question.planningPrompts.length > 0 && (
+        <div className={`overflow-hidden rounded-xl border ${toneClasses('butter').surface}`}>
+          <button onClick={() => setShowPlanningPrompts(!showPlanningPrompts)} aria-expanded={showPlanningPrompts} className="flex min-h-touch w-full items-center justify-between px-4 py-2.5">
+            <span className="flex items-center gap-1.5 text-xs font-bold text-tone-butter-fg">
+              <Lightbulb className="h-3.5 w-3.5" /> Gợi ý lập dàn ý
+            </span>
+            {showPlanningPrompts ? <ChevronUp className="h-3 w-3 text-tone-butter-fg" /> : <ChevronDown className="h-3 w-3 text-tone-butter-fg" />}
+          </button>
+          {showPlanningPrompts && (
+            <div className="space-y-1.5 px-4 pb-3">
+              {question.planningPrompts.map((p, i) => (
+                <div key={i} className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-200">
+                  <span className="font-bold text-tone-butter-fg">{i + 1}.</span>
+                  <span>{p}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {!isTask1 && <IdeasPanel question={question} />}
+    </div>
+  );
 
   return (
     <div className="space-y-4 anim-fade-up">
       {showGuide && guide && <GuideDrawer guide={guide} onClose={closeGuide} />}
 
-      {/* Top Bar */}
       <div className="flex items-center justify-between gap-3">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 font-semibold"
-        >
-          <ArrowLeft className="w-4 h-4" />
+        <button onClick={goBack} className="inline-flex min-h-touch items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-tone-lavender-fg dark:text-slate-400">
+          <ArrowLeft className="h-4 w-4" />
           <span className="hidden sm:inline">Quay lại</span>
         </button>
 
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => setIsSplit(!isSplit)}
-            className="hidden lg:flex items-center gap-1 text-[11px] font-bold text-tone-periwinkle-fg border border-tone-periwinkle-border rounded-lg px-2.5 py-1.5 bg-tone-periwinkle-soft hover:bg-tone-periwinkle-soft transition-colors"
-          >
-            {isSplit ? <><Maximize2 className="h-3.5 w-3.5" /> Chế độ tập trung</> : <><Columns2 className="h-3.5 w-3.5" /> Chia đôi màn hình</>}
+          <button onClick={() => setIsSplit(!isSplit)} className={`${compactBtn} hidden lg:inline-flex`}>
+            {isSplit ? (
+              <>
+                <Maximize2 className="h-3.5 w-3.5" /> Chế độ tập trung
+              </>
+            ) : (
+              <>
+                <Columns2 className="h-3.5 w-3.5" /> Chia đôi màn hình
+              </>
+            )}
           </button>
           <WritingTimer startTime={startTime} limitMinutes={timeLimit} />
           <WordCountDisplay text={answer} minimum={minWords} />
@@ -169,97 +211,22 @@ export default function IeltsWritingPractice({ question, onSubmit, onBack, isGra
       </div>
 
       {isSplit ? (
-        /* Split layout for Task 1 or Split view mode */
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
           {renderLeftSection()}
-          
-          <div className="space-y-4">
-            <textarea
-              ref={textareaRef}
-              value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
-              disabled={isGrading}
-              placeholder={isTask1 ? "Start writing your report here..." : "Start writing your essay here..."}
-              className={`w-full min-h-[350px] lg:min-h-[450px] p-4 sm:p-5 rounded-xl border-2 text-sm leading-relaxed resize-y
-                bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100
-                placeholder:text-slate-300 dark:placeholder:text-slate-600
-                focus:ring-2 focus:ring-tone-sky-accent focus:border-tone-sky-border outline-none
-                ${wordCount >= minWords ? 'border-tone-mint-border' : 'border-slate-200 dark:border-slate-600'}
-                ${isGrading ? 'opacity-60 cursor-not-allowed' : ''}
-                transition-colors`}
-            />
-            {/* Submit bar */}
-            <div className="flex items-center justify-between gap-3">
-              <WordStatus wordCount={wordCount} minWords={minWords} />
-              <button
-                onClick={handleSubmit}
-                disabled={isGrading || wordCount < 1}
-                className="press flex items-center gap-2 px-5 py-2.5 border border-tone-periwinkle-border bg-tone-periwinkle-soft text-tone-periwinkle-fg hover:bg-tone-periwinkle-border disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-sm font-bold transition-all"
-              >
-                {isGrading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    AI đang chấm...
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-4 h-4" />
-                    Gửi bài chấm thật
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
+          {editor}
         </div>
       ) : (
-        /* Centered focused layout */
-        <div className="space-y-4 max-w-3xl mx-auto">
-          {/* Collapsible info header */}
-          <details className="group border border-slate-250 dark:border-slate-700 rounded-xl overflow-hidden bg-slate-50/50 dark:bg-slate-900/30">
-            <summary className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 cursor-pointer hover:bg-slate-100/50 transition-colors list-none flex justify-between items-center">
-              <span>Xem đề bài và biểu đồ</span>
+        <div className="mx-auto max-w-3xl space-y-4">
+          <details className={`group overflow-hidden ${panel}`}>
+            <summary className="flex min-h-touch cursor-pointer list-none items-center justify-between px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-300">
+              <span className="flex items-center gap-2">
+                <IconTile icon={BookOpen} tone="lavender" size="sm" /> Xem đề bài và biểu đồ
+              </span>
               <ChevronDown className="h-3.5 w-3.5 text-slate-500 transition-transform group-open:rotate-180 dark:text-slate-400" />
             </summary>
-            <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-              {renderLeftSection()}
-            </div>
+            <div className="border-t border-slate-200 p-4 dark:border-slate-700">{renderLeftSection()}</div>
           </details>
-
-          <textarea
-            ref={textareaRef}
-            value={answer}
-            onChange={(e) => setAnswer(e.target.value)}
-            disabled={isGrading}
-            placeholder="Start writing your response here..."
-            className={`w-full min-h-[400px] sm:min-h-[500px] p-4 sm:p-5 rounded-xl border-2 text-sm leading-relaxed resize-y
-              bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100
-              placeholder:text-slate-300 dark:placeholder:text-slate-600
-              focus:ring-2 focus:ring-tone-sky-accent focus:border-tone-sky-border outline-none
-              ${wordCount >= minWords ? 'border-tone-mint-border' : 'border-slate-200 dark:border-slate-600'}
-              ${isGrading ? 'opacity-60 cursor-not-allowed' : ''}
-              transition-colors`}
-          />
-          {/* Submit bar */}
-          <div className="flex items-center justify-between gap-3">
-            <WordStatus wordCount={wordCount} minWords={minWords} />
-            <button
-              onClick={handleSubmit}
-              disabled={isGrading || wordCount < 1}
-              className="press flex items-center gap-2 px-5 py-2.5 border border-tone-periwinkle-border bg-tone-periwinkle-soft text-tone-periwinkle-fg hover:bg-tone-periwinkle-border disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-sm font-bold transition-all"
-            >
-              {isGrading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  AI đang chấm...
-                </>
-              ) : (
-                <>
-                  <Send className="w-4 h-4" />
-                  Gửi bài chấm thật
-                </>
-              )}
-            </button>
-          </div>
+          {editor}
         </div>
       )}
     </div>

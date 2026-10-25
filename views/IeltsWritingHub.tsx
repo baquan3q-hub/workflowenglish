@@ -1,18 +1,30 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { IeltsAttempt, IeltsQuestion } from '../types';
-import { getWritingQuestions } from '../services/ieltsWritingService';
+import { getWritingQuestionById, getWritingQuestions } from '../services/ieltsWritingService';
+import { getIeltsAttempts } from '../services/ieltsAttemptService';
 import { ieltsFrameworks } from '../data/ieltsFrameworks';
 import { QuestionCard, FilterBar, FrameworkCard } from '../components/IeltsCommon';
 import IeltsAttemptHistory from '../components/IeltsAttemptHistory';
-import { PenTool, BookOpen, TrendingUp, Filter, Lightbulb, ChevronDown, ChevronUp, ChevronRight, LayoutList, FileText, Languages } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { BookOpen, CheckCheck, ChevronDown, ChevronRight, ChevronUp, FileText, Filter, Languages, LayoutList, Lightbulb, PenLine, PenTool, TrendingUp } from 'lucide-react';
 import { WRITING_GUIDES } from '../data/ielts/writingGuides';
 import { questionTopics } from '../services/writingStudyLogic';
+import { countWords, listWritingDrafts, progressByPrompt, summarizeWriting, type WritingDraft } from '../services/writingPracticeLogic';
 import type { WritingStudyTab } from './IeltsWritingStudy';
+import { IconTile } from '../components/ui/IconTile';
+import { toneClasses, type Tone } from '../components/ui/palette';
+import { Segmented } from '../components/ui/Segmented';
+import { panel } from '../components/ui/styles';
 
-const STUDY_LINKS: ReadonlyArray<{ tab: WritingStudyTab; title: string; subtitle: string; icon: React.ElementType }> = [
-  { tab: 'guides', title: 'Cách viết từng dạng', subtitle: '7 dạng Task 1, 6 dạng Task 2', icon: LayoutList },
-  { tab: 'samples', title: 'Bài mẫu band 6 · 7 · 8', subtitle: 'Cùng một đề, có chú thích', icon: FileText },
-  { tab: 'language', title: 'Từ nối và collocation', subtitle: 'Theo chức năng và chủ đề', icon: Languages },
+const STUDY_LINKS: ReadonlyArray<{ tab: WritingStudyTab; title: string; subtitle: string; icon: LucideIcon; tone: Tone }> = [
+  { tab: 'guides', title: 'Cách viết từng dạng', subtitle: '7 dạng Task 1, 6 dạng Task 2', icon: LayoutList, tone: 'lavender' },
+  { tab: 'samples', title: 'Bài mẫu band 6 · 7 · 8', subtitle: 'Cùng một đề, có chú thích', icon: FileText, tone: 'sky' },
+  { tab: 'language', title: 'Từ nối và collocation', subtitle: 'Theo chức năng và chủ đề', icon: Languages, tone: 'mint' },
+];
+
+const TASK_OPTIONS = [
+  { value: 'task_1' as const, label: 'Task 1 · Biểu đồ' },
+  { value: 'task_2' as const, label: 'Task 2 · Luận' },
 ];
 
 interface Props {
@@ -20,23 +32,62 @@ interface Props {
   onOpenAttempt: (attempt: IeltsAttempt) => void;
   onSelectQuestion: (q: IeltsQuestion) => void;
   onOpenStudy: (tab: WritingStudyTab) => void;
+  /** Writing attempts of the learner; injectable for previews and tests. */
+  loadAttempts?: (userId: string) => Promise<IeltsAttempt[]>;
 }
 
-export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttempt, onOpenStudy }: Props) {
+const loadWritingAttempts = (userId: string) => getIeltsAttempts(userId, 'writing', 100);
+
+function Stat({ icon: Icon, tone, value, label }: { icon: React.ElementType; tone: Tone; value: React.ReactNode; label: string }) {
+  return (
+    <div className={`lift group rounded-xl border p-3 text-center ${toneClasses(tone).surface}`}>
+      <Icon className={`icon-pop mx-auto mb-1 h-5 w-5 ${toneClasses(tone).text}`} aria-hidden />
+      <p className="text-lg font-black tabular-nums text-slate-900 dark:text-white">{value}</p>
+      <p className="text-caption font-semibold text-slate-600 dark:text-slate-300">{label}</p>
+    </div>
+  );
+}
+
+export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttempt, onOpenStudy, loadAttempts = loadWritingAttempts }: Props) {
   const [activeTab, setActiveTab] = useState<'task_1' | 'task_2'>('task_1');
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [showFrameworks, setShowFrameworks] = useState(false);
+  const [attempts, setAttempts] = useState<IeltsAttempt[]>([]);
+  const [drafts] = useState<WritingDraft[]>(() => (userId ? listWritingDrafts(userId) : []));
 
-  const questions = useMemo(() => getWritingQuestions({
-    taskOrPart: activeTab,
-    essayType: filters.essayType || undefined,
-    topic: filters.topic || undefined,
-    difficulty: filters.difficulty || undefined,
-  }), [activeTab, filters]);
+  useEffect(() => {
+    if (!userId) return;
+    let live = true;
+    loadAttempts(userId)
+      .then((rows) => live && setAttempts(rows))
+      .catch(() => live && setAttempts([]));
+    return () => {
+      live = false;
+    };
+  }, [userId, loadAttempts]);
 
-  const writingFrameworks = ieltsFrameworks.filter(f => f.skill === 'writing');
+  const questions = useMemo(
+    () =>
+      getWritingQuestions({
+        taskOrPart: activeTab,
+        essayType: filters.essayType || undefined,
+        topic: filters.topic || undefined,
+        difficulty: filters.difficulty || undefined,
+      }),
+    [activeTab, filters],
+  );
 
+  const writingFrameworks = ieltsFrameworks.filter((f) => f.skill === 'writing');
   const topics = useMemo(() => questionTopics(getWritingQuestions({ taskOrPart: activeTab })), [activeTab]);
+  const progress = useMemo(() => progressByPrompt(attempts), [attempts]);
+  const summary = useMemo(() => summarizeWriting(attempts), [attempts]);
+  const resume = useMemo(
+    () =>
+      drafts
+        .map((d) => ({ draft: d, question: getWritingQuestionById(d.questionId) }))
+        .filter((r): r is { draft: WritingDraft; question: IeltsQuestion } => !!r.question),
+    [drafts],
+  );
 
   const filterOptions = [
     {
@@ -44,11 +95,7 @@ export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttemp
       label: activeTab === 'task_2' ? 'Tất cả dạng bài' : 'Tất cả dạng biểu đồ',
       options: WRITING_GUIDES.filter((g) => g.task === activeTab).map((g) => ({ value: g.id, label: g.title })),
     },
-    {
-      key: 'topic',
-      label: 'Tất cả chủ đề',
-      options: topics.map((topic) => ({ value: topic, label: topic })),
-    },
+    { key: 'topic', label: 'Tất cả chủ đề', options: topics.map((topic) => ({ value: topic, label: topic })) },
     {
       key: 'difficulty',
       label: 'Tất cả mức độ',
@@ -63,79 +110,83 @@ export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttemp
   return (
     <div className="space-y-6 anim-fade-up">
       {/* Header */}
-      <div className="text-center space-y-2">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-tone-lavender-soft border border-tone-lavender-border rounded-full">
-          <PenTool className="w-4 h-4 text-tone-lavender-fg" />
+      <div className="space-y-2 text-center">
+        <div className="inline-flex items-center gap-2 rounded-full border border-tone-lavender-border bg-tone-lavender-soft px-4 py-1.5">
+          <PenTool className="h-4 w-4 text-tone-lavender-fg" />
           <span className="text-sm font-bold text-tone-lavender-fg">IELTS Writing Assistant</span>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-black text-slate-800 dark:text-white">
-          Luyện viết IELTS Writing
-        </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 max-w-lg mx-auto">
+        <h1 className="text-2xl font-black text-slate-800 dark:text-white sm:text-3xl">Luyện viết IELTS Writing</h1>
+        <p className="mx-auto max-w-lg text-sm text-slate-600 dark:text-slate-400">
           Luyện đề IELTS Writing Task 1 Academic và Task 2 Essay, nhận feedback đánh giá chi tiết từ AI.
         </p>
       </div>
 
-      {/* Tabs for Task 1 and Task 2 */}
-      <div className="flex bg-slate-100 dark:bg-slate-800 rounded-xl p-1 max-w-md mx-auto">
-        <button
-          onClick={() => { setActiveTab('task_1'); setFilters({}); }}
-          className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all
-            ${activeTab === 'task_1'
-              ? 'bg-white dark:bg-slate-700 text-tone-lavender-fg shadow-sm'
-              : 'text-slate-500 hover:text-slate-850 dark:text-slate-450 dark:hover:text-slate-300'
-            }`}
-        >
-          Task 1 (Academic Charts)
-        </button>
-        <button
-          onClick={() => { setActiveTab('task_2'); setFilters({}); }}
-          className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all
-            ${activeTab === 'task_2'
-              ? 'bg-white dark:bg-slate-700 text-tone-lavender-fg shadow-sm'
-              : 'text-slate-500 hover:text-slate-850 dark:text-slate-450 dark:hover:text-slate-300'
-            }`}
-        >
-          Task 2 (Academic Essay)
-        </button>
-      </div>
+      {/* Resume a draft kept on this device */}
+      {resume.length > 0 && (
+        <section aria-labelledby="writing-resume" className="space-y-2">
+          <h2 id="writing-resume" className="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-white">
+            <PenLine className="h-4 w-4 text-tone-butter-fg" aria-hidden /> Bài viết dở
+          </h2>
+          <ul className="grid gap-2 sm:grid-cols-2">
+            {resume.map(({ draft, question }) => (
+              <li key={draft.questionId}>
+                <button
+                  type="button"
+                  onClick={() => onSelectQuestion(question)}
+                  className={`lift press group flex min-h-touch w-full items-center gap-3 rounded-xl border p-3 text-left ${toneClasses('butter').surface}`}
+                >
+                  <IconTile icon={PenLine} tone="butter" size="sm" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-slate-900 dark:text-white">{question.prompt}</span>
+                    <span className="block text-caption text-slate-600 dark:text-slate-300">
+                      {question.taskOrPart === 'task_1' ? 'Task 1' : 'Task 2'} · {countWords(draft.text)} từ · viết tiếp
+                    </span>
+                  </span>
+                  <ChevronRight className="h-4 w-4 flex-shrink-0 text-tone-butter-fg transition-transform group-hover:translate-x-0.5" aria-hidden />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-white dark:bg-slate-800 rounded-xl p-3 border border-slate-200 dark:border-slate-700 text-center">
-          <BookOpen className="w-5 h-5 text-tone-lavender-fg mx-auto mb-1" />
-          <p className="text-lg font-black text-slate-800 dark:text-white">{questions.length}</p>
-          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Đề bài {activeTab === 'task_1' ? 'Task 1' : 'Task 2'}</p>
-        </div>
-        <div className="bg-white dark:bg-slate-800 rounded-xl p-3 border border-slate-200 dark:border-slate-700 text-center">
-          <Lightbulb className="w-5 h-5 text-tone-lavender-fg mx-auto mb-1" />
-          <p className="text-lg font-black text-slate-800 dark:text-white">{writingFrameworks.length}</p>
-          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Frameworks</p>
-        </div>
-        <div className="bg-white dark:bg-slate-800 rounded-xl p-3 border border-slate-200 dark:border-slate-700 text-center">
-          <TrendingUp className="w-5 h-5 text-tone-mint-fg mx-auto mb-1" />
-          <p className="text-lg font-black text-slate-800 dark:text-white">4</p>
-          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Tiêu chí chấm</p>
-        </div>
+      {/* Task tabs */}
+      <Segmented
+        className="mx-auto max-w-md"
+        label="Loại bài viết"
+        value={activeTab}
+        onChange={(v) => {
+          setActiveTab(v);
+          setFilters({});
+        }}
+        options={TASK_OPTIONS}
+      />
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat icon={BookOpen} tone="lavender" value={questions.length} label={`Đề ${activeTab === 'task_1' ? 'Task 1' : 'Task 2'}`} />
+        <Stat icon={CheckCheck} tone="mint" value={summary.attempts} label="Bài đã chấm" />
+        <Stat icon={TrendingUp} tone="aqua" value={summary.averageBand != null ? summary.averageBand.toFixed(1) : '—'} label="Band trung bình" />
+        <Stat icon={Lightbulb} tone="butter" value={summary.bestBand != null ? summary.bestBand.toFixed(1) : '—'} label="Band cao nhất" />
       </div>
 
       {/* Study before writing */}
       <section aria-labelledby="writing-study-title" className="space-y-2">
         <h2 id="writing-study-title" className="text-sm font-bold text-slate-800 dark:text-white">Học trước khi viết</h2>
         <ul className="grid gap-2 sm:grid-cols-3">
-          {STUDY_LINKS.map(({ tab, title, subtitle, icon: Icon }) => (
+          {STUDY_LINKS.map(({ tab, title, subtitle, icon, tone }) => (
             <li key={tab}>
               <button
                 type="button"
                 onClick={() => onOpenStudy(tab)}
-                className="flex h-full min-h-touch w-full items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600"
+                className={`${panel} lift press group flex h-full min-h-touch w-full items-center gap-3 p-3 text-left`}
               >
-                <Icon className="h-5 w-5 flex-shrink-0 text-tone-lavender-fg" />
+                <IconTile icon={icon} tone={tone} />
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold text-slate-900 dark:text-white">{title}</span>
-                  <span className="block text-caption text-slate-500 dark:text-slate-400">{subtitle}</span>
+                  <span className="block text-caption text-slate-600 dark:text-slate-400">{subtitle}</span>
                 </span>
-                <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-400" />
+                <ChevronRight className={`h-4 w-4 flex-shrink-0 transition-transform group-hover:translate-x-0.5 ${toneClasses(tone).text}`} aria-hidden />
               </button>
             </li>
           ))}
@@ -145,23 +196,22 @@ export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttemp
       {/* Practice history */}
       <IeltsAttemptHistory userId={userId} skill="writing" onOpenAttempt={onOpenAttempt} />
 
-      {/* Framework Section */}
-      <div className="bg-tone-lavender rounded-xl border border-tone-lavender-border overflow-hidden">
+      {/* Frameworks */}
+      <div className={`overflow-hidden rounded-xl border ${toneClasses('lavender').surface}`}>
         <button
           onClick={() => setShowFrameworks(!showFrameworks)}
-          className="w-full px-4 py-3 flex items-center justify-between hover:bg-tone-lavender-soft transition-colors"
+          aria-expanded={showFrameworks}
+          className="flex min-h-touch w-full items-center justify-between px-4 py-3 transition-colors hover:bg-tone-lavender-soft"
         >
           <div className="flex items-center gap-2">
-            <Lightbulb className="w-4 h-4 text-tone-lavender-fg" />
-            <span className="text-sm font-bold text-tone-lavender-fg">
-              Framework hướng dẫn viết
-            </span>
+            <Lightbulb className="h-4 w-4 text-tone-lavender-fg" />
+            <span className="text-sm font-bold text-tone-lavender-fg">Framework hướng dẫn viết</span>
           </div>
-          {showFrameworks ? <ChevronUp className="w-4 h-4 text-tone-lavender-fg" /> : <ChevronDown className="w-4 h-4 text-tone-lavender-fg" />}
+          {showFrameworks ? <ChevronUp className="h-4 w-4 text-tone-lavender-fg" /> : <ChevronDown className="h-4 w-4 text-tone-lavender-fg" />}
         </button>
         {showFrameworks && (
-          <div className="px-4 pb-4 space-y-2">
-            {writingFrameworks.map(fw => (
+          <div className="space-y-2 px-4 pb-4">
+            {writingFrameworks.map((fw) => (
               <FrameworkCard key={fw.id} framework={fw} />
             ))}
           </div>
@@ -169,26 +219,20 @@ export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttemp
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <Filter className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-        <FilterBar
-          filters={filters}
-          onChange={(key, value) => setFilters(prev => ({ ...prev, [key]: value }))}
-          filterOptions={filterOptions}
-        />
+      <div className="flex flex-wrap items-center gap-2">
+        <Filter className="h-4 w-4 text-tone-lavender-fg" aria-hidden />
+        <FilterBar filters={filters} onChange={(key, value) => setFilters((prev) => ({ ...prev, [key]: value }))} filterOptions={filterOptions} />
       </div>
 
-      {/* Questions Grid */}
+      {/* Questions */}
       <div className="space-y-3">
         {questions.length === 0 ? (
-          <div className="text-center py-12">
-            <BookOpen className="w-10 h-10 text-tone-lavender-accent mx-auto mb-3" />
-            <p className="text-sm text-slate-500 dark:text-slate-400">Không tìm thấy đề bài phù hợp. Hãy thử đổi bộ lọc.</p>
+          <div className="py-12 text-center">
+            <BookOpen className="mx-auto mb-3 h-10 w-10 text-tone-lavender-accent" />
+            <p className="text-sm text-slate-600 dark:text-slate-400">Không tìm thấy đề bài phù hợp. Hãy thử đổi bộ lọc.</p>
           </div>
         ) : (
-          questions.map(q => (
-            <QuestionCard key={q.id} question={q} onSelect={onSelectQuestion} />
-          ))
+          questions.map((q) => <QuestionCard key={q.id} question={q} onSelect={onSelectQuestion} progress={progress.get(q.prompt)} />)
         )}
       </div>
     </div>

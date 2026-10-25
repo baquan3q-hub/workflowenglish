@@ -139,10 +139,13 @@ export function QuestionCard({
   question,
   onSelect,
   showSample,
+  progress,
 }: {
   question: IeltsQuestion;
   onSelect: (q: IeltsQuestion) => void;
   showSample?: boolean;
+  /** Earlier attempts on this prompt, when the learner has any. */
+  progress?: { attempts: number; bestBand: number | null };
 }) {
   const getDifficultyColor = (d: string) => {
     if (d === 'easy') return 'bg-tone-mint-soft text-tone-mint-fg';
@@ -164,7 +167,7 @@ export function QuestionCard({
   };
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 hover:shadow-lg hover:border-tone-sky-border transition-all duration-200 group">
+    <div className="lift group rounded-xl border border-slate-200 bg-white p-4 hover:border-tone-lavender-border dark:border-slate-700 dark:bg-slate-800">
       <div className="flex flex-wrap gap-1.5 mb-3">
         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${getDifficultyColor(question.difficulty)}`}>
           {question.difficulty}
@@ -175,6 +178,11 @@ export function QuestionCard({
         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
           {question.topic}
         </span>
+        {progress && (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-tone-mint-soft text-tone-mint-fg">
+            Đã làm {progress.attempts} lần{progress.bestBand != null ? ` · cao nhất ${progress.bestBand.toFixed(1)}` : ''}
+          </span>
+        )}
         {question.popularity && (
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-tone-lavender-soft text-tone-lavender-fg">
             {question.popularity.replace(/_/g, ' ')}
@@ -187,13 +195,13 @@ export function QuestionCard({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           <Target className="w-3 h-3 text-tone-aqua-fg" />
-          <span className="text-xs text-slate-500 dark:text-slate-400">Band {question.targetBand}</span>
+          <span className="text-xs text-slate-600 dark:text-slate-400">Band {question.targetBand}</span>
         </div>
         <button
           onClick={() => onSelect(question)}
-          className="press flex items-center gap-1.5 px-3 py-1.5 border border-tone-periwinkle-border bg-tone-periwinkle-soft text-tone-periwinkle-fg hover:bg-tone-periwinkle-border rounded-lg text-xs font-bold transition-all"
+          className="press flex min-h-touch items-center gap-1.5 px-3 py-1.5 border border-tone-periwinkle-border bg-tone-periwinkle-soft text-tone-periwinkle-fg hover:bg-tone-periwinkle-border rounded-lg text-xs font-bold transition-all"
         >
-          Bắt đầu <ArrowRight className="w-3 h-3" />
+          {progress ? 'Làm lại' : 'Bắt đầu'} <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
         </button>
       </div>
     </div>
@@ -218,7 +226,7 @@ export function FilterBar({
           key={f.key}
           value={filters[f.key] || ''}
           onChange={(e) => onChange(f.key, e.target.value)}
-          className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-tone-sky-accent focus:border-transparent outline-none"
+          className="min-h-touch rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 outline-none transition-colors hover:border-tone-lavender-border focus:border-tone-lavender-fg focus:ring-2 focus:ring-tone-lavender-border dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
         >
           <option value="">{f.label}</option>
           {f.options.map((o) => (

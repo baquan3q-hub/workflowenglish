@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { IeltsAiFeedback, IeltsQuestion } from '../types';
 import { BandScoreDisplay, CriterionScoreBar, FeedbackList, NextActionsList } from '../components/IeltsCommon';
-import { ArrowLeft, RotateCcw, ChevronDown, Sparkles, LayoutList } from 'lucide-react';
+import { ArrowLeft, BarChart3, RotateCcw, ChevronDown, Sparkles, LayoutList } from 'lucide-react';
+import { IconTile } from '../components/ui/IconTile';
+import { toneClasses } from '../components/ui/palette';
 import WordPicker from '../components/ielts/WordPicker';
 import { CorrectionsByCategory, EssayByParagraph, RewriteComparison, Task1Checklist } from '../components/ielts/writing/FeedbackSections';
 import { panel as sharedPanel, primaryBtn as sharedPrimary, secondaryBtn as sharedSecondary } from '../components/ui/styles';
@@ -30,20 +32,20 @@ export default function IeltsWritingFeedback({ userId, question, userAnswer, fee
         <button
           type="button"
           onClick={onBackToHub}
-          className="inline-flex min-h-touch items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+          className="inline-flex min-h-touch items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-tone-lavender-fg dark:text-slate-400"
         >
           <ArrowLeft className="h-4 w-4" />
           Quay lại
         </button>
-        <span className="inline-flex items-center gap-1.5 text-caption font-medium text-slate-500 dark:text-slate-400">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-tone-lavender-soft px-2.5 py-1 text-caption font-semibold text-tone-lavender-fg">
           <Sparkles className="h-3.5 w-3.5" /> Nhận xét bởi AI
         </span>
       </div>
 
-      <section className={`${panel} space-y-3 text-center`}>
-        <p className="text-caption font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Band ước lượng</p>
+      <section className={`space-y-3 rounded-2xl border p-4 text-center sm:p-5 ${toneClasses('lavender').surface}`}>
+        <p className="text-caption font-semibold uppercase tracking-wide text-tone-lavender-fg">Band ước lượng</p>
         <BandScoreDisplay score={feedback.estimatedBand} targetBand={question.targetBand} label="" />
-        <p className="text-caption text-slate-500 dark:text-slate-400">Điểm do AI ước lượng, không phải điểm IELTS chính thức.</p>
+        <p className="text-caption text-slate-600 dark:text-slate-300">Điểm do AI ước lượng, không phải điểm IELTS chính thức.</p>
       </section>
 
       {previous && (
@@ -53,7 +55,9 @@ export default function IeltsWritingFeedback({ userId, question, userAnswer, fee
       )}
 
       <section className={`${panel} space-y-4`}>
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Điểm theo tiêu chí</h3>
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+          <IconTile icon={BarChart3} tone="sky" size="sm" /> Điểm theo tiêu chí
+        </h3>
         {feedback.criterionScores.map((c, i) => (
           <CriterionScoreBar key={i} criterion={c} skill="writing" />
         ))}
@@ -89,17 +93,17 @@ export default function IeltsWritingFeedback({ userId, question, userAnswer, fee
           type="button"
           onClick={() => setShowImproved(!showImproved)}
           aria-expanded={showImproved}
-          className="flex min-h-touch w-full items-center justify-between gap-3 text-left"
+          className="group flex min-h-touch w-full items-center justify-between gap-3 text-left"
         >
           <span className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
-            <LayoutList className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+            <IconTile icon={LayoutList} tone="mint" size="sm" />
             Bài tham khảo (band {question.targetBand})
           </span>
-          <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform dark:text-slate-400 ${showImproved ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`h-4 w-4 transition-transform ${toneClasses('mint').text} ${showImproved ? 'rotate-180' : ''}`} />
         </button>
         {showImproved && (
           <>
-            <p className="whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-sm leading-relaxed text-slate-800 dark:bg-slate-800/60 dark:text-slate-200">
+            <p className="whitespace-pre-wrap rounded-xl border border-tone-mint-border bg-tone-mint p-4 text-sm leading-relaxed text-slate-800 dark:text-slate-200">
               {feedback.improvedVersion}
             </p>
             <WordPicker userId={userId} text={feedback.improvedVersion} />

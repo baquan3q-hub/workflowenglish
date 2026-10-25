@@ -53,6 +53,7 @@ import { readingAttemptLabels, scorePassages, sessionPassages as readingSessionP
 import { appendDrillLog, groupRecords, isDrillTestId, parseDrillTestId, resolveReadingTest } from './services/readingDrill';
 import type { ReadingKind } from './data/ielts/readingLessons';
 import { gradeWritingTask } from './services/ieltsWritingService';
+import { clearWritingDraft } from './services/writingPracticeLogic';
 import { gradeSpeakingAnswer } from './services/ieltsSpeakingService';
 import { fluencySummaryForGrader, isFluencyMetrics, type FluencyMetrics } from './services/fluencyLogic';
 import { saveIeltsAttempt, saveListeningAttempt, saveReadingAttempt, resolveAttemptQuestion, isListeningDetails, isReadingDetails, getPreviousWritingAttempt } from './services/ieltsAttemptService';
@@ -1600,6 +1601,7 @@ function App() {
       case AppPhase.IELTS_WRITING_PRACTICE:
         return selectedIeltsQuestion ? (
           <IeltsWritingPractice
+            userId={currentUser?.id ?? ''}
             question={selectedIeltsQuestion}
             onSubmit={async (answer, durationSeconds) => {
               setIsIeltsGrading(true);
@@ -1619,6 +1621,8 @@ function App() {
                 setIeltsWritingPrevious(await previous);
                 setIeltsFeedbackData(feedback);
                 setPhase(AppPhase.IELTS_WRITING_FEEDBACK);
+                // Graded: the draft on this device is done with (a rewrite starts from the answer).
+                clearWritingDraft(currentUser?.id ?? '', selectedIeltsQuestion.id);
                 recordIeltsAttempt({
                   skill: 'writing',
                   question: selectedIeltsQuestion,
