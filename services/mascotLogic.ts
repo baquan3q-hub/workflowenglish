@@ -7,14 +7,14 @@
 
 export type MascotState = 'idle' | 'look' | 'wave' | 'nod' | 'hop' | 'celebrate' | 'sleepy';
 export type MascotEvent = 'hover-mascot' | 'hover-target' | 'goal-added' | 'goal-done' | 'all-done' | 'idle-timeout';
-/** The pictures in public/mascot/<pose>.png. */
-export type MascotPose = 'idle' | 'wave' | 'cheer' | 'sleepy' | 'thumbs';
+/** The pictures in public/mascot/<pose>.png. The friendly wave doubles as the resting pose. */
+export type MascotPose = 'wave' | 'cheer' | 'sleepy' | 'thumbs';
 
-export const MASCOT_POSES: readonly MascotPose[] = ['idle', 'wave', 'cheer', 'sleepy', 'thumbs'];
+export const MASCOT_POSES: readonly MascotPose[] = ['wave', 'cheer', 'sleepy', 'thumbs'];
 
 export const POSE_OF: Record<MascotState, MascotPose> = {
-  idle: 'idle',
-  look: 'idle',
+  idle: 'wave',
+  look: 'wave',
   wave: 'wave',
   nod: 'thumbs',
   hop: 'cheer',
@@ -70,7 +70,7 @@ export function mascotMessage({ state, greeting, done, total, next }: MessageInp
   if (state === 'celebrate' || (allDone && state === 'hop')) return `Xong hết ${total} mục tiêu hôm nay rồi. Tuyệt vời!`;
   if (state === 'hop') return left === 1 ? 'Xong thêm một việc! Chỉ còn một mục nữa thôi.' : `Xong thêm một việc! Còn ${left} mục nữa.`;
   if (state === 'nod') return 'Mục tiêu mới đây rồi. Mình cùng làm nhé!';
-  if (state === 'sleepy') return allDone ? 'Hôm nay bạn làm tốt lắm. Mình đọc sách chút đây…' : 'Mình đọc sách chờ bạn nhé…';
+  if (state === 'sleepy') return allDone ? 'Hôm nay bạn làm tốt lắm. Mình chợp mắt chút đây…' : 'Buồn ngủ quá… Mình chờ bạn quay lại nhé.';
   if (allDone) return `${greeting}! Hôm nay bạn đã xong hết mục tiêu.`;
   if (next) return `${greeting}! Bắt đầu với “${next}” nhé.`;
   return `${greeting}! Thêm một mục tiêu cho hôm nay nhé.`;

@@ -81,8 +81,8 @@ export default function Mascot({ areaRef, signal, target, greeting, done, total,
   const figureRef = useRef<HTMLDivElement>(null);
   const leanRef = useRef<HTMLDivElement>(null);
 
-  // Pictures: idle first; the others once the page has settled. Missing ones fall back.
-  const [poses, setPoses] = useState<MascotPose[]>(['idle']);
+  // Pictures: the resting one first; the others once the page has settled. Missing ones fall back.
+  const [poses, setPoses] = useState<MascotPose[]>([POSE_OF.idle]);
   const [missing, setMissing] = useState<ReadonlySet<MascotPose>>(new Set());
 
   const set = useCallback((s: MascotState) => {
@@ -212,7 +212,7 @@ export default function Mascot({ areaRef, signal, target, greeting, done, total,
   }, []);
 
   const wanted = POSE_OF[state];
-  const shown: MascotPose = missing.has(wanted) ? 'idle' : wanted;
+  const shown: MascotPose = missing.has(wanted) ? POSE_OF.idle : wanted;
   const drawn = missing.has(shown);
   const message = mascotMessage({ state, greeting, done, total, next });
   const sparkle = !reduced && (state === 'hop' || state === 'celebrate');

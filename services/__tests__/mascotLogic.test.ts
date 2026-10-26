@@ -9,7 +9,7 @@ describe('mascot reactions', () => {
     expect(reactTo('idle', 'goal-done', false)).toBe('hop');
     expect(reactTo('idle', 'all-done', false)).toBe('celebrate');
     expect(reactTo('idle', 'idle-timeout', false)).toBe('sleepy');
-    expect([POSE_OF.nod, POSE_OF.hop, POSE_OF.celebrate, POSE_OF.look]).toEqual(['thumbs', 'cheer', 'cheer', 'idle']);
+    expect([POSE_OF.nod, POSE_OF.hop, POSE_OF.celebrate, POSE_OF.look]).toEqual(['thumbs', 'cheer', 'cheer', 'wave']);
   });
 
   it('does not let a smaller reaction cut a bigger one short', () => {
