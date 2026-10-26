@@ -1,0 +1,58 @@
+import { DifficultyLevel, VocabularyTemplate } from '../../types';
+
+export const FOOD_TEMPLATES: VocabularyTemplate[] = [
+  {
+    id: 'food-a1',
+    name: 'Ẩm thực cơ bản',
+    topic: 'Food & Dining',
+    cefrLevel: DifficultyLevel.A1,
+    words: ['menu', 'waiter', 'bill', 'delicious', 'spicy', 'dessert', 'appetizer', 'beverage', 'ingredient', 'recipe'],
+    meanings: ['thực đơn', 'phục vụ', 'hóa đơn', 'ngon', 'cay', 'tráng miệng', 'khai vị', 'đồ uống', 'nguyên liệu', 'công thức'],
+    samplePreview: ['menu', 'delicious', 'dessert', 'recipe'],
+  },
+  {
+    id: 'food-a1-basics',
+    name: 'Rau củ & trái cây',
+    topic: 'Food & Dining',
+    cefrLevel: DifficultyLevel.A1,
+    words: ['apple', 'banana', 'orange', 'mango', 'tomato', 'potato', 'carrot', 'onion', 'rice', 'bread', 'egg', 'milk'],
+    meanings: ['quả táo', 'quả chuối', 'quả cam', 'quả xoài', 'quả cà chua', 'khoai tây', 'cà rốt', 'hành tây', 'gạo, cơm', 'bánh mì', 'quả trứng', 'sữa'],
+    samplePreview: ['apple', 'mango', 'carrot', 'bread'],
+  },
+  {
+    id: 'food-a2',
+    name: 'Nấu ăn',
+    topic: 'Food & Dining',
+    cefrLevel: DifficultyLevel.A2,
+    words: ['boil', 'fry', 'bake', 'grill', 'chop', 'slice', 'mix', 'pour', 'stir', 'peel', 'oven', 'pan'],
+    meanings: ['luộc, đun sôi', 'chiên, rán', 'nướng (bằng lò)', 'nướng vỉ', 'băm, chặt', 'thái lát', 'trộn', 'rót, đổ', 'khuấy', 'gọt vỏ', 'lò nướng', 'chảo'],
+    samplePreview: ['boil', 'fry', 'chop', 'stir'],
+  },
+  {
+    id: 'food-b1',
+    name: 'Ở nhà hàng',
+    topic: 'Food & Dining',
+    cefrLevel: DifficultyLevel.B1,
+    words: ['booking', 'portion', 'vegetarian', 'takeaway', 'main course', 'side dish', 'tip', 'speciality', 'set menu', 'service charge', 'cuisine', 'flavour'],
+    meanings: ['đặt bàn', 'khẩu phần', 'người ăn chay', 'đồ mang đi', 'món chính', 'món ăn kèm', 'tiền boa', 'món đặc sản', 'thực đơn cố định', 'phí phục vụ', 'nền ẩm thực', 'hương vị'],
+    samplePreview: ['portion', 'vegetarian', 'main course', 'speciality'],
+  },
+  {
+    id: 'food-b2',
+    name: 'Miêu tả món ăn',
+    topic: 'Food & Dining',
+    cefrLevel: DifficultyLevel.B2,
+    words: ['savoury', 'bland', 'crispy', 'tender', 'succulent', 'greasy', 'tangy', 'bitter', 'aromatic', 'mouth-watering', 'overcooked', 'seasoning'],
+    meanings: ['mặn, đậm đà', 'nhạt nhẽo', 'giòn', 'mềm', 'mọng nước', 'nhiều dầu mỡ', 'chua nhẹ, thơm', 'đắng', 'thơm', 'hấp dẫn, chảy nước miếng', 'nấu quá chín', 'gia vị'],
+    samplePreview: ['savoury', 'crispy', 'succulent', 'mouth-watering'],
+  },
+  {
+    id: 'food-c1',
+    name: 'Ẩm thực tinh tế',
+    topic: 'Food & Dining',
+    cefrLevel: DifficultyLevel.C1,
+    words: ['gourmet', 'palate', 'connoisseur', 'delicacy', 'culinary', 'garnish', 'marinate', 'umami', 'artisanal', 'fusion cuisine', 'palatable', 'sommelier'],
+    meanings: ['sành ăn, cao cấp', 'khẩu vị', 'người sành sỏi', 'món ngon đặc biệt', 'thuộc về nấu nướng', 'trang trí món ăn', 'ướp', 'vị umami (vị ngọt thịt)', 'làm thủ công', 'ẩm thực kết hợp', 'ngon miệng, dễ chấp nhận', 'chuyên gia rượu vang'],
+    samplePreview: ['gourmet', 'connoisseur', 'delicacy', 'marinate'],
+  },
+];

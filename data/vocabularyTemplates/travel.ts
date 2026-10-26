@@ -1,0 +1,58 @@
+import { DifficultyLevel, VocabularyTemplate } from '../../types';
+
+export const TRAVEL_TEMPLATES: VocabularyTemplate[] = [
+  {
+    id: 'travel-a1',
+    name: 'Du lịch cơ bản',
+    topic: 'Travel & Tourism',
+    cefrLevel: DifficultyLevel.A1,
+    words: ['airport', 'hotel', 'ticket', 'passport', 'luggage', 'taxi', 'map', 'beach', 'restaurant', 'camera'],
+    meanings: ['sân bay', 'khách sạn', 'vé', 'hộ chiếu', 'hành lý', 'taxi', 'bản đồ', 'bãi biển', 'nhà hàng', 'máy ảnh'],
+    samplePreview: ['airport', 'hotel', 'passport', 'beach'],
+  },
+  {
+    id: 'travel-a1-directions',
+    name: 'Hỏi đường',
+    topic: 'Travel & Tourism',
+    cefrLevel: DifficultyLevel.A1,
+    words: ['left', 'right', 'straight', 'corner', 'street', 'bridge', 'station', 'bus stop', 'near', 'far', 'opposite', 'traffic light'],
+    meanings: ['bên trái', 'bên phải', 'thẳng', 'góc đường', 'đường phố', 'cây cầu', 'nhà ga', 'trạm xe buýt', 'gần', 'xa', 'đối diện', 'đèn giao thông'],
+    samplePreview: ['left', 'corner', 'bus stop', 'opposite'],
+  },
+  {
+    id: 'travel-a2',
+    name: 'Du lịch nâng cao',
+    topic: 'Travel & Tourism',
+    cefrLevel: DifficultyLevel.A2,
+    words: ['itinerary', 'destination', 'reservation', 'sightseeing', 'souvenir', 'departure', 'arrival', 'accommodation', 'currency', 'guidebook'],
+    meanings: ['lịch trình', 'điểm đến', 'đặt chỗ', 'tham quan', 'quà lưu niệm', 'khởi hành', 'đến nơi', 'chỗ ở', 'tiền tệ', 'sách hướng dẫn'],
+    samplePreview: ['itinerary', 'destination', 'reservation', 'souvenir'],
+  },
+  {
+    id: 'travel-b1',
+    name: 'Du lịch chuyên sâu',
+    topic: 'Travel & Tourism',
+    cefrLevel: DifficultyLevel.B1,
+    words: ['excursion', 'hospitality', 'customs', 'immigration', 'layover', 'turbulence', 'expedition', 'backpacking', 'jet lag', 'embark'],
+    meanings: ['chuyến tham quan', 'lòng hiếu khách', 'hải quan', 'nhập cư', 'quá cảnh', 'nhiễu động', 'cuộc thám hiểm', 'du lịch bụi', 'lệch múi giờ', 'lên tàu/bắt đầu'],
+    samplePreview: ['excursion', 'hospitality', 'customs', 'expedition'],
+  },
+  {
+    id: 'travel-b2',
+    name: 'Miêu tả điểm đến',
+    topic: 'Travel & Tourism',
+    cefrLevel: DifficultyLevel.B2,
+    words: ['picturesque', 'breathtaking', 'secluded', 'bustling', 'scenic', 'landmark', 'heritage site', 'crowded', 'tranquil', 'vibrant', 'overrated', 'remote'],
+    meanings: ['đẹp như tranh', 'đẹp ngoạn mục', 'hẻo lánh, biệt lập', 'nhộn nhịp', 'có cảnh đẹp', 'địa danh nổi tiếng', 'di sản', 'đông đúc', 'yên bình', 'sôi động', 'được đánh giá quá cao', 'xa xôi'],
+    samplePreview: ['picturesque', 'secluded', 'bustling', 'tranquil'],
+  },
+  {
+    id: 'travel-c1',
+    name: 'Du lịch & văn hoá',
+    topic: 'Travel & Tourism',
+    cefrLevel: DifficultyLevel.C1,
+    words: ['wanderlust', 'globetrotter', 'cosmopolitan', 'quaint', 'idyllic', 'unspoilt', 'off the beaten track', 'sojourn', 'vantage point', 'influx', 'culture shock', 'immerse'],
+    meanings: ['niềm đam mê xê dịch', 'người đi khắp thế giới', 'mang tính quốc tế', 'cổ kính, duyên dáng', 'thanh bình lý tưởng', 'còn hoang sơ', 'xa các tuyến du lịch quen thuộc', 'thời gian lưu lại', 'vị trí quan sát', 'dòng người đổ về', 'sốc văn hoá', 'đắm mình vào'],
+    samplePreview: ['wanderlust', 'idyllic', 'off the beaten track', 'culture shock'],
+  },
+];
