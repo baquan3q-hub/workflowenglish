@@ -6,20 +6,37 @@ import { isMissingTable } from './listeningLibraryLogic';
 import { EMPTY_PROFILE, profileSummary, sanitizeProfile, type LearningProfile } from './learningProfileLogic';
 import { supabase } from './supabaseClient';
 import { setLearnerSummary } from './learnerContext';
+import { clearRecommendationCache } from './recommendationService';
 
 const TABLE = 'learning_profiles';
 
 /** Kept for this visit so every AI call does not read the table again. */
 let cached: { userId: string; profile: LearningProfile } | null = null;
 
+/** False once a read found the table missing (migration 015 not run): saving cannot work yet. */
+let available = true;
+export const learningProfileAvailable = () => available;
+
 export async function getLearningProfile(userId: string): Promise<LearningProfile> {
   if (!userId) return { ...EMPTY_PROFILE };
   if (cached?.userId === userId) return cached.profile;
-  const { data, error } = await supabase.from(TABLE).select('data').eq('user_id', userId).maybeSingle();
-  if (error) {
-    if (!isMissingTable(error.message)) console.warn('[Profile] could not load:', error.message);
+  // Another account (or none) until this read succeeds: its summary must not reach the AI.
+  cached = null;
+  setLearnerSummary('');
+  let result;
+  try {
+    result = await supabase.from(TABLE).select('data').eq('user_id', userId).maybeSingle();
+  } catch (err) {
+    console.warn('[Profile] could not load:', err);
     return { ...EMPTY_PROFILE };
   }
+  const { data, error } = result;
+  if (error) {
+    if (isMissingTable(error.message)) available = false;
+    else console.warn('[Profile] could not load:', error.message);
+    return { ...EMPTY_PROFILE };
+  }
+  available = true;
   const profile = sanitizeProfile((data as { data?: unknown } | null)?.data);
   cached = { userId, profile };
   setLearnerSummary(profileSummary(profile));
@@ -37,6 +54,8 @@ export async function saveLearningProfile(userId: string, profile: LearningProfi
   }
   cached = { userId, profile: clean };
   setLearnerSummary(profileSummary(clean));
+  // Suggestions were made for the old profile.
+  clearRecommendationCache(userId);
   return clean;
 }
 

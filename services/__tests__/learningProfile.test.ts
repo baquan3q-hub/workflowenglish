@@ -109,3 +109,22 @@ describe('learning profile service', () => {
     expect(db.reads).toBe(0);
   });
 });
+
+import { learnerSummaryNow } from '../learnerContext';
+
+describe('learner summary across accounts', () => {
+  beforeEach(() => {
+    db.row = null;
+    db.error = null;
+    clearLearningProfileCache();
+  });
+
+  it('drops the previous account summary when the next read fails', async () => {
+    db.row = { data: full };
+    await getLearningProfile('userA');
+    expect(learnerSummaryNow()).toContain('Software engineer');
+    db.error = { message: 'network down' };
+    expect(await getLearningProfile('userB')).toEqual(EMPTY_PROFILE);
+    expect(learnerSummaryNow()).toBe('');
+  });
+});

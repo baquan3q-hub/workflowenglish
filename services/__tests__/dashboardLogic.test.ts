@@ -52,7 +52,7 @@ describe('hero', () => {
   });
 
   it('marks the streak days of the last week', () => {
-    const now = new Date(2026, 9, 26, 10); // Monday
+    const now = new Date('2026-10-26T10:00:00Z'); // Monday
     const week = streakWeek(now, 3, '2026-10-26');
     expect(week).toHaveLength(7);
     expect(week.map((d) => d.active)).toEqual([false, false, false, false, true, true, true]);
@@ -60,8 +60,14 @@ describe('hero', () => {
     expect(week[0].label).toBe('T3');
   });
 
+  it('counts days in UTC, like goalService stamps them', () => {
+    // 06:00 in Hanoi on 27 Oct is still 26 Oct in UTC: today's dot is the one that was stamped.
+    const week = streakWeek(new Date('2026-10-26T23:00:00Z'), 1, '2026-10-26');
+    expect(week[6]).toMatchObject({ date: '2026-10-26', active: true, today: true });
+  });
+
   it('keeps a streak that ended yesterday, drops an older one', () => {
-    const now = new Date(2026, 9, 26, 10);
+    const now = new Date('2026-10-26T10:00:00Z');
     expect(streakWeek(now, 2, '2026-10-25').map((d) => d.active)).toEqual([false, false, false, false, true, true, false]);
     expect(streakWeek(now, 5, '2026-10-20').every((d) => !d.active)).toBe(true);
     expect(streakWeek(now, 0, '2026-10-26').every((d) => !d.active)).toBe(true);

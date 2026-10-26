@@ -31,10 +31,9 @@ import { getWrongSentences } from '../services/sentenceService';
 import { getLessonLists, getLibraryWords } from '../services/vocabLibraryService';
 import { listProgress, matchesStatus, type LessonList, type LibraryWord } from '../services/vocabLibraryLogic';
 import { countInputWords, greeting, heroCardText, lessonMinutes, pickPrimaryAction, streakWeek } from '../services/dashboardLogic';
-import { getIeltsAttempts } from '../services/ieltsAttemptService';
+import { getRecentIeltsAttempts } from '../services/ieltsAttemptService';
 import { overallBand, PRACTISED_SKILLS, skillProgress } from '../services/ieltsProgressLogic';
-import type { IeltsAttempt } from '../types';
-import { getLearningProfile } from '../services/learningProfileService';
+import { getLearningProfile, learningProfileAvailable } from '../services/learningProfileService';
 import { isProfileEmpty } from '../services/learningProfileLogic';
 import { UserRound } from 'lucide-react';
 import { Skeleton } from '../components/ui/States';
@@ -256,10 +255,9 @@ const Dashboard: React.FC<DashboardProps> = ({
       .catch((err) => console.warn('Could not load wrong sentences:', err?.message ?? err));
 
     // Only the band for the hero card: a failure just leaves "Bắt đầu lộ trình".
-    Promise.all(PRACTISED_SKILLS.map((skill) => getIeltsAttempts(userId, skill, 3).catch(() => [] as IeltsAttempt[])))
-      .then((lists) => {
+    getRecentIeltsAttempts(userId)
+      .then((all) => {
         if (cancelled) return;
-        const all = lists.flat();
         const bands = PRACTISED_SKILLS.map((skill) => skillProgress(skill, all).current).filter((b): b is number => b != null);
         setIeltsBand(overallBand(bands));
       })
@@ -268,7 +266,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     getLearningProfile(userId).then((p) => {
       if (cancelled) return;
       setProfileName(p.nickname);
-      setProfileEmpty(isProfileEmpty(p));
+      setProfileEmpty(isProfileEmpty(p) && learningProfileAvailable());
     });
 
     getOrCreateUserGoals(userId)

@@ -280,6 +280,18 @@ export async function getPreviousWritingAttempt(
 }
 
 /** Most recent attempts for one skill, newest first. */
+/** The learner's latest attempts across all skills, newest first (for the Dashboard band). */
+export async function getRecentIeltsAttempts(userId: string, limit: number = 40): Promise<IeltsAttempt[]> {
+  const { data, error } = await withTimeout(Promise.resolve(supabase
+    .from(TABLE)
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit)));
+  if (error) throw error;
+  return ((data || []) as IeltsAttemptRow[]).map(rowToAttempt);
+}
+
 export async function getIeltsAttempts(
   userId: string,
   skill: IeltsSkill,

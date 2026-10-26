@@ -9,6 +9,7 @@ import { toneClasses, type Tone } from '../components/ui/palette';
 import { field, ghostBtn, panel, primaryBtn } from '../components/ui/styles';
 import { Skeleton } from '../components/ui/States';
 import {
+  EMPTY_PROFILE,
   GOAL_LABELS,
   INTEREST_LABELS,
   NAME_MAX,
@@ -74,11 +75,14 @@ export default function LearningProfile({ userId, onBack, api = defaultApi }: Pr
 
   useEffect(() => {
     let live = true;
-    api.load(userId).then((p) => {
-      if (!live) return;
-      setProfile(p);
-      setSaved(p);
-    });
+    api
+      .load(userId)
+      .catch(() => ({ ...EMPTY_PROFILE }))
+      .then((p) => {
+        if (!live) return;
+        setProfile(p);
+        setSaved(p);
+      });
     return () => {
       live = false;
     };

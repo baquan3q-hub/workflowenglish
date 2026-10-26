@@ -82,10 +82,12 @@ export function greeting(now: Date, name?: string): string {
   return who ? `${part}, ${who}` : part;
 }
 
-const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+/** YYYY-MM-DD in UTC: goalService stores last_active_date as a UTC day, so the week must count the same way. */
+const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+const DAY_MS = 86_400_000;
 
 export interface StreakDay {
-  /** YYYY-MM-DD, local time. */
+  /** YYYY-MM-DD, UTC (as goalService counts days). */
   date: string;
   /** Two-letter weekday, Monday first: T2 … CN. */
   label: string;
@@ -103,18 +105,19 @@ const WEEKDAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 export function streakWeek(now: Date, streak: number, lastActive: string | null): StreakDay[] {
   const today = isoDay(now);
   const days: StreakDay[] = [];
-  const last = lastActive ? new Date(`${lastActive}T00:00:00`) : null;
+  const last = lastActive ? new Date(`${lastActive.slice(0, 10)}T00:00:00.000Z`) : null;
   // A streak only counts if it ended today or yesterday.
-  const live = !!last && !Number.isNaN(last.getTime()) && (today === lastActive || isoDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)) === lastActive);
+  const live = !!last && !Number.isNaN(last.getTime()) && (today === isoDay(last) || isoDay(new Date(now.getTime() - DAY_MS)) === isoDay(last));
+  const todayStart = Date.parse(`${today}T00:00:00.000Z`);
   for (let i = 6; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+    const d = new Date(todayStart - i * DAY_MS);
     const date = isoDay(d);
     let active = false;
     if (live && last && streak > 0) {
       const ago = Math.round((last.getTime() - d.getTime()) / 86_400_000);
       active = ago >= 0 && ago < streak;
     }
-    days.push({ date, label: WEEKDAYS[d.getDay()], active, today: date === today });
+    days.push({ date, label: WEEKDAYS[d.getUTCDay()], active, today: date === today });
   }
   return days;
 }
