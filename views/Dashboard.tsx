@@ -34,6 +34,9 @@ import { countInputWords, greeting, heroCardText, lessonMinutes, pickPrimaryActi
 import { getIeltsAttempts } from '../services/ieltsAttemptService';
 import { overallBand, PRACTISED_SKILLS, skillProgress } from '../services/ieltsProgressLogic';
 import type { IeltsAttempt } from '../types';
+import { getLearningProfile } from '../services/learningProfileService';
+import { isProfileEmpty } from '../services/learningProfileLogic';
+import { UserRound } from 'lucide-react';
 import { Skeleton } from '../components/ui/States';
 import { IconTile } from '../components/ui/IconTile';
 import { TONE_HOVER, toneClasses, type Tone } from '../components/ui/palette';
@@ -60,6 +63,8 @@ interface DashboardProps {
   onOpenStats?: () => void;
   /** Shown in the greeting. */
   displayName?: string;
+  /** Opens Hồ sơ học tập; the hero asks for it while the profile is empty. */
+  onOpenProfile?: () => void;
 }
 
 /** Sent to the AI as the lesson context; the label is what the learner sees. */
@@ -207,6 +212,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   onOpenIelts,
   onOpenStats,
   displayName,
+  onOpenProfile,
 }) => {
   const [inputText, setInputText] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -218,6 +224,9 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [showTemplateLibrary, setShowTemplateLibrary] = useState(false);
   /** Overall IELTS band from the latest attempts, for the hero card; null when there is none yet. */
   const [ieltsBand, setIeltsBand] = useState<number | null>(null);
+  /** The learner's nickname from Hồ sơ học tập, and whether to ask them to fill it in. */
+  const [profileName, setProfileName] = useState('');
+  const [profileEmpty, setProfileEmpty] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Recent lessons with SRS progress (null while loading).
@@ -255,6 +264,12 @@ const Dashboard: React.FC<DashboardProps> = ({
         setIeltsBand(overallBand(bands));
       })
       .catch(() => undefined);
+
+    getLearningProfile(userId).then((p) => {
+      if (cancelled) return;
+      setProfileName(p.nickname);
+      setProfileEmpty(isProfileEmpty(p));
+    });
 
     getOrCreateUserGoals(userId)
       .then((goals) => !cancelled && setUserGoals(goals))
@@ -453,7 +468,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               <IconTile icon={ACTION_TILE[action.kind].icon} tone={ACTION_TILE[action.kind].tone} size="lg" className="hidden sm:flex" />
             )}
             <div className="min-w-0 flex-1">
-              <p className={`text-caption font-semibold ${toneClasses(ACTION_TILE[action.kind].tone).text}`}>{greeting(now, displayName)}</p>
+              <p className={`text-caption font-semibold ${toneClasses(ACTION_TILE[action.kind].tone).text}`}>{greeting(now, profileName || displayName)}</p>
               <h1 id="dash-primary" className="mt-1 text-heading font-bold text-slate-900 dark:text-white">
                 {action.title}
               </h1>
@@ -502,6 +517,21 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
           </div>
         </div>
+
+        {profileEmpty && onOpenProfile && (
+          <button
+            type="button"
+            onClick={onOpenProfile}
+            className="press group flex w-full items-center gap-3 border-t border-slate-100 bg-tone-periwinkle px-5 py-3 text-left transition-colors hover:bg-tone-periwinkle-soft dark:border-slate-800 sm:px-6"
+          >
+            <IconTile icon={UserRound} tone="periwinkle" size="sm" />
+            <span className="min-w-0 flex-1 text-sm">
+              <span className="font-semibold text-tone-periwinkle-fg">Hoàn thiện hồ sơ học tập</span>
+              <span className="block text-caption text-slate-600 dark:text-slate-300">Cho AI biết mục tiêu, nghề và sở thích để bài học sát với bạn hơn.</span>
+            </span>
+            <ChevronRight className="h-4 w-4 flex-shrink-0 text-tone-periwinkle-fg transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+          </button>
+        )}
 
         {/* Four ways in */}
         <ul className="grid grid-cols-2 gap-px border-t border-slate-100 bg-slate-100 dark:border-slate-800 dark:bg-slate-800 lg:grid-cols-4">

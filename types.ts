@@ -39,6 +39,7 @@ export enum AppPhase {
   IELTS_ADMIN = 'IELTS_ADMIN',
   /** Vocabulary Mastery Test (Reviewing & Mastered words) */
   VOCAB_TEST = 'VOCAB_TEST',
+  PROFILE = 'PROFILE',
 }
 
 // ─── Vocabulary Test (Kiểm tra từ vựng) ───────────────────────────

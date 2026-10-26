@@ -20,6 +20,8 @@ import StoryMode from './views/StoryMode';
 import QuizMode from './views/QuizMode';
 import FillBlankMode from './views/FillBlankMode';
 import LearningHistory from './views/LearningHistory';
+import LearningProfile from './views/LearningProfile';
+import { clearLearningProfileCache } from './services/learningProfileService';
 import ReviewSession from './views/ReviewSession';
 import VocabTestView from './views/VocabTestView';
 import AnalyticsDashboard from './views/AnalyticsDashboard';
@@ -596,6 +598,8 @@ function App() {
     const confirmed = window.confirm('Bạn có chắc muốn đăng xuất?');
     if (!confirmed) return;
     isExplicitLogout = true;
+    // The next account must not see this one's profile.
+    clearLearningProfileCache();
     try {
       await signOut();
     } catch (err) {
@@ -1216,6 +1220,7 @@ function App() {
             onOpenIelts={() => setPhase(AppPhase.IELTS_HOME)}
             onOpenStats={() => navigateTo({ phase: AppPhase.ANALYTICS, analyticsSection: 'overview' })}
             displayName={currentUser?.displayName}
+            onOpenProfile={() => setPhase(AppPhase.PROFILE)}
           />
         );
 
@@ -1231,6 +1236,9 @@ function App() {
             onStartVocabTest={() => setPhase(AppPhase.VOCAB_TEST)}
           />
         ) : null;
+
+      case AppPhase.PROFILE:
+        return currentUser ? <LearningProfile userId={currentUser.id} onBack={() => setPhase(AppPhase.DASHBOARD)} /> : null;
 
       case AppPhase.HISTORY:
         return currentUser ? (
@@ -1865,10 +1873,17 @@ function App() {
                   <span className="sr-only xl:not-sr-only">Lịch sử</span>
                 </button>
 
-                <div className="hidden xl:flex items-center gap-1.5 bg-tone-periwinkle px-2.5 py-1 rounded-full border border-tone-periwinkle-border">
-                  <img src={currentUser.photoURL || "/app-logo.png"} className="w-5 h-5 rounded-full object-cover border border-blue-100 dark:border-slate-700 shadow-sm" alt="" />
-                  <span className="text-xs font-semibold text-tone-periwinkle-fg max-w-[100px] truncate">{currentUser.displayName}</span>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => navigateTo({ phase: AppPhase.PROFILE })}
+                  aria-current={phase === AppPhase.PROFILE ? 'page' : undefined}
+                  title="Hồ sơ học tập"
+                  aria-label="Hồ sơ học tập"
+                  className="press inline-flex min-h-touch min-w-touch items-center justify-center gap-1.5 rounded-full border border-tone-periwinkle-border bg-tone-periwinkle px-1.5 transition-colors hover:bg-tone-periwinkle-soft xl:px-2.5"
+                >
+                  <img src={currentUser.photoURL || "/app-logo.png"} className="w-6 h-6 rounded-full object-cover border border-blue-100 dark:border-slate-700 shadow-sm" alt="" />
+                  <span className="hidden xl:inline text-xs font-semibold text-tone-periwinkle-fg max-w-[100px] truncate">{currentUser.displayName}</span>
+                </button>
 
                 <button
                   onClick={handleLogout}
