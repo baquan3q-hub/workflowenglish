@@ -1,16 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
-  ArrowRight,
   BookOpen,
   ChevronRight,
   Clock,
   FileText,
   LayoutGrid,
-  PenLine,
   Plus,
   RefreshCw,
-  Repeat,
   Sparkles,
   X,
 } from 'lucide-react';
@@ -30,7 +27,9 @@ import { aiErrorMessage } from '../services/aiClient';
 import { getWrongSentences } from '../services/sentenceService';
 import { getLessonLists, getLibraryWords } from '../services/vocabLibraryService';
 import { listProgress, matchesStatus, type LessonList, type LibraryWord } from '../services/vocabLibraryLogic';
-import { countInputWords, greeting, heroCardText, lessonMinutes, pickPrimaryAction, streakWeek } from '../services/dashboardLogic';
+import { countInputWords, greeting, heroCardText, lessonMinutes, streakWeek } from '../services/dashboardLogic';
+import { countToday } from '../services/dailyGoalsLogic';
+import TodayHero from '../components/dashboard/TodayHero';
 import { getRecentIeltsAttempts } from '../services/ieltsAttemptService';
 import { overallBand, PRACTISED_SKILLS, skillProgress } from '../services/ieltsProgressLogic';
 import { getLearningProfile, learningProfileAvailable } from '../services/learningProfileService';
@@ -130,13 +129,6 @@ const toneChip = (tone: Tone, on: boolean) => {
   return `${chipBase} lift ${t.border} bg-white dark:bg-slate-900 ${hoverBg} text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white shadow-xs`;
 };
 
-/** Icon and tone of the "Hôm nay" card for each kind of next step. */
-const ACTION_TILE = {
-  continue: { icon: BookOpen, tone: 'periwinkle' },
-  review: { icon: Repeat, tone: 'butter' },
-  sentences: { icon: PenLine, tone: 'blush' },
-  new: { icon: Sparkles, tone: 'mint' },
-} as const satisfies Record<string, { icon: typeof BookOpen; tone: Tone }>;
 const sectionTitle = 'text-sm font-semibold text-slate-900 dark:text-white';
 
 /** A recommended word's chip tone, from its CEFR level. */
@@ -153,49 +145,6 @@ const relativeDay = (iso: string, now: Date): string => {
   if (days === 1) return 'Hôm qua';
   if (days < 30) return `${days} ngày trước`;
   return d.toLocaleDateString('vi-VN', { day: 'numeric', month: 'long' });
-};
-
-/** Daily goal ring: words reviewed today out of the goal. */
-const GoalRing: React.FC<{ value: number; max: number }> = ({ value, max }) => {
-  const size = 72;
-  const stroke = 6;
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const ratio = Math.max(0, Math.min(1, value / Math.max(1, max)));
-  const met = value >= max;
-  return (
-    <div className="relative h-[72px] w-[72px] flex-shrink-0" role="img" aria-label={`Đã ôn ${value} trên ${max} từ hôm nay`}>
-      <svg viewBox={`0 0 ${size} ${size}`} className="-rotate-90" width={size} height={size} aria-hidden="true">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} className="stroke-tone-aqua-soft" />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={c}
-          strokeDashoffset={c * (1 - ratio)}
-          className={met ? 'stroke-tone-mint-accent' : 'stroke-tone-aqua-accent'}
-          style={{ transition: 'stroke-dashoffset 500ms ease-out' }}
-        />
-      </svg>
-      <span className="absolute inset-0 flex flex-col items-center justify-center leading-none" aria-hidden="true">
-        <span className="text-base font-semibold tabular-nums text-slate-900 dark:text-white">{value}</span>
-        <span className="mt-0.5 text-[11px] tabular-nums text-slate-500 dark:text-slate-400">/{max}</span>
-      </span>
-      {met && (
-        <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center drop-shadow-sm" aria-hidden="true">
-          <img
-            src="/learning-progress.png"
-            alt=""
-            className="h-full w-full object-contain select-none"
-            draggable={false}
-          />
-        </span>
-      )}
-    </div>
-  );
 };
 
 const Dashboard: React.FC<DashboardProps> = ({
@@ -223,6 +172,8 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [showTemplateLibrary, setShowTemplateLibrary] = useState(false);
   /** Overall IELTS band from the latest attempts, for the hero card; null when there is none yet. */
   const [ieltsBand, setIeltsBand] = useState<number | null>(null);
+  /** IELTS attempts made today, for the "Luyện IELTS" goal; null while loading. */
+  const [ieltsToday, setIeltsToday] = useState<number | null>(null);
   /** The learner's nickname from Hồ sơ học tập, and whether to ask them to fill it in. */
   const [profileName, setProfileName] = useState('');
   const [profileEmpty, setProfileEmpty] = useState(false);
@@ -254,14 +205,15 @@ const Dashboard: React.FC<DashboardProps> = ({
       .then((items) => !cancelled && setWrongSentences(items))
       .catch((err) => console.warn('Could not load wrong sentences:', err?.message ?? err));
 
-    // Only the band for the hero card: a failure just leaves "Bắt đầu lộ trình".
+    // The band for the hero card and today's attempts for the IELTS goal; a failure leaves both empty.
     getRecentIeltsAttempts(userId)
       .then((all) => {
         if (cancelled) return;
         const bands = PRACTISED_SKILLS.map((skill) => skillProgress(skill, all).current).filter((b): b is number => b != null);
         setIeltsBand(overallBand(bands));
+        setIeltsToday(countToday(all.map((a) => a.createdAt), new Date()));
       })
-      .catch(() => undefined);
+      .catch(() => !cancelled && setIeltsToday(0));
 
     getLearningProfile(userId).then((p) => {
       if (cancelled) return;
@@ -412,11 +364,6 @@ const Dashboard: React.FC<DashboardProps> = ({
     if (inputText.trim()) onGenerate(inputText, settings);
   };
 
-  const action = pickPrimaryAction({
-    activeLesson,
-    dueCount,
-    wrongSentences: onPracticeSentences ? wrongSentences.length : 0,
-  });
   const wordCount = countInputWords(inputText);
   const minutes = lessonMinutes(wordCount);
   const now = useMemo(() => new Date(), [recent]);
@@ -441,80 +388,33 @@ const Dashboard: React.FC<DashboardProps> = ({
   ];
   const streakDays = userGoals ? streakWeek(now, userGoals.current_streak, userGoals.last_active_date) : [];
 
-  const runPrimary = () => {
-    if (action.kind === 'continue') onContinueLesson?.();
-    else if (action.kind === 'review') onStartReview();
-    else if (action.kind === 'sentences') onPracticeSentences?.(wrongSentences);
-    else inputRef.current?.focus();
+  const openGoal = (kind: 'continue' | 'review' | 'sentences' | 'ielts') => {
+    if (kind === 'continue') onContinueLesson?.();
+    else if (kind === 'review') onStartReview();
+    else if (kind === 'sentences') onPracticeSentences?.(wrongSentences);
+    else onOpenIelts?.();
+  };
+  const autoGoalInput = {
+    activeLesson: onContinueLesson ? activeLesson : null,
+    dueCount,
+    reviewedToday: userGoals?.words_reviewed_today ?? 0,
+    dailyWordGoal: userGoals?.daily_word_goal ?? 5,
+    wrongSentences: onPracticeSentences ? wrongSentences.length : 0,
+    ieltsToday,
   };
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      {/* Hero: greeting, the one thing to do now, today's goal, and four ways in */}
-      <section aria-labelledby="dash-primary" className={`${panel} overflow-hidden`}>
-        <div className="relative p-5 sm:p-6">
-          {/* Soft tone wash behind the greeting (plain fills, no blur). */}
-          <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-            <div className={`absolute -right-16 -top-20 h-56 w-56 rounded-full opacity-70 ${toneClasses(ACTION_TILE[action.kind].tone).bg}`} />
-            <div className="absolute -bottom-24 left-1/3 h-48 w-48 rounded-full bg-tone-periwinkle opacity-60" />
-          </div>
-
-          <div className="group relative flex flex-col gap-5 sm:flex-row sm:items-center">
-            {action.kind === 'review' ? (
-              <IconTile imageSrc="/review-refresh.png" tone={ACTION_TILE[action.kind].tone} size="lg" className="hidden sm:flex" />
-            ) : (
-              <IconTile icon={ACTION_TILE[action.kind].icon} tone={ACTION_TILE[action.kind].tone} size="lg" className="hidden sm:flex" />
-            )}
-            <div className="min-w-0 flex-1">
-              <p className={`text-caption font-semibold ${toneClasses(ACTION_TILE[action.kind].tone).text}`}>{greeting(now, profileName || displayName)}</p>
-              <h1 id="dash-primary" className="mt-1 text-heading font-bold text-slate-900 dark:text-white">
-                {action.title}
-              </h1>
-              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{action.detail}</p>
-              {action.kind !== 'new' && (
-                <button type="button" onClick={runPrimary} className={`${primaryBtn} mt-4 w-full sm:w-auto`}>
-                  {action.kind === 'continue' ? (
-                    <BookOpen className="h-4 w-4" aria-hidden="true" />
-                  ) : action.kind === 'sentences' ? (
-                    <PenLine className="h-4 w-4" aria-hidden="true" />
-                  ) : (
-                    <Repeat className="h-4 w-4" aria-hidden="true" />
-                  )}
-                  {action.kind === 'continue' ? 'Tiếp tục' : action.kind === 'sentences' ? 'Luyện câu' : 'Bắt đầu ôn'}
-                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </button>
-              )}
-            </div>
-
-            <div className="flex items-center gap-4 border-t border-slate-100 pt-4 dark:border-slate-800 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
-              {userGoals ? (
-                <>
-                  <GoalRing value={userGoals.words_reviewed_today} max={userGoals.daily_word_goal} />
-                  <label className="flex flex-col gap-1 text-caption text-slate-600 dark:text-slate-300">
-                    Mục tiêu hôm nay
-                    <select
-                      value={userGoals.daily_word_goal}
-                      onChange={handleGoalChange}
-                      disabled={isUpdatingGoal}
-                      className="min-h-touch rounded-lg border border-tone-aqua-border bg-tone-aqua px-2 text-sm font-medium text-tone-aqua-fg outline-none transition-colors hover:bg-tone-aqua-soft focus-visible:ring-2 focus-visible:ring-tone-aqua-accent disabled:opacity-60"
-                    >
-                      {[5, 10, 15, 20, 30].map((n) => (
-                        <option key={n} value={n}>
-                          {n} từ/ngày
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </>
-              ) : (
-                <>
-                  <Skeleton circle className="h-[72px] w-[72px]" />
-                  <Skeleton className="h-11 w-32" />
-                </>
-              )}
-            </div>
-          </div>
-        </div>
+      {/* Hero: today's goals with the mascot, then four ways in */}
+      <section aria-labelledby="dash-primary" className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <TodayHero
+          userId={userId}
+          auto={autoGoalInput}
+          autoReady={dueCount !== null && userGoals !== null && ieltsToday !== null}
+          greeting={greeting(now, profileName || displayName)}
+          onOpen={openGoal}
+          dailyGoal={userGoals ? { value: userGoals.daily_word_goal, onChange: handleGoalChange, disabled: isUpdatingGoal } : null}
+        />
 
         {profileEmpty && onOpenProfile && (
           <button

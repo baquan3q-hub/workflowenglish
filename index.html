@@ -443,6 +443,57 @@
       animation: gradientShift 4s ease infinite;
     }
 
+    /* Learn hero: goal ticks and the mascot's one-off reactions. Each plays once
+       (no looping); the reduced-motion rule above makes them instant. */
+    @keyframes goalPop {
+      0% { scale: 0.6; }
+      60% { scale: 1.18; }
+      100% { scale: 1; }
+    }
+    .anim-goal-pop { animation: goalPop 320ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+    @keyframes sparkleOut {
+      0% { opacity: 0; scale: 0.4; translate: 0 0; }
+      30% { opacity: 1; }
+      100% { opacity: 0; scale: 1; translate: var(--sx, 0) var(--sy, -14px); }
+    }
+    .anim-sparkle { animation: sparkleOut 700ms ease-out forwards; opacity: 0; }
+
+    @keyframes mascotNod {
+      0%, 100% { rotate: 0deg; translate: 0 0; }
+      30% { rotate: -3deg; translate: 0 3px; }
+      60% { rotate: 2deg; translate: 0 0; }
+    }
+    .anim-mascot-nod { animation: mascotNod 700ms ease-in-out 120ms; }
+
+    @keyframes mascotHop {
+      0%, 100% { translate: 0 0; scale: 1 1; }
+      20% { translate: 0 2px; scale: 1.03 0.97; }
+      50% { translate: 0 -12px; scale: 0.98 1.03; }
+      80% { translate: 0 0; scale: 1.02 0.98; }
+    }
+    .anim-mascot-hop { animation: mascotHop 560ms cubic-bezier(0.3, 0.7, 0.4, 1) 100ms; }
+    .anim-mascot-celebrate { animation: mascotHop 560ms cubic-bezier(0.3, 0.7, 0.4, 1) 100ms 2; }
+
+    @keyframes mascotWave {
+      0%, 100% { rotate: 0deg; }
+      40% { rotate: 3deg; }
+      70% { rotate: -1.5deg; }
+    }
+    .anim-mascot-wave { animation: mascotWave 650ms ease-in-out 80ms; }
+
+    @keyframes mascotDoze {
+      0% { translate: 0 0; }
+      100% { translate: 0 3px; }
+    }
+    .anim-mascot-doze { animation: mascotDoze 900ms ease-in-out forwards; }
+
+    @keyframes bubbleIn {
+      0% { opacity: 0; translate: 0 4px; scale: 0.97; }
+      100% { opacity: 1; translate: 0 0; scale: 1; }
+    }
+    .anim-bubble-in { animation: bubbleIn 220ms ease-out; }
+
     /* IELTS Recording pulse */
     @keyframes recordPulse {
       0%, 100% {
