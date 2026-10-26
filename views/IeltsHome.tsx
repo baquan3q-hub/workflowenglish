@@ -5,7 +5,6 @@ import {
   BookOpenText,
   CalendarDays,
   CheckCircle2,
-  Compass,
   GraduationCap,
   Headphones,
   Library,
@@ -48,7 +47,7 @@ import { Skeleton } from '../components/ui/States';
 import { IconTile } from '../components/ui/IconTile';
 import { InteractiveCard } from '../components/ui/InteractiveCard';
 import { NAV_TONE, SKILL_TONE, toneClasses } from '../components/ui/palette';
-import { field, panel, primaryBtn, secondaryBtn } from '../components/ui/styles';
+import { glassButton, glassField, glassPanel, glassPill, primaryBtn } from '../components/ui/styles';
 
 interface Props {
   userId: string;
@@ -138,7 +137,7 @@ const SkillCard: React.FC<{ def: SkillDef; progress: SkillProgress | null; loadi
   const t = toneClasses(tone);
   return (
     <li className="flex">
-      <InteractiveCard tone={tone} onClick={onOpen} disabled={!available} className="flex w-full flex-col justify-between p-4 sm:p-5">
+      <InteractiveCard glass onClick={onOpen} disabled={!available} className="flex w-full flex-col justify-between p-4 sm:p-5">
         <div>
           <div className="flex w-full items-start justify-between gap-3">
             {/* 3D Glassy Bitmap Icon with Soft Ambient Glow */}
@@ -156,7 +155,11 @@ const SkillCard: React.FC<{ def: SkillDef; progress: SkillProgress | null; loadi
               {/* 3D Bitmap Image */}
               <img
                 src={def.imageSrc}
-                alt={def.title}
+                alt=""
+                width={64}
+                height={64}
+                loading="lazy"
+                decoding="async"
                 className="relative h-full w-full object-contain rounded-2xl mix-blend-multiply dark:mix-blend-normal select-none pointer-events-none transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] group-hover:scale-[1.08] group-hover:-translate-y-0.5 filter drop-shadow-sm group-hover:drop-shadow-md"
                 draggable={false}
               />
@@ -164,7 +167,7 @@ const SkillCard: React.FC<{ def: SkillDef; progress: SkillProgress | null; loadi
 
             {/* Band Score */}
             <div className="flex flex-col items-end text-right min-w-0 pt-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Band</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Band</span>
               {loading ? (
                 <Skeleton className="mt-1 h-7 w-10 rounded-md" />
               ) : (
@@ -181,7 +184,7 @@ const SkillCard: React.FC<{ def: SkillDef; progress: SkillProgress | null; loadi
         </div>
 
         <span
-          className={`mt-4 inline-flex min-h-touch w-full items-center justify-center gap-2 rounded-xl border bg-white/85 px-4 text-sm font-semibold transition-all duration-200 group-hover:bg-white group-hover:shadow-xs dark:bg-slate-900/60 dark:group-hover:bg-slate-900 ${t.border} ${t.text}`}
+          className={`mt-4 inline-flex min-h-touch w-full items-center justify-center gap-2 rounded-full border px-4 text-sm font-semibold transition-colors duration-200 ${t.border} ${t.tile} group-hover:bg-white/90 dark:group-hover:bg-slate-800/90`}
         >
           <span>{available ? (progress?.attempts ? 'Luyện tiếp' : 'Bắt đầu') : 'Đang xây dựng'}</span>
           {available && <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />}
@@ -200,7 +203,7 @@ const TREND_META = {
 } as const;
 
 const WeeklyGoals: React.FC<{ goals: WeeklyGoal[]; from: Date }> = ({ goals, from }) => (
-  <section aria-labelledby="ielts-weekly" className={`${panel} p-4 sm:p-5`}>
+  <section aria-labelledby="ielts-weekly" className={`${glassPanel} p-4 sm:p-5`}>
     <div className="flex items-baseline justify-between gap-3">
       <h2 id="ielts-weekly" className="text-sm font-semibold text-slate-900 dark:text-white">
         Mục tiêu tuần
@@ -256,7 +259,7 @@ const CriterionList: React.FC<{ skill: GradedSkill; trends: CriterionTrend[] }> 
       {trends.length === 0 ? (
         <p className="mt-2 text-caption text-slate-500 dark:text-slate-400">Chưa có bài chấm theo tiêu chí.</p>
       ) : (
-        <ul className="mt-2 divide-y divide-slate-100 dark:divide-slate-800">
+        <ul className="mt-2 divide-y divide-white/70 dark:divide-white/10">
           {trends.map((t) => {
             const meta = t.trend ? TREND_META[t.trend] : null;
             const Icon = meta?.icon;
@@ -353,12 +356,11 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
   return (
     <div className="relative mx-auto max-w-4xl space-y-6 anim-fade-up">
       {/* Ambient pastel glow background lights */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-16 -left-10 -right-10 h-72 select-none overflow-hidden blur-3xl opacity-70 dark:opacity-20"
-      >
-        <div className="absolute top-2 right-12 h-60 w-80 rounded-full bg-gradient-to-br from-sky-200/50 via-indigo-100/40 to-transparent" />
-        <div className="absolute top-8 left-6 h-52 w-72 rounded-full bg-gradient-to-tr from-rose-200/40 via-orange-100/30 to-amber-100/20" />
+      {/* Colour behind the glass: without it frosted cards look flat. */}
+      <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 select-none overflow-hidden">
+        <div className="absolute -right-16 top-10 h-80 w-80 rounded-full bg-tone-sky-soft opacity-80 blur-3xl" />
+        <div className="absolute -left-20 top-1/3 h-96 w-96 rounded-full bg-tone-blush-soft opacity-70 blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 h-80 w-[28rem] rounded-full bg-tone-lavender-soft opacity-70 blur-3xl" />
       </div>
 
       {/* ─── 3D Header Section (Image 2 style) ─── */}
@@ -366,8 +368,8 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="min-w-0 max-w-xl">
             {/* Pill Badge */}
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-sky-200/80 bg-sky-50/90 px-3 py-1 text-xs font-semibold text-sky-700 shadow-sm backdrop-blur-md dark:border-sky-800/60 dark:bg-sky-950/40 dark:text-sky-300">
-              <GraduationCap className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
+            <div className={`${glassPill} py-1 bg-tone-sky-soft text-tone-sky-fg`}>
+              <GraduationCap className="h-3.5 w-3.5" />
               <span>IELTS Academic</span>
             </div>
 
@@ -392,9 +394,9 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
               <button
                 type="button"
                 onClick={onOpenAdmin}
-                className="group inline-flex items-center gap-1.5 rounded-full border border-white/80 bg-white/75 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm backdrop-blur-md transition-all hover:bg-white/95 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 dark:border-slate-700/80 dark:bg-slate-800/80 dark:text-slate-200"
+                className={`group ${glassButton} backdrop-blur-xl`}
               >
-                <ShieldCheck className="h-4 w-4 text-sky-600 transition-transform group-hover:scale-110 dark:text-sky-400" />
+                <ShieldCheck className={`icon-pop h-4 w-4 ${toneClasses(NAV_TONE.admin).text}`} />
                 <span className="hidden sm:inline">Quản trị</span>
                 <span className="sr-only sm:hidden">Quản trị</span>
               </button>
@@ -404,9 +406,12 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
             <div className="hidden sm:block relative -my-6 h-32 w-36 lg:h-36 lg:w-44 flex-shrink-0 select-none pointer-events-none">
               <img
                 src="/ielts-study-composition.png"
-                alt="IELTS Study 3D Composition"
+                alt=""
+                width={176}
+                height={144}
+                decoding="async"
+                fetchPriority="high"
                 className="h-full w-full object-contain drop-shadow-[0_16px_28px_rgba(255,94,98,0.2)] anim-float"
-                loading="eager"
               />
             </div>
           </div>
@@ -416,13 +421,10 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
       {/* ─── Next Action Card (Image 2 style) ─── */}
       <section
         aria-labelledby="ielts-next"
-        className="group relative overflow-hidden rounded-[28px] border border-white/90 bg-gradient-to-r from-white/95 via-white/90 to-rose-50/40 p-4 sm:p-5 shadow-[0_12px_36px_rgba(255,94,98,0.06)] backdrop-blur-xl transition-all hover:shadow-[0_16px_40px_rgba(255,94,98,0.1)] dark:border-slate-800/80 dark:bg-gradient-to-r dark:from-slate-900/90 dark:via-slate-900/80 dark:to-rose-950/20"
+        className={`group relative overflow-hidden ${glassPanel} p-4 sm:p-5`}
       >
-        {/* Soft background glow */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -right-8 -top-8 h-36 w-36 rounded-full bg-rose-200/30 blur-2xl dark:bg-rose-900/20"
-        />
+        {/* Soft tint in the corner (a plain fill: the card already blurs). */}
+        <div aria-hidden className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-tone-blush-soft opacity-70 dark:opacity-30" />
 
         <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center">
           {/* 3D Action Checklist Icon */}
@@ -430,17 +432,19 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
             <div className="relative flex h-20 w-20 sm:h-24 sm:w-24 items-center justify-center">
               <img
                 src={getAction3dIcon(action?.target)}
-                alt="Bảng kiểm bóng bẩy với bút và quỹ đạo"
+                alt=""
+                width={96}
+                height={96}
+                decoding="async"
                 className="h-full w-full object-contain drop-shadow-[0_8px_18px_rgba(59,130,246,0.22)] transition-transform duration-300 group-hover:scale-105"
-                loading="eager"
               />
             </div>
           </div>
 
           {/* Action Text Content */}
           <div className="min-w-0 flex-1">
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-rose-100/80 bg-rose-50/60 px-3 py-0.5 text-xs font-medium text-rose-500/90 backdrop-blur-sm dark:border-rose-900/30 dark:bg-rose-950/20 dark:text-rose-300/90">
-              <Sparkles className="h-3 w-3 text-rose-400" />
+            <div className={`${glassPill} bg-tone-blush-soft text-tone-blush-fg`}>
+              <Sparkles className="h-3 w-3" />
               <span>Lets go bros</span>
             </div>
 
@@ -449,6 +453,7 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
                 <h2 id="ielts-next" className="text-lg sm:text-xl font-bold tracking-tight text-slate-900 dark:text-white">
                   {action.title}
                 </h2>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{action.reason}</p>
               </div>
             ) : (
               <div className="mt-2 space-y-2" aria-hidden>
@@ -464,12 +469,12 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
               <button
                 type="button"
                 onClick={() => onAction(action.target)}
-                aria-label={action.cta}
                 title={action.cta}
-                className="group/btn flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full border border-rose-200/70 bg-gradient-to-br from-rose-100/80 to-orange-100/70 text-rose-500 shadow-sm backdrop-blur-md transition-all hover:bg-gradient-to-br hover:from-rose-200/80 hover:to-orange-200/80 hover:scale-105 hover:shadow-md hover:text-rose-600 active:scale-95 dark:border-rose-900/40 dark:from-rose-950/50 dark:to-orange-950/30 dark:text-rose-300"
+                className="press group/btn flex h-11 min-w-11 items-center justify-center gap-2 rounded-full border border-tone-blush-border bg-tone-blush-soft px-3 text-sm font-semibold text-tone-blush-fg transition-colors hover:bg-tone-blush-border sm:h-12 sm:px-5"
               >
+                {/* The label shows from sm up; on a phone the round arrow keeps it for screen readers. */}
+                <span className="sr-only sm:not-sr-only">{action.cta}</span>
                 <ArrowRight className="h-5 w-5 transition-transform group-hover/btn:translate-x-0.5" />
-                <span className="sr-only">{action.cta}</span>
               </button>
             </div>
           )}
@@ -479,7 +484,7 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
       {/* ─── Band Estimate & Goal Card (Image 2 style) ─── */}
       <section
         aria-labelledby="ielts-goal"
-        className="relative rounded-[28px] border border-white/90 bg-white/85 p-5 sm:p-6 shadow-[0_16px_40px_rgba(0,0,0,0.04)] backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-900/85"
+        className={`relative ${glassPanel} p-5 sm:p-6`}
       >
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           {/* Left: 3D Badge + Score Typography */}
@@ -487,9 +492,11 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
             <div className="relative flex h-20 w-20 sm:h-24 sm:w-24 flex-shrink-0 items-center justify-center">
               <img
                 src="/ielts-3d-target-dart.png"
-                alt="Biểu tượng bia phi tiêu 3D bóng bẩy"
+                alt=""
+                width={96}
+                height={96}
+                decoding="async"
                 className="h-full w-full object-contain drop-shadow-[0_10px_20px_rgba(244,63,94,0.22)] transition-transform duration-300 hover:scale-105"
-                loading="eager"
               />
             </div>
 
@@ -506,13 +513,21 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
                 </p>
               )}
 
-              {days != null && (
+              {(gap != null || days != null) && (
                 <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
-                    {days > 0 ? `${days} ngày nữa tới kỳ thi` : days === 0 ? 'Hôm nay là ngày thi' : 'Ngày thi đã qua'}
-                  </span>
+                  {gap != null && (
+                    <span className={`${glassPill} ${gap === 0 ? 'bg-tone-mint-soft text-tone-mint-fg' : 'bg-tone-sky-soft text-tone-sky-fg'}`}>
+                      {gap === 0 ? 'Đã đạt mục tiêu' : `Còn ${gap.toFixed(1)} band tới mục tiêu`}
+                    </span>
+                  )}
+                  {days != null && (
+                    <span className={`${glassPill} bg-tone-butter-soft text-tone-butter-fg`}>
+                      {days > 0 ? `${days} ngày nữa tới kỳ thi` : days === 0 ? 'Hôm nay là ngày thi' : 'Ngày thi đã qua'}
+                    </span>
+                  )}
                 </div>
               )}
+              {attempts !== null && <p className="mt-2 text-caption text-slate-500 dark:text-slate-400">{overallNote(skillBands.length)}</p>}
             </div>
           </div>
 
@@ -521,10 +536,10 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
             {/* Band mục tiêu */}
             <div className="flex flex-col">
               <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
-                <Target className="h-3.5 w-3.5 text-sky-500" />
+                <Target className="h-3.5 w-3.5 text-tone-sky-fg" />
                 <span>Band mục tiêu</span>
               </span>
-              <div className="relative mt-1.5 flex items-center rounded-2xl border border-slate-200/90 bg-slate-50/80 px-3.5 py-2.5 shadow-sm backdrop-blur-md transition-all hover:border-slate-300 focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-400/20 dark:border-slate-700/80 dark:bg-slate-800/80">
+              <div className={`relative mt-1.5 ${glassField}`}>
                 <select
                   className="w-full bg-transparent text-sm font-semibold text-slate-800 focus:outline-none dark:text-slate-100 cursor-pointer"
                   value={prefs.ieltsTargetBand ?? ''}
@@ -543,10 +558,10 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
             {/* Ngày thi */}
             <div className="flex flex-col">
               <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
-                <CalendarDays className="h-3.5 w-3.5 text-rose-500" />
+                <CalendarDays className="h-3.5 w-3.5 text-tone-blush-fg" />
                 <span>Ngày thi</span>
               </span>
-              <div className="relative mt-1.5 flex items-center rounded-2xl border border-slate-200/90 bg-slate-50/80 px-3.5 py-2.5 shadow-sm backdrop-blur-md transition-all hover:border-slate-300 focus-within:border-rose-400 focus-within:ring-2 focus-within:ring-rose-400/20 dark:border-slate-700/80 dark:bg-slate-800/80">
+              <div className={`relative mt-1.5 ${glassField}`}>
                 <input
                   type="date"
                   className="w-full bg-transparent text-sm font-semibold text-slate-800 focus:outline-none dark:text-slate-100 cursor-pointer"
@@ -590,7 +605,7 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
         <>
           <WeeklyGoals goals={weekly} from={weekStart(now)} />
           {(trends.writing.length > 0 || trends.speaking.length > 0) && (
-            <section aria-labelledby="ielts-criteria" className={`${panel} p-4 sm:p-5`}>
+            <section aria-labelledby="ielts-criteria" className={`${glassPanel} p-4 sm:p-5`}>
               <h2 id="ielts-criteria" className="text-sm font-semibold text-slate-900 dark:text-white">
                 Theo tiêu chí chấm
               </h2>
@@ -606,7 +621,7 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
         </>
       )}
 
-      <section aria-labelledby="ielts-errors" className={`group ${panel} flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:p-5`}>
+      <section aria-labelledby="ielts-errors" className={`group ${glassPanel} flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:p-5`}>
         <IconTile icon={NotebookPen} tone={NAV_TONE.errorLog} />
         <div className="flex-1">
           <h2 id="ielts-errors" className="text-sm font-semibold text-slate-900 dark:text-white">
@@ -618,12 +633,12 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
               : 'Lỗi trong bài Writing và Speaking được gom theo loại, kèm bài luyện sửa.'}
           </p>
         </div>
-        <button type="button" onClick={() => onOpenPhase(AppPhase.IELTS_ERROR_LOG)} className={secondaryBtn}>
+        <button type="button" onClick={() => onOpenPhase(AppPhase.IELTS_ERROR_LOG)} className={glassButton}>
           Mở sổ lỗi <ArrowRight className="h-4 w-4" />
         </button>
       </section>
 
-      <section aria-labelledby="ielts-library" className={`group ${panel} flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:p-5`}>
+      <section aria-labelledby="ielts-library" className={`group ${glassPanel} flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:p-5`}>
         <IconTile icon={Library} tone={NAV_TONE.library} />
         <div className="flex-1">
           <h2 id="ielts-library" className="text-sm font-semibold text-slate-900 dark:text-white">
@@ -634,10 +649,10 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <button type="button" onClick={() => onOpenLibrary('gen_exam_structure')} className={secondaryBtn}>
+          <button type="button" onClick={() => onOpenLibrary('gen_exam_structure')} className={glassButton}>
             <BookOpen className={`h-4 w-4 ${toneClasses(NAV_TONE.library).text}`} /> Bắt đầu từ đây
           </button>
-          <button type="button" onClick={() => onOpenLibrary()} className={primaryBtn}>
+          <button type="button" onClick={() => onOpenLibrary()} className={primaryBtn.replace('rounded-xl', 'rounded-full')}>
             Mở thư viện
           </button>
         </div>
