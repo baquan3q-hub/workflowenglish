@@ -1213,6 +1213,9 @@ function App() {
               setPhase(AppPhase.SENTENCE_DRILL);
             }}
             onStartVocabTest={() => setPhase(AppPhase.VOCAB_TEST)}
+            onOpenIelts={() => setPhase(AppPhase.IELTS_HOME)}
+            onOpenStats={() => navigateTo({ phase: AppPhase.ANALYTICS, analyticsSection: 'overview' })}
+            displayName={currentUser?.displayName}
           />
         );
 

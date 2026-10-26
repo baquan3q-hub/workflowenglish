@@ -71,3 +71,70 @@ export function countInputWords(text: string): number {
       .filter(Boolean),
   ).size;
 }
+
+// --- Hero ------------------------------------------------------------------------------
+
+/** "Chào buổi sáng" before noon, "buổi chiều" until 18:00, then "buổi tối". */
+export function greeting(now: Date, name?: string): string {
+  const h = now.getHours();
+  const part = h < 5 ? 'Chào buổi tối' : h < 12 ? 'Chào buổi sáng' : h < 18 ? 'Chào buổi chiều' : 'Chào buổi tối';
+  const who = name?.trim();
+  return who ? `${part}, ${who}` : part;
+}
+
+const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+export interface StreakDay {
+  /** YYYY-MM-DD, local time. */
+  date: string;
+  /** Two-letter weekday, Monday first: T2 … CN. */
+  label: string;
+  active: boolean;
+  today: boolean;
+}
+
+const WEEKDAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+
+/**
+ * The last 7 days, oldest first. A day is active when it falls in the current
+ * streak: the `streak` days ending at `lastActive`. Days before the streak are
+ * shown inactive (a broken streak means they were missed, or not counted).
+ */
+export function streakWeek(now: Date, streak: number, lastActive: string | null): StreakDay[] {
+  const today = isoDay(now);
+  const days: StreakDay[] = [];
+  const last = lastActive ? new Date(`${lastActive}T00:00:00`) : null;
+  // A streak only counts if it ended today or yesterday.
+  const live = !!last && !Number.isNaN(last.getTime()) && (today === lastActive || isoDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)) === lastActive);
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+    const date = isoDay(d);
+    let active = false;
+    if (live && last && streak > 0) {
+      const ago = Math.round((last.getTime() - d.getTime()) / 86_400_000);
+      active = ago >= 0 && ago < streak;
+    }
+    days.push({ date, label: WEEKDAYS[d.getDay()], active, today: date === today });
+  }
+  return days;
+}
+
+/** The small line under each hero card. Zero gets a nudge, not a bare "0". */
+export function heroCardText(
+  card: 'review' | 'test' | 'ielts' | 'streak',
+  data: { dueCount: number | null; band: number | null; streak: number | null; longest: number | null },
+): string {
+  switch (card) {
+    case 'review':
+      if (data.dueCount === null) return 'Đang tải…';
+      return data.dueCount > 0 ? `${data.dueCount} từ đến hạn` : 'Không có từ đến hạn';
+    case 'test':
+      return 'Kiểm tra nhanh từ đã học';
+    case 'ielts':
+      return data.band != null ? `Band ước tính ${data.band.toFixed(1)}` : 'Bắt đầu lộ trình';
+    case 'streak':
+      if (data.streak === null) return 'Đang tải…';
+      if (data.streak === 0) return 'Học hôm nay để bắt đầu chuỗi';
+      return `${data.streak} ngày${data.longest && data.longest > data.streak ? ` · kỷ lục ${data.longest}` : ''}`;
+  }
+}

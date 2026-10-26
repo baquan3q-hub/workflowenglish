@@ -30,7 +30,10 @@ import { aiErrorMessage } from '../services/aiClient';
 import { getWrongSentences } from '../services/sentenceService';
 import { getLessonLists, getLibraryWords } from '../services/vocabLibraryService';
 import { listProgress, matchesStatus, type LessonList, type LibraryWord } from '../services/vocabLibraryLogic';
-import { countInputWords, lessonMinutes, pickPrimaryAction } from '../services/dashboardLogic';
+import { countInputWords, greeting, heroCardText, lessonMinutes, pickPrimaryAction, streakWeek } from '../services/dashboardLogic';
+import { getIeltsAttempts } from '../services/ieltsAttemptService';
+import { overallBand, PRACTISED_SKILLS, skillProgress } from '../services/ieltsProgressLogic';
+import type { IeltsAttempt } from '../types';
 import { Skeleton } from '../components/ui/States';
 import { IconTile } from '../components/ui/IconTile';
 import { TONE_HOVER, toneClasses, type Tone } from '../components/ui/palette';
@@ -51,6 +54,12 @@ interface DashboardProps {
   /** Practise sentences answered "Cần sửa" earlier. */
   onPracticeSentences?: (items: SentenceItem[]) => void;
   onStartVocabTest?: () => void;
+  /** Opens the IELTS roadmap. */
+  onOpenIelts?: () => void;
+  /** Opens Thống kê (streak and history). */
+  onOpenStats?: () => void;
+  /** Shown in the greeting. */
+  displayName?: string;
 }
 
 /** Sent to the AI as the lesson context; the label is what the learner sees. */
@@ -195,6 +204,9 @@ const Dashboard: React.FC<DashboardProps> = ({
   onOpenLesson,
   onPracticeSentences,
   onStartVocabTest,
+  onOpenIelts,
+  onOpenStats,
+  displayName,
 }) => {
   const [inputText, setInputText] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -204,6 +216,8 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [isUpdatingGoal, setIsUpdatingGoal] = useState(false);
   const [settings, setSettings] = useState<UserSettings>({ level: DifficultyLevel.B1, topic: TOPICS[0].value });
   const [showTemplateLibrary, setShowTemplateLibrary] = useState(false);
+  /** Overall IELTS band from the latest attempts, for the hero card; null when there is none yet. */
+  const [ieltsBand, setIeltsBand] = useState<number | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Recent lessons with SRS progress (null while loading).
@@ -231,6 +245,16 @@ const Dashboard: React.FC<DashboardProps> = ({
     getWrongSentences(userId)
       .then((items) => !cancelled && setWrongSentences(items))
       .catch((err) => console.warn('Could not load wrong sentences:', err?.message ?? err));
+
+    // Only the band for the hero card: a failure just leaves "Bắt đầu lộ trình".
+    Promise.all(PRACTISED_SKILLS.map((skill) => getIeltsAttempts(userId, skill, 3).catch(() => [] as IeltsAttempt[])))
+      .then((lists) => {
+        if (cancelled) return;
+        const all = lists.flat();
+        const bands = PRACTISED_SKILLS.map((skill) => skillProgress(skill, all).current).filter((b): b is number => b != null);
+        setIeltsBand(overallBand(bands));
+      })
+      .catch(() => undefined);
 
     getOrCreateUserGoals(userId)
       .then((goals) => !cancelled && setUserGoals(goals))
@@ -390,6 +414,20 @@ const Dashboard: React.FC<DashboardProps> = ({
   );
   const suggestions = !fallbackTopicsActive ? (recommendations ?? []).slice(0, MAX_RECOMMENDATIONS_DISPLAYED) : [];
 
+  const heroData = {
+    dueCount,
+    band: ieltsBand,
+    streak: userGoals ? userGoals.current_streak : null,
+    longest: userGoals ? userGoals.longest_streak : null,
+  };
+  const heroCards: { id: 'review' | 'test' | 'ielts' | 'streak'; title: string; tone: Tone; image: string; onClick?: () => void; line: string }[] = [
+    { id: 'review', title: 'Ôn tập', tone: 'butter', image: '/review-refresh.png', onClick: onStartReview, line: heroCardText('review', heroData) },
+    { id: 'test', title: 'Kiểm tra từ vựng', tone: 'lavender', image: '/vocabulary-trophy.png', onClick: onStartVocabTest, line: heroCardText('test', heroData) },
+    { id: 'ielts', title: 'Luyện IELTS', tone: 'sky', image: '/ielts-3d-target-dart.png', onClick: onOpenIelts, line: heroCardText('ielts', heroData) },
+    { id: 'streak', title: 'Chuỗi ngày học', tone: 'peach', image: '/streak-flame.png', onClick: onOpenStats, line: heroCardText('streak', heroData) },
+  ];
+  const streakDays = userGoals ? streakWeek(now, userGoals.current_streak, userGoals.last_active_date) : [];
+
   const runPrimary = () => {
     if (action.kind === 'continue') onContinueLesson?.();
     else if (action.kind === 'review') onStartReview();
@@ -399,51 +437,48 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      {/* Main card: the one thing to do now, with today's goal */}
-      <section className={`${panel} p-5 sm:p-6`} aria-labelledby="dash-primary">
-        <div className="group flex flex-col gap-5 sm:flex-row sm:items-center">
-          {action.kind === 'review' ? (
-            <IconTile imageSrc="/review-refresh.png" tone={ACTION_TILE[action.kind].tone} size="lg" className="hidden sm:flex" />
-          ) : (
-            <IconTile icon={ACTION_TILE[action.kind].icon} tone={ACTION_TILE[action.kind].tone} size="lg" className="hidden sm:flex" />
-          )}
-          <div className="min-w-0 flex-1">
-            <p className={`text-caption font-semibold ${toneClasses(ACTION_TILE[action.kind].tone).text}`}>Hôm nay</p>
-            <h1 id="dash-primary" className="mt-1 text-heading font-bold text-slate-900 dark:text-white">
-              {action.title}
-            </h1>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{action.detail}</p>
-            {action.kind !== 'new' && (
-              <button type="button" onClick={runPrimary} className={`${primaryBtn} mt-4 w-full sm:w-auto`}>
-                {action.kind === 'continue' ? (
-                  <BookOpen className="h-4 w-4" aria-hidden="true" />
-                ) : action.kind === 'sentences' ? (
-                  <PenLine className="h-4 w-4" aria-hidden="true" />
-                ) : (
-                  <Repeat className="h-4 w-4" aria-hidden="true" />
-                )}
-                {action.kind === 'continue' ? 'Tiếp tục' : action.kind === 'sentences' ? 'Luyện câu' : 'Bắt đầu ôn'}
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </button>
-            )}
+      {/* Hero: greeting, the one thing to do now, today's goal, and four ways in */}
+      <section aria-labelledby="dash-primary" className={`${panel} overflow-hidden`}>
+        <div className="relative p-5 sm:p-6">
+          {/* Soft tone wash behind the greeting (plain fills, no blur). */}
+          <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div className={`absolute -right-16 -top-20 h-56 w-56 rounded-full opacity-70 ${toneClasses(ACTION_TILE[action.kind].tone).bg}`} />
+            <div className="absolute -bottom-24 left-1/3 h-48 w-48 rounded-full bg-tone-periwinkle opacity-60" />
           </div>
 
-          <div className="flex items-center gap-4 border-t border-slate-100 pt-4 dark:border-slate-800 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
-            {userGoals ? (
-              <>
-                <GoalRing value={userGoals.words_reviewed_today} max={userGoals.daily_word_goal} />
-                <div className="space-y-1.5">
-                  <p className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-900 dark:text-white">
-                    <img
-                      src="/streak-flame.png"
-                      alt=""
-                      className="h-6 w-6 sm:h-7 sm:w-7 object-contain flex-shrink-0 select-none"
-                      draggable={false}
-                    />
-                    {userGoals.current_streak} ngày liên tiếp
-                  </p>
-                  <label className="flex items-center gap-1.5 text-caption text-slate-500 dark:text-slate-400">
-                    Mục tiêu
+          <div className="group relative flex flex-col gap-5 sm:flex-row sm:items-center">
+            {action.kind === 'review' ? (
+              <IconTile imageSrc="/review-refresh.png" tone={ACTION_TILE[action.kind].tone} size="lg" className="hidden sm:flex" />
+            ) : (
+              <IconTile icon={ACTION_TILE[action.kind].icon} tone={ACTION_TILE[action.kind].tone} size="lg" className="hidden sm:flex" />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className={`text-caption font-semibold ${toneClasses(ACTION_TILE[action.kind].tone).text}`}>{greeting(now, displayName)}</p>
+              <h1 id="dash-primary" className="mt-1 text-heading font-bold text-slate-900 dark:text-white">
+                {action.title}
+              </h1>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{action.detail}</p>
+              {action.kind !== 'new' && (
+                <button type="button" onClick={runPrimary} className={`${primaryBtn} mt-4 w-full sm:w-auto`}>
+                  {action.kind === 'continue' ? (
+                    <BookOpen className="h-4 w-4" aria-hidden="true" />
+                  ) : action.kind === 'sentences' ? (
+                    <PenLine className="h-4 w-4" aria-hidden="true" />
+                  ) : (
+                    <Repeat className="h-4 w-4" aria-hidden="true" />
+                  )}
+                  {action.kind === 'continue' ? 'Tiếp tục' : action.kind === 'sentences' ? 'Luyện câu' : 'Bắt đầu ôn'}
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-4 border-t border-slate-100 pt-4 dark:border-slate-800 sm:border-l sm:border-t-0 sm:pl-6 sm:pt-0">
+              {userGoals ? (
+                <>
+                  <GoalRing value={userGoals.words_reviewed_today} max={userGoals.daily_word_goal} />
+                  <label className="flex flex-col gap-1 text-caption text-slate-600 dark:text-slate-300">
+                    Mục tiêu hôm nay
                     <select
                       value={userGoals.daily_word_goal}
                       onChange={handleGoalChange}
@@ -457,53 +492,46 @@ const Dashboard: React.FC<DashboardProps> = ({
                       ))}
                     </select>
                   </label>
-                </div>
-              </>
-            ) : (
-              <>
-                <Skeleton circle className="h-[72px] w-[72px]" />
-                <div className="space-y-2">
-                  <Skeleton className="h-4 w-28" />
-                  <Skeleton className="h-8 w-32" />
-                </div>
-              </>
-            )}
+                </>
+              ) : (
+                <>
+                  <Skeleton circle className="h-[72px] w-[72px]" />
+                  <Skeleton className="h-11 w-32" />
+                </>
+              )}
+            </div>
           </div>
         </div>
-        <div className="-mx-2 mt-4 flex flex-wrap items-center gap-2">
-          {action.kind !== 'review' && (dueCount ?? 0) > 0 && (
-            <button
-              type="button"
-              onClick={onStartReview}
-              className="press group inline-flex min-h-touch items-center gap-1.5 rounded-xl px-2 text-sm font-medium text-tone-butter-fg transition-colors hover:bg-tone-butter"
-            >
-              <img
-                src="/review-refresh.png"
-                alt=""
-                className="h-5 w-5 object-contain select-none"
-                draggable={false}
-              />
-              Còn {dueCount} từ đến hạn ôn
-              <ChevronRight className="h-4 w-4" aria-hidden="true" />
-            </button>
-          )}
-          {onStartVocabTest && (
-            <button
-              type="button"
-              onClick={onStartVocabTest}
-              className="press group inline-flex min-h-touch items-center gap-1.5 rounded-xl px-2 text-sm font-medium text-tone-lavender-fg transition-colors hover:bg-tone-lavender"
-            >
-              <img
-                src="/vocabulary-trophy.png"
-                alt=""
-                className="h-7 w-7 sm:h-8 sm:w-8 object-contain flex-shrink-0 select-none"
-                draggable={false}
-              />
-              Kiểm tra từ vựng
-              <ChevronRight className="h-4 w-4" aria-hidden="true" />
-            </button>
-          )}
-        </div>
+
+        {/* Four ways in */}
+        <ul className="grid grid-cols-2 gap-px border-t border-slate-100 bg-slate-100 dark:border-slate-800 dark:bg-slate-800 lg:grid-cols-4">
+          {heroCards.map((c) => (
+            <li key={c.id} className="flex bg-white dark:bg-slate-900">
+              <button
+                type="button"
+                onClick={c.onClick}
+                disabled={!c.onClick}
+                className={`press group flex w-full flex-col items-start gap-2 p-4 text-left transition-colors disabled:cursor-default disabled:opacity-60 sm:p-5 ${TONE_HOVER[c.tone]}`}
+              >
+                <IconTile imageSrc={c.image} tone={c.tone} size="lg" />
+                <span className="text-sm font-semibold text-slate-900 dark:text-white">{c.title}</span>
+                <span className={`text-caption font-medium ${toneClasses(c.tone).text}`}>{c.line}</span>
+                {c.id === 'streak' && userGoals && (
+                  <span className="mt-1 flex gap-1" aria-label={`${streakDays.filter((d) => d.active).length} trên 7 ngày gần nhất có học`}>
+                    {streakDays.map((d) => (
+                      <span
+                        key={d.date}
+                        title={d.label}
+                        className={`h-2.5 w-2.5 rounded-full ${d.active ? 'bg-tone-peach-accent' : 'bg-slate-200 dark:bg-slate-700'} ${d.today ? 'ring-2 ring-tone-peach-border ring-offset-1 ring-offset-white dark:ring-offset-slate-900' : ''}`}
+                      />
+                    ))}
+                  </span>
+                )}
+                <ChevronRight className={`mt-auto h-4 w-4 self-end transition-transform group-hover:translate-x-0.5 ${toneClasses(c.tone).text}`} aria-hidden="true" />
+              </button>
+            </li>
+          ))}
+        </ul>
       </section>
 
       {/* New lesson */}
