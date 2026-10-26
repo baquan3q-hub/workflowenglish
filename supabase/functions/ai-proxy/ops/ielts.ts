@@ -1,3 +1,4 @@
+import { learnerBlockFor } from './learner.ts';
 import {
   asObject,
   BadRequest,
@@ -219,7 +220,7 @@ Return JSON:
 Rules:
 - Never write the essay or any full paragraph for the learner.
 - Ideas must be realistic and easy to explain with everyday examples.`;
-    return { contents: userText(prompt), generationConfig: jsonConfig(ideasSchema) };
+    return { contents: userText(prompt + learnerBlockFor(p)), generationConfig: jsonConfig(ideasSchema) };
   },
 };
 
@@ -441,6 +442,8 @@ export const ieltsChat: OpSpec = {
     const context = str(p, 'context', { max: 4000, optional: true }).trim();
     const system = [IELTS_MENTOR_SYSTEM_PROMPT, QUIZ_FORMAT_RULES, `# ĐỘ DÀI\n${MODE_RULES[mode]}`];
     if (context) system.push(learnerBlock(context));
+    const profile = learnerBlockFor(p).trim();
+    if (profile) system.push(profile);
 
     return {
       contents,

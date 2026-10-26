@@ -1,4 +1,5 @@
 import { asObject, BadRequest, FLASH_MODELS, jsonConfig, list, oneOf, str, S, userText, type OpSpec } from '../lib.ts';
+import { learnerBlockFor } from './learner.ts';
 import { LIGHT_TEXT_MODELS, STRONG_TEXT_MODELS } from '../models.ts';
 
 const LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] as const;
@@ -85,8 +86,9 @@ export const generateLesson: OpSpec = {
     - Example sentences must match the ${level} complexity.
     - Quiz should follow 'Mastery Learning' principles.
     - IMPORTANT: The story content must be PLAIN TEXT only. Do NOT use markdown formatting like **bold** or *italic*. Just write the words naturally.
+    - Set the story and example sentences in the learner's world (job, interests) when a learner profile is given.
   `;
-    return { contents: userText(prompt), generationConfig: jsonConfig(lessonSchema) };
+    return { contents: userText(prompt + learnerBlockFor(p)), generationConfig: jsonConfig(lessonSchema) };
   },
 };
 
@@ -225,6 +227,6 @@ export const recommendWords: OpSpec = {
     const topicsText = topics.length > 0 ? topics.join(', ') : 'general';
     const wordsText = exclude.length > 0 ? exclude.join(', ') : 'none';
     const prompt = `Suggest 10 English vocabulary words for a Vietnamese learner at ${level} level, related to topics: ${topicsText}. Exclude these already-known words: ${wordsText}. Return JSON array with: word, meaningVietnamese, cefrLevel, topic, relevanceReason (in Vietnamese).`;
-    return { contents: userText(prompt), generationConfig: jsonConfig(recommendationSchema) };
+    return { contents: userText(prompt + learnerBlockFor(p)), generationConfig: jsonConfig(recommendationSchema) };
   },
 };

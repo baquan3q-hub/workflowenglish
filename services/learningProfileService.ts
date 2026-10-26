@@ -5,6 +5,7 @@
 import { isMissingTable } from './listeningLibraryLogic';
 import { EMPTY_PROFILE, profileSummary, sanitizeProfile, type LearningProfile } from './learningProfileLogic';
 import { supabase } from './supabaseClient';
+import { setLearnerSummary } from './learnerContext';
 
 const TABLE = 'learning_profiles';
 
@@ -21,6 +22,7 @@ export async function getLearningProfile(userId: string): Promise<LearningProfil
   }
   const profile = sanitizeProfile((data as { data?: unknown } | null)?.data);
   cached = { userId, profile };
+  setLearnerSummary(profileSummary(profile));
   return profile;
 }
 
@@ -34,6 +36,7 @@ export async function saveLearningProfile(userId: string, profile: LearningProfi
     );
   }
   cached = { userId, profile: clean };
+  setLearnerSummary(profileSummary(clean));
   return clean;
 }
 
@@ -49,4 +52,5 @@ export async function learnerSummary(userId: string): Promise<string> {
 /** Forget the cached profile (sign-out, tests). */
 export function clearLearningProfileCache() {
   cached = null;
+  setLearnerSummary('');
 }

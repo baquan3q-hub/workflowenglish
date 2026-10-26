@@ -21,7 +21,7 @@ import QuizMode from './views/QuizMode';
 import FillBlankMode from './views/FillBlankMode';
 import LearningHistory from './views/LearningHistory';
 import LearningProfile from './views/LearningProfile';
-import { clearLearningProfileCache } from './services/learningProfileService';
+import { clearLearningProfileCache, getLearningProfile } from './services/learningProfileService';
 import ReviewSession from './views/ReviewSession';
 import VocabTestView from './views/VocabTestView';
 import AnalyticsDashboard from './views/AnalyticsDashboard';
@@ -335,6 +335,11 @@ function App() {
       live = false;
     };
   }, [currentUser?.id, adminLinkScreen]);
+
+  // Load Hồ sơ học tập once per account, so every AI call is personalised (aiClient reads it).
+  useEffect(() => {
+    if (currentUser?.id) void getLearningProfile(currentUser.id);
+  }, [currentUser?.id]);
 
   // Check for draft on login / user session loaded
   useEffect(() => {

@@ -6,6 +6,7 @@
  * the Vietnamese line shown in toasts and error states.
  */
 import { getCachedSession, supabase } from './supabaseClient';
+import { withLearner } from './learnerContext';
 
 export type AiErrorKind = 'rate_limit' | 'timeout' | 'network' | 'server' | 'auth' | 'forbidden' | 'bad_request';
 
@@ -123,7 +124,7 @@ async function post(op: string, payload: unknown, opts: InvokeOptions): Promise<
         apikey: process.env.SUPABASE_ANON_KEY ?? '',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ op, payload }),
+      body: JSON.stringify({ op, payload: withLearner(op, payload) }),
       signal: controller.signal,
     });
     if (!res.ok) {

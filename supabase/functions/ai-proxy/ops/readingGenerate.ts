@@ -12,6 +12,7 @@
  * falls back to the next model instead of handing the learner a broken
  * passage.
  */
+import { learnerBlockFor } from './learner.ts';
 import { asObject, BadRequest, FLASH_MODELS, jsonConfig, oneOf, q, S, str, userText, type OpSpec } from '../lib.ts';
 import { squash } from './listeningRules.ts';
 import {
@@ -406,7 +407,7 @@ export const generateReadingPassage: OpSpec = {
     const r = parseReadingGenerateRequest(payload);
     const plan = readingPlan(r.part, r.kinds);
     return {
-      contents: userText(readingPassagePrompt(r, plan)),
+      contents: userText(readingPassagePrompt(r, plan) + learnerBlockFor(payload)),
       generationConfig: jsonConfig(passageSchema(r, plan), { temperature: 0.9 }),
     };
   },

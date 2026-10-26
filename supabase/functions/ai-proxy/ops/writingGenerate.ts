@@ -5,6 +5,7 @@
  * page (writingRules), so a prompt that cannot be published is retried and
  * then handed to the fallback model by the proxy.
  */
+import { learnerBlockFor } from './learner.ts';
 import { asObject, BadRequest, FLASH_MODELS, jsonConfig, oneOf, q, S, str, userText, type OpSpec } from '../lib.ts';
 import {
   CHART_TYPE_FOR,
@@ -244,7 +245,7 @@ export const generateWritingPrompt: OpSpec = {
     const r = parseWritingGenerateRequest(payload);
     const questionType = resolveWritingType(r);
     return {
-      contents: userText(writingPromptText(r, questionType)),
+      contents: userText(writingPromptText(r, questionType) + learnerBlockFor(payload)),
       generationConfig: jsonConfig(promptSchema(r, questionType), { temperature: 0.9 }),
     };
   },
