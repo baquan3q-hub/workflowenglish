@@ -667,14 +667,6 @@
       transform-origin: center;
       animation: emotionBlink 3.8s ease-in-out infinite;
     }
-
-    /* Frosted glass (glassPanel in components/ui/styles.ts): without
-       backdrop-filter the see-through card would be hard to read, so make it
-       nearly opaque instead. */
-    @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-      .glass { background-color: rgb(255 255 255 / 0.94) !important; }
-      .dark .glass { background-color: rgb(15 23 42 / 0.94) !important; }
-    }
   </style>
   <script type="importmap">
 {
