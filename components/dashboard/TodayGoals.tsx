@@ -3,7 +3,7 @@
  * own (tick, add, delete) as pastel pills with their progress.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, ChevronRight, Plus, Target, Trash2, X } from 'lucide-react';
+import { Check, ChevronRight, Plus, Trash2, X } from 'lucide-react';
 import { toneClasses } from '../ui/palette';
 import { Skeleton } from '../ui/States';
 import { GOAL_TITLE_MAX, GOAL_TONES, type GoalKind, type GoalSummary, type GoalTone, type TodayGoal } from '../../services/dailyGoalsLogic';
@@ -73,10 +73,14 @@ export default function TodayGoals({ goals, summary, onOpen, onToggle, onAdd, on
 
   return (
     <div className="flex min-w-0 flex-col">
-      <div className="flex items-center gap-3">
-        <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl bg-tone-lavender-soft sm:h-10 sm:w-10 text-tone-lavender-fg" aria-hidden>
-          <Target className="h-5 w-5" />
-        </span>
+      <div className="flex items-center gap-3 sm:gap-2">
+        <img
+          src="/Glossy Calendar Achievement Icon.png"
+          alt=""
+          aria-hidden="true"
+          className="h-14 w-14 sm:h-14 sm:w-14 flex-shrink-0 object-contain drop-shadow-sm select-none"
+          draggable={false}
+        />
         <div className="min-w-0 flex-1">
           <h1 id="dash-primary" className="truncate text-lg font-bold leading-tight text-[#17264B] dark:text-white sm:text-title">
             Mục tiêu hôm nay
@@ -139,9 +143,8 @@ export default function TodayGoals({ goals, summary, onOpen, onToggle, onAdd, on
                   className="press flex min-h-touch w-9 items-center justify-center rounded-full"
                 >
                   <span
-                    className={`h-6 w-6 rounded-full border-2 transition-transform duration-150 ${toneClasses(t).bar} ${
-                      tone === t ? 'scale-110 border-[#17264B] dark:border-white' : 'border-white dark:border-slate-900'
-                    }`}
+                    className={`h-6 w-6 rounded-full border-2 transition-transform duration-150 ${toneClasses(t).bar} ${tone === t ? 'scale-110 border-[#17264B] dark:border-white' : 'border-white dark:border-slate-900'
+                      }`}
                   />
                 </button>
               ))}
@@ -172,9 +175,8 @@ export default function TodayGoals({ goals, summary, onOpen, onToggle, onAdd, on
             const check = (
               <span
                 key={g.done ? 'done' : 'todo'}
-                className={`relative flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 ${t.border} ${
-                  g.done ? `${t.tile} ${poppedId === g.id ? 'anim-goal-pop' : ''}` : 'bg-white dark:bg-slate-900'
-                }`}
+                className={`relative flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 ${t.border} ${g.done ? `${t.tile} ${poppedId === g.id ? 'anim-goal-pop' : ''}` : 'bg-white dark:bg-slate-900'
+                  }`}
                 aria-hidden
               >
                 {g.done && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
