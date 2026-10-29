@@ -86,14 +86,20 @@ export async function startRecording(
       audio: {
         echoCancellation: true,
         noiseSuppression: true,
-        sampleRate: 44100,
+        autoGainControl: true,
+        sampleRate: 16000,
+        channelCount: 1,
       },
     });
 
     audioChunks = [];
     const mimeType = getSupportedMimeType();
 
-    mediaRecorder = new MediaRecorder(stream, { mimeType });
+    try {
+      mediaRecorder = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 24000 });
+    } catch {
+      mediaRecorder = new MediaRecorder(stream, { mimeType });
+    }
 
     mediaRecorder.ondataavailable = (event) => {
       if (event.data.size > 0) {

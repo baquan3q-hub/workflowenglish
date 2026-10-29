@@ -244,7 +244,11 @@ const MOCK_OUTPUT = `
 export const gradeIeltsSpeaking: OpSpec = {
   hourlyLimit: 15,
   models: FLASH_MODELS,
-  timeoutMs: 120_000,
+  modelsFor(payload) {
+    const p = asObject(payload);
+    return p.audio ? FLASH_MODELS : LIGHT_TEXT_MODELS;
+  },
+  timeoutMs: 60_000,
   kind: 'json',
   finalize: checkSpeakingFeedback,
   build(payload) {
@@ -263,11 +267,15 @@ export const gradeIeltsSpeaking: OpSpec = {
       ? `\n- Fluency measured from the recording (use it as evidence for Fluency and Coherence, together with what you hear): ${measured}`
       : '';
 
+    const audioPrompt = audio
+      ? `CRITICAL: Listen to the attached audio recording to evaluate the user's actual pronunciation, fluency, hesitation, and speech markers. Check the provided transcript (which the user might have edited for correctness) against their actual audio. Compare the speech in the audio with the transcript and identify the EXACT words that are mispronounced, omitted, or mumbled, and list them in the pronunciation notes. Do NOT make up pronunciation errors that do not exist in the audio. ${audioNote}`
+      : `CRITICAL: Evaluate the user's spoken answer based on the transcript and the measured fluency metrics. For pronunciation notes, analyze the transcript words to identify English phonemes, consonant endings (/s/, /z/, /t/, /d/), and word stress that Vietnamese learners commonly struggle with, and provide 3-5 specific pronunciation tips for those words. ${audioNote}`;
+
     const prompt = `You are a certified, strict IELTS Speaking Examiner conducting a real face-to-face IELTS Speaking Test.
 Evaluate the user's spoken answer/monologue transcript exactly according to the official IELTS Speaking Band Descriptors.
 Do not claim this is an official IELTS score. Provide a realistic, strict estimated band score.
 
-CRITICAL: Listen to the attached audio recording to evaluate the user's actual pronunciation, fluency, hesitation, and speech markers. Check the provided transcript (which the user might have edited for correctness) against their actual audio. Compare the speech in the audio with the transcript and identify the EXACT words that are mispronounced, omitted, or mumbled, and list them in the pronunciation notes. Do NOT make up pronunciation errors that do not exist in the audio. ${audioNote}
+${audioPrompt}
 
 Input Speaking Context:
 - Speaking part: ${part}
@@ -283,7 +291,7 @@ Instructions for grading criteria:
    - Evaluate self-correction or repetition of ideas.
    - Check if they speak at length (especially for Part 2 and 3) and if their ideas are linked logically using appropriate cohesive devices and discourse markers.
 2. Pronunciation (PR):
-   - Listen to the user's actual speech in the audio. Identify real pronunciation errors:
+   - Listen to the user's actual speech in the audio (or evaluate transcript phonetics if audio is omitted). Identify real pronunciation errors:
      - Deletion of ending sounds /s/, /z/, /t/, /d/, /ed/, /ks/, /tʃ/, /dʒ/.
      - Confusing consonant sounds (e.g., confusing /ʃ/ and /s/, or /θ/ and /t/).
      - Shifting stress to the wrong syllable or speaking with a completely flat intonation without sentence stress or word-linking.
@@ -298,7 +306,7 @@ Output format (JSON):
    - name: criterion name ("Fluency and Coherence", "Lexical Resource", "Grammatical Range and Accuracy", "Pronunciation")
    - nameVi: Vietnamese name ("Sự trôi chảy và mạch lạc", "Nguồn từ vựng", "Phạm vi và độ chính xác ngữ pháp", "Phát âm")
    - score: estimated score (0.5 increments)
-   - comment: strict, specific feedback in Vietnamese, detailing exact issues. For FC, describe their flow, hesitancies, and filler usage. For PR, describe their rhythm, intonation, and likely consonant problems.
+   - comment: strict, concise feedback in Vietnamese (2-3 sentences), detailing exact issues. For FC, describe their flow, hesitancies, and filler usage. For PR, describe their rhythm, intonation, and likely consonant problems.
 3. strengths: array of 2-3 strengths (mix Vietnamese and English)
 4. weaknesses: array of 2-3 weaknesses (mix Vietnamese and English), specifically addressing fluency interruptions or pronunciation gaps.
 5. sentenceCorrections: up to 5 corrections of grammatical/vocabulary errors from the transcript:
@@ -306,14 +314,14 @@ Output format (JSON):
    - corrected: better version
    - explanation: explanation in Vietnamese
    - category: the main problem, one of ${SPEAKING_ERROR_CATEGORIES.join(', ')}
-6. improvedVersion: a natural, corrected version of the full answer or monologue at the target band
+6. improvedVersion: a natural, conversational improved version of the answer or monologue at target band (keep it concise: 60-100 words for Part 1/3, 120-150 words for Part 2)
 7. nextActions: 3 specific practice suggestions (mix Vietnamese and English)
 8. pronunciationNotes: array of 3-5 highly specific pronunciation tips, each formatted as:
    "• [Từ]: Hay phát âm sai thành [phiên âm sai] (thiếu âm đuôi [âm]). Hãy phát âm đúng là [IPA / hướng dẫn cụ thể]."
 9. followUpDrill: a short follow-up speaking exercise (1-2 sentences) for the user to practise repeating or improving their response.${isMock ? MOCK_OUTPUT : ''}`;
 
     const parts: Part[] = audio ? [{ inlineData: audio }, { text: prompt }] : [{ text: prompt }];
-    return { contents: [{ role: 'user', parts }], generationConfig: jsonConfig(isMock ? mockSchema : speakingSchema) };
+    return { contents: [{ role: 'user', parts }], generationConfig: jsonConfig(isMock ? mockSchema : speakingSchema, { temperature: 0.2 }) };
   },
 };
 
@@ -331,7 +339,7 @@ Return ONLY the transcript text, nothing else. If the audio is unclear or empty,
 export const transcribeAudio: OpSpec = {
   hourlyLimit: 30,
   models: FLASH_MODELS,
-  timeoutMs: 60_000,
+  timeoutMs: 30_000,
   kind: 'text',
   build(payload) {
     const p = asObject(payload);
@@ -348,7 +356,9 @@ export const transcribeAudio: OpSpec = {
           ],
         },
       ],
-      generationConfig: {},
+      generationConfig: {
+        temperature: 0.1,
+      },
     };
   },
 };

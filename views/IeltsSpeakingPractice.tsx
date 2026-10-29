@@ -249,7 +249,7 @@ export default function IeltsSpeakingPractice({ question, onSubmit, onBack, isGr
                     <button type="button" onClick={next} disabled={isGrading || !transcript.trim()} className={`${primaryBtn} w-full sm:w-auto`}>
                       {isGrading ? (
                         <>
-                          <Loader2 className="h-4 w-4 animate-spin" /> Đang chấm…
+                          <Loader2 className="h-4 w-4 animate-spin" /> Đang chấm… (~15-20s)
                         </>
                       ) : isLast ? (
                         <>

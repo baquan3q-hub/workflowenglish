@@ -323,7 +323,7 @@ export default function IeltsSpeakingMock({
         <button type="button" onClick={submit} disabled={pending || isGrading || ready.length === 0} className={`${primaryBtn} w-full sm:w-auto`}>
           {isGrading ? (
             <>
-              <Loader2 className="h-4 w-4 animate-spin" /> Đang chấm cả bài…
+              <Loader2 className="h-4 w-4 animate-spin" /> Đang chấm cả bài… (~15-20s)
             </>
           ) : (
             <>
