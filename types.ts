@@ -35,6 +35,14 @@ export enum AppPhase {
   IELTS_SPEAKING_STUDY = 'IELTS_SPEAKING_STUDY',
   IELTS_SPEAKING_MOCK = 'IELTS_SPEAKING_MOCK',
   IELTS_ERROR_LOG = 'IELTS_ERROR_LOG',
+  /** Ôn tập: Writing rebuilt sentence by sentence from Vietnamese. */
+  IELTS_WRITING_TRANSLATE = 'IELTS_WRITING_TRANSLATE',
+  /** Ôn tập: the learner's own Speaking answers. */
+  IELTS_SPEAKING_BANK = 'IELTS_SPEAKING_BANK',
+  /** Ôn tập: dictation on YouTube videos and audio links. */
+  IELTS_LISTENING_MEDIA = 'IELTS_LISTENING_MEDIA',
+  /** Ôn tập: Reading review drills. */
+  IELTS_READING_REVIEW = 'IELTS_READING_REVIEW',
   /** Admins only: the Listening library editor and the AI check. */
   IELTS_ADMIN = 'IELTS_ADMIN',
   /** Vocabulary Mastery Test (Reviewing & Mastered words) */

@@ -20,6 +20,8 @@ export const PERSONALISED_OPS: ReadonlySet<string> = new Set([
   'ieltsChat',
   'generateReadingPassage',
   'generateWritingPrompt',
+  'generateTranslationSet',
+  'buildSpeakingAnswer',
 ]);
 
 /** The payload to send: with the learner summary for a personalised op, unchanged otherwise. */

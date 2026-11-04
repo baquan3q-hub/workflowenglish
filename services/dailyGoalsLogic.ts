@@ -17,7 +17,7 @@ export interface CustomGoal {
   position: number;
 }
 
-export type GoalKind = 'continue' | 'review' | 'sentences' | 'ielts' | 'custom';
+export type GoalKind = 'continue' | 'review' | 'sentences' | 'ielts' | 'game' | 'custom';
 
 export interface TodayGoal {
   /** `auto:<kind>` for automatic goals, the row id for the learner's own. */
@@ -41,6 +41,8 @@ export interface AutoGoalInput {
   wrongSentences: number;
   /** IELTS attempts made today; null while loading. */
   ieltsToday: number | null;
+  /** XP earned today in IELTS review and its daily goal; absent (or null) until the learner has played once. */
+  reviewXp?: { today: number; goal: number } | null;
 }
 
 /**
@@ -85,6 +87,10 @@ export function autoGoals(input: AutoGoalInput): TodayGoal[] {
     done: (ielts ?? 0) >= 1,
     progress: ielts === null ? undefined : { value: Math.min(1, ielts), max: 1 },
   });
+  if (input.reviewXp) {
+    const { today, goal } = input.reviewXp;
+    goals.push({ id: 'auto:game', kind: 'game', title: `Ôn tập IELTS: ${goal} XP`, tone: 'butter', done: today >= goal, progress: { value: Math.min(today, goal), max: goal } });
+  }
   return goals;
 }
 

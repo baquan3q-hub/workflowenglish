@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { Suspense, lazy, useState, useEffect, useRef } from 'react';
 import { AppPhase, DifficultyLevel, GeneratedLesson, LessonProgress, SentenceItem, StepResult, UserSettings, FlashcardData, IeltsQuestion, IeltsAiFeedback, IeltsAttempt, IeltsSkill } from './types';
 import { generateLessonContent } from './services/geminiService';
 import { aiErrorMessage } from './services/aiClient';
@@ -24,7 +24,6 @@ import LearningProfile from './views/LearningProfile';
 import { clearLearningProfileCache, getLearningProfile } from './services/learningProfileService';
 import ReviewSession from './views/ReviewSession';
 import VocabTestView from './views/VocabTestView';
-import AnalyticsDashboard from './views/AnalyticsDashboard';
 import VocabLibrary from './views/VocabLibrary';
 import LessonSummary from './views/LessonSummary';
 import SentencePractice from './views/SentencePractice';
@@ -54,11 +53,12 @@ import { getReadingTest, type ReadingAnswers } from './data/ielts/reading';
 import { readingAttemptLabels, scorePassages, sessionPassages as readingSessionPassages, type ReadingMode } from './services/readingLogic';
 import { appendDrillLog, groupRecords, isDrillTestId, parseDrillTestId, resolveReadingTest } from './services/readingDrill';
 import type { ReadingKind } from './data/ielts/readingLessons';
-import { gradeWritingTask } from './services/ieltsWritingService';
+import { getWritingQuestionById, gradeWritingTask } from './services/ieltsWritingService';
 import { clearWritingDraft, examInfo, writingAttemptDetails, type WritingMode } from './services/writingPracticeLogic';
 import { gradeSpeakingAnswer } from './services/ieltsSpeakingService';
 import { fluencySummaryForGrader, isFluencyMetrics, type FluencyMetrics } from './services/fluencyLogic';
 import { saveIeltsAttempt, saveListeningAttempt, saveReadingAttempt, resolveAttemptQuestion, isListeningDetails, isReadingDetails, getPreviousWritingAttempt } from './services/ieltsAttemptService';
+import type { NextActionTarget } from './services/ieltsProgressLogic';
 import { getListeningTest, type ListeningAnswers } from './data/ielts/listening';
 import { isGeneratedTestId, loadGeneratedTest } from './services/listeningGenerationService';
 import { isLibraryTestId } from './services/listeningLibraryLogic';
@@ -81,6 +81,18 @@ import { useAutoSave } from './services/autoSaveService';
 import IeltsChatBox from './components/IeltsChatBox';
 import { TAB_TONE, TONE_HOVER, toneClasses } from './components/ui/palette';
 
+// The IELTS review screens load on first use, to keep the main bundle within the offline cache limit.
+const AnalyticsDashboard = lazy(() => import('./views/AnalyticsDashboard'));
+const IeltsWritingTranslate = lazy(() => import('./views/IeltsWritingTranslate'));
+const IeltsSpeakingBank = lazy(() => import('./views/IeltsSpeakingBank'));
+const IeltsListeningMedia = lazy(() => import('./views/IeltsListeningMedia'));
+const IeltsReadingReview = lazy(() => import('./views/IeltsReadingReview'));
+const pageFallback = (
+  <div className="flex justify-center py-16">
+    <Loader2 className="h-6 w-6 animate-spin text-slate-400" aria-label="Đang tải" />
+  </div>
+);
+
 /** Quiet header action: slate label, coloured icon, its tone's tint on hover. */
 const headerAction = (tone: keyof typeof TAB_TONE) =>
   `press group inline-flex min-h-touch min-w-touch items-center justify-center gap-1.5 rounded-lg text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-300 dark:hover:text-white ${TONE_HOVER[TAB_TONE[tone]]}`;
@@ -97,6 +109,7 @@ interface AppUser {
 
 /** Back button of the IELTS Library, by the screen it was opened from. */
 const LIBRARY_BACK_LABELS: Partial<Record<AppPhase, string>> = {
+  [AppPhase.ANALYTICS]: 'Thống kê',
   [AppPhase.IELTS_ERROR_LOG]: 'Sổ lỗi',
   [AppPhase.IELTS_READING_HUB]: 'Reading',
   [AppPhase.IELTS_READING_RESULT]: 'Kết quả',
@@ -1006,6 +1019,21 @@ function App() {
     setPhase(AppPhase.IELTS_LIBRARY);
   };
 
+  const followIeltsAction = (target: NextActionTarget) => {
+    if (target.kind === 'phase') {
+      if (target.phase === AppPhase.IELTS_READING_HUB) openIeltsReadingHub();
+      else setPhase(target.phase);
+    }
+    else if (target.kind === 'lesson') openIeltsLibrary(target.lessonId, phase);
+    else if (target.kind === 'writingStudy') {
+      setIeltsWritingStudyTab(target.tab);
+      setPhase(AppPhase.IELTS_WRITING_STUDY);
+    } else {
+      setIeltsSpeakingStudyTab(target.tab);
+      setPhase(AppPhase.IELTS_SPEAKING_STUDY);
+    }
+  };
+
   const openIeltsAdmin = () => {
     setIeltsAdminFrom(phase);
     setPhase(AppPhase.IELTS_ADMIN);
@@ -1259,6 +1287,7 @@ function App() {
       case AppPhase.ANALYTICS:
         return currentUser ? (
           <AnalyticsDashboard
+            key={currentUser.id}
             userId={currentUser.id}
             focusSection={analyticsSection}
             onOpenLibrary={() => setPhase(AppPhase.VOCAB_LIBRARY)}
@@ -1423,17 +1452,7 @@ function App() {
             onOpenPhase={setPhase}
             onOpenLibrary={(id) => openIeltsLibrary(id)}
             onOpenAdmin={ieltsAdmin ? openIeltsAdmin : undefined}
-            onAction={(target) => {
-              if (target.kind === 'phase') setPhase(target.phase);
-              else if (target.kind === 'lesson') openIeltsLibrary(target.lessonId);
-              else if (target.kind === 'writingStudy') {
-                setIeltsWritingStudyTab(target.tab);
-                setPhase(AppPhase.IELTS_WRITING_STUDY);
-              } else {
-                setIeltsSpeakingStudyTab(target.tab);
-                setPhase(AppPhase.IELTS_SPEAKING_STUDY);
-              }
-            }}
+            onAction={followIeltsAction}
           />
         );
 
@@ -1466,9 +1485,13 @@ function App() {
             onOpenAttempt={openIeltsAttempt}
             onOpenLesson={(id) => openIeltsLibrary(id, AppPhase.IELTS_READING_HUB)}
             drillKind={ieltsReadingDrillKind}
+            onOpenReview={() => setPhase(AppPhase.IELTS_READING_REVIEW)}
             onBack={() => setPhase(AppPhase.IELTS_HOME)}
           />
         );
+
+      case AppPhase.IELTS_READING_REVIEW:
+        return <IeltsReadingReview userId={currentUser?.id ?? ''} onBack={() => openIeltsReadingHub()} />;
 
       case AppPhase.IELTS_READING_PRACTICE: {
         const test = ieltsReading && resolveReadingTest(ieltsReading.testId, getReadingTest);
@@ -1516,11 +1539,15 @@ function App() {
               setPhase(AppPhase.IELTS_LISTENING_DICTATION);
             }}
             onOpenDrill={() => setPhase(AppPhase.IELTS_LISTENING_DRILL)}
+            onOpenMedia={() => setPhase(AppPhase.IELTS_LISTENING_MEDIA)}
             onOpenAttempt={openIeltsAttempt}
             onBack={() => setPhase(AppPhase.IELTS_HOME)}
             onOpenAdmin={ieltsAdmin ? openIeltsAdmin : undefined}
           />
         );
+
+      case AppPhase.IELTS_LISTENING_MEDIA:
+        return <IeltsListeningMedia userId={currentUser?.id ?? ''} isAdmin={ieltsAdmin} onBack={() => setPhase(AppPhase.IELTS_LISTENING_HUB)} />;
 
       case AppPhase.IELTS_LISTENING_PRACTICE: {
         const test = ieltsListening && getListeningTest(ieltsListening.testId);
@@ -1607,6 +1634,23 @@ function App() {
             onSelectQuestion={startIeltsWriting}
             onOpenStudy={(tab) => {
               setIeltsWritingStudyTab(tab);
+              setPhase(AppPhase.IELTS_WRITING_STUDY);
+            }}
+            onOpenTranslate={() => setPhase(AppPhase.IELTS_WRITING_TRANSLATE)}
+          />
+        );
+
+      case AppPhase.IELTS_WRITING_TRANSLATE:
+        return (
+          <IeltsWritingTranslate
+            userId={currentUser?.id ?? ''}
+            onBack={() => setPhase(AppPhase.IELTS_WRITING_HUB)}
+            onPracticeQuestion={(id) => {
+              const q = getWritingQuestionById(id);
+              if (q) startIeltsWriting(q);
+            }}
+            onOpenSamples={() => {
+              setIeltsWritingStudyTab('samples');
               setPhase(AppPhase.IELTS_WRITING_STUDY);
             }}
           />
@@ -1709,8 +1753,12 @@ function App() {
               setIeltsSpeakingStudyTab(tab);
               setPhase(AppPhase.IELTS_SPEAKING_STUDY);
             }}
+            onOpenBank={() => setPhase(AppPhase.IELTS_SPEAKING_BANK)}
           />
         );
+
+      case AppPhase.IELTS_SPEAKING_BANK:
+        return <IeltsSpeakingBank userId={currentUser?.id ?? ''} onBack={() => setPhase(AppPhase.IELTS_SPEAKING_HUB)} />;
 
       case AppPhase.IELTS_SPEAKING_STUDY:
         return (
@@ -1932,10 +1980,10 @@ function App() {
               </button>
             </div>
           )}
-          {renderContent()}
+          <Suspense fallback={pageFallback}>{renderContent()}</Suspense>
         </main>
       ) : (
-        renderContent()
+        <Suspense fallback={pageFallback}>{renderContent()}</Suspense>
       )}
 
       {/* Desktop footer — the mobile tab bar takes the bottom edge below 768px */}

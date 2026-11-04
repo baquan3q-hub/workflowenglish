@@ -10,6 +10,9 @@ import { generateReadingPassage } from './readingGenerate.ts';
 import { readingNotes } from './readingNotes.ts';
 import { generateSentences, gradeSentence } from './sentences.ts';
 import { generateWritingPrompt } from './writingGenerate.ts';
+import { generateTranslationSet, gradeTranslation } from './writingTranslate.ts';
+import { buildSpeakingAnswer } from './speakingBank.ts';
+import { transcribeYouTube } from './mediaTranscript.ts';
 
 /** Story narration: 24 kHz mono 16-bit PCM, returned as base64. */
 const tts: OpSpec = {
@@ -50,6 +53,10 @@ export const OPS: Record<string, OpSpec> = {
   readingNotes,
   generateReadingPassage,
   generateWritingPrompt,
+  gradeTranslation,
+  generateTranslationSet,
+  buildSpeakingAnswer,
+  transcribeYouTube,
 };
 
 export type OpName = keyof typeof OPS;

@@ -18,6 +18,7 @@ import { IconTile } from '../components/ui/IconTile';
 import { toneClasses, type Tone } from '../components/ui/palette';
 import { Segmented } from '../components/ui/Segmented';
 import { panel } from '../components/ui/styles';
+import { ReviewEntry } from '../components/ielts/ReviewEntry';
 
 const STUDY_LINKS: ReadonlyArray<{ tab: WritingStudyTab; title: string; subtitle: string; icon: LucideIcon; tone: Tone }> = [
   { tab: 'guides', title: 'Cách viết từng dạng', subtitle: '7 dạng Task 1, 6 dạng Task 2', icon: LayoutList, tone: 'lavender' },
@@ -44,6 +45,8 @@ interface Props {
   onOpenAttempt: (attempt: IeltsAttempt) => void;
   onSelectQuestion: (q: IeltsQuestion, mode: WritingMode) => void;
   onOpenStudy: (tab: WritingStudyTab) => void;
+  /** "Viết từng câu" review drill. */
+  onOpenTranslate?: () => void;
   /** Writing attempts of the learner; injectable for previews and tests. */
   loadAttempts?: (userId: string) => Promise<IeltsAttempt[]>;
   /** Published prompts from the admin library; injectable for previews and tests. */
@@ -64,7 +67,7 @@ function Stat({ icon: Icon, tone, value, label }: { icon: React.ElementType; ton
   );
 }
 
-export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttempt, onOpenStudy, loadAttempts = loadWritingAttempts, loadLibrary = getPublishedWritingLibrary, generatedApi }: Props) {
+export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttempt, onOpenStudy, onOpenTranslate, loadAttempts = loadWritingAttempts, loadLibrary = getPublishedWritingLibrary, generatedApi }: Props) {
   const [activeTab, setActiveTab] = useState<'task_1' | 'task_2'>('task_1');
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [showFrameworks, setShowFrameworks] = useState(false);
@@ -218,6 +221,16 @@ export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttemp
         <Stat icon={TrendingUp} tone="aqua" value={summary.averageBand != null ? summary.averageBand.toFixed(1) : '—'} label="Band trung bình" />
         <Stat icon={Lightbulb} tone="butter" value={summary.bestBand != null ? summary.bestBand.toFixed(1) : '—'} label="Band cao nhất" />
       </div>
+
+      {onOpenTranslate && (
+        <ReviewEntry
+          icon={Languages}
+          tone="lavender"
+          title="Viết từng câu từ bản tiếng Việt"
+          text="Dịch bài mẫu từng câu, AI chấm ngay và gợi ý câu hay hơn một bậc. Độ khó tự điều chỉnh theo bạn."
+          onClick={onOpenTranslate}
+        />
+      )}
 
       {/* Study before writing */}
       <section aria-labelledby="writing-study-title" className="space-y-2">

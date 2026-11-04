@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { ArrowLeft, ArrowRight, BookOpenText, Clock, FileText, Info, Library } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, ArrowRight, BookOpenText, Clock, FileText, Info, Library, Repeat } from 'lucide-react';
 import type { IeltsAttempt } from '../types';
 import { DIFFICULTY_LABELS, READING_EXAM_MINUTES, READING_FULL_TESTS, READING_PRACTICE_TESTS, type ReadingTest } from '../data/ielts/reading';
 import { passageQuestions, passageWordCount, type ReadingMode } from '../services/readingLogic';
 import { isReadingDetails } from '../services/ieltsAttemptService';
 import { getPublishedReadingLibrary } from '../services/readingLibraryService';
+import { readingReviewDue } from '../services/readingReviewService';
 import { GROUP_KINDS } from '../components/ielts/questions/parts';
 import { readingGroupKind } from '../components/ielts/questions/questionLogic';
 import IeltsAttemptHistory from '../components/IeltsAttemptHistory';
@@ -13,6 +14,7 @@ import GeneratedPassages, { type GeneratedPassagesApi } from '../components/ielt
 import type { ReadingKind } from '../data/ielts/readingLessons';
 import { Segmented } from '../components/ui/Segmented';
 import { IconTile } from '../components/ui/IconTile';
+import { ReviewEntry } from '../components/ielts/ReviewEntry';
 import { ghostBtn, panel, primaryBtn, secondaryBtn, tag } from '../components/ui/styles';
 
 interface Props {
@@ -23,6 +25,8 @@ interface Props {
   /** Open "Luyện theo dạng" on this kind. */
   drillKind?: ReadingKind;
   onBack: () => void;
+  /** Open "Ôn tập Reading" (missed questions, T/F/NG, paraphrase, speed). */
+  onOpenReview?: () => void;
   /** Published tests from the admin library; injectable for tests. */
   loadLibrary?: () => Promise<ReadingTest[]>;
   /** "Đề AI tạo" service calls; injectable for previews and tests. */
@@ -119,7 +123,7 @@ function PassageCard({ test, mode, onStart }: CardProps) {
 
 const questionKinds = (test: ReadingTest) => [...new Set(test.passages.flatMap((p) => p.groups.map((g) => GROUP_KINDS[readingGroupKind(g)].label)))];
 
-export default function IeltsReadingHub({ userId, onStart, onOpenAttempt, onOpenLesson, drillKind, onBack, loadLibrary = getPublishedReadingLibrary, generatedApi }: Props) {
+export default function IeltsReadingHub({ userId, onStart, onOpenAttempt, onOpenLesson, drillKind, onBack, onOpenReview, loadLibrary = getPublishedReadingLibrary, generatedApi }: Props) {
   const [library, setLibrary] = useState<ReadingTest[]>([]);
   useEffect(() => {
     let live = true;
@@ -131,6 +135,7 @@ export default function IeltsReadingHub({ userId, onStart, onOpenAttempt, onOpen
       live = false;
     };
   }, [loadLibrary]);
+  const reviewDue = useMemo(() => readingReviewDue(userId), [userId]);
   const libraryFull = library.filter((t) => t.kind === 'full');
   const libraryPassages = library.filter((t) => t.kind === 'practice');
   const [mode, setModeState] = useState<ReadingMode>(readMode);
@@ -156,6 +161,17 @@ export default function IeltsReadingHub({ userId, onStart, onOpenAttempt, onOpen
           Làm đề 3 passage hoặc luyện từng passage. Bài được chấm ngay, kèm câu trong bài chứa đáp án và cách đề diễn đạt lại.
         </p>
       </header>
+
+      {onOpenReview && (
+        <ReviewEntry
+          icon={Repeat}
+          tone="lavender"
+          title="Ôn câu sai, T/F/NG, paraphrase, đọc nhanh"
+          text="Câu làm sai quay lại đúng lúc sắp quên; mỗi bài ôn chỉ 5 phút."
+          onClick={onOpenReview}
+          badge={reviewDue ? `${reviewDue} câu đến hạn` : undefined}
+        />
+      )}
 
       <section aria-labelledby="reading-mode" className={`${panel} p-4 sm:p-5`}>
         <h2 id="reading-mode" className="text-sm font-semibold text-slate-900 dark:text-white">

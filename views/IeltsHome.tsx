@@ -45,6 +45,8 @@ import { summarizeErrors } from '../services/ieltsErrorLogic';
 import { getPreferences, IELTS_TARGET_BANDS, setPreferences } from '../services/preferencesService';
 import { LIBRARY_LESSONS } from '../data/ielts/library';
 import { Skeleton } from '../components/ui/States';
+import ReviewGarden from '../components/ielts/review/ReviewGarden';
+import type { GardenSkill } from '../services/reviewGameLogic';
 import { IconTile } from '../components/ui/IconTile';
 import { InteractiveCard } from '../components/ui/InteractiveCard';
 import { NAV_TONE, SKILL_TONE, toneClasses } from '../components/ui/palette';
@@ -61,6 +63,13 @@ interface Props {
   /** Swapped out in previews and tests. */
   loadAttempts?: (userId: string) => Promise<IeltsAttempt[]>;
 }
+
+/** Where each garden bed's button goes: that skill's review. */
+const GARDEN_PHASE: Record<GardenSkill, AppPhase> = {
+  reading: AppPhase.IELTS_READING_REVIEW,
+  writing: AppPhase.IELTS_WRITING_TRANSLATE,
+  speaking: AppPhase.IELTS_SPEAKING_BANK,
+};
 
 const defaultLoad = async (userId: string) =>
   (await Promise.all(PRACTISED_SKILLS.map((s) => getIeltsAttempts(userId, s, 10)))).flat();
@@ -568,6 +577,8 @@ export default function IeltsHome({ userId, onOpenPhase, onOpenLibrary, onOpenAd
           </p>
         )}
       </section>
+
+      {userId && <ReviewGarden userId={userId} onOpen={(skill) => onOpenPhase(GARDEN_PHASE[skill])} />}
 
       <section aria-labelledby="ielts-skills">
         <h2 id="ielts-skills" className="text-title font-semibold text-slate-900 dark:text-white">

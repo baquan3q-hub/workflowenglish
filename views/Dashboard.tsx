@@ -41,6 +41,8 @@ import { TONE_HOVER, toneClasses, type Tone } from '../components/ui/palette';
 import { ghostBtn, panel, primaryBtn } from '../components/ui/styles';
 import TemplateLibraryModal from '../components/TemplateLibraryModal';
 import { VOCABULARY_TEMPLATES } from '../data/vocabularyTemplates';
+import { useGameProfile } from '../services/reviewGameService';
+import { DAILY_XP_GOAL, todayXp } from '../services/reviewGameLogic';
 
 interface DashboardProps {
   onGenerate: (text: string, settings: UserSettings) => void;
@@ -365,6 +367,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   };
 
   const wordCount = countInputWords(inputText);
+  const gameProfile = useGameProfile(userId);
   const minutes = lessonMinutes(wordCount);
   const now = useMemo(() => new Date(), [recent]);
   // Templates at the chosen level first, then the rest.
@@ -388,7 +391,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   ];
   const streakDays = userGoals ? streakWeek(now, userGoals.current_streak, userGoals.last_active_date) : [];
 
-  const openGoal = (kind: 'continue' | 'review' | 'sentences' | 'ielts') => {
+  const openGoal = (kind: 'continue' | 'review' | 'sentences' | 'ielts' | 'game') => {
     if (kind === 'continue') onContinueLesson?.();
     else if (kind === 'review') onStartReview();
     else if (kind === 'sentences') onPracticeSentences?.(wrongSentences);
@@ -401,6 +404,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     dailyWordGoal: userGoals?.daily_word_goal ?? 5,
     wrongSentences: onPracticeSentences ? wrongSentences.length : 0,
     ieltsToday,
+    reviewXp: gameProfile.totalXp > 0 ? { today: todayXp(gameProfile, now), goal: DAILY_XP_GOAL } : null,
   };
 
   return (

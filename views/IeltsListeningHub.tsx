@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, ArrowRight, ChevronRight, Clock, Hash, Headphones, Info, Keyboard, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ChevronRight, Clock, Hash, Headphones, Info, Keyboard, ShieldCheck, Youtube } from 'lucide-react';
 import type { IeltsAttempt } from '../types';
 import {
   GROUP_TYPE_LABELS,
@@ -15,6 +15,7 @@ import { Segmented } from '../components/ui/Segmented';
 import GeneratedSections, { type GeneratedSectionsApi } from '../components/ielts/listening/GeneratedSections';
 import LibrarySection from '../components/ielts/listening/LibrarySection';
 import { toneClasses } from '../components/ui/palette';
+import { ReviewEntry } from '../components/ielts/ReviewEntry';
 import { ghostBtn, panel, primaryBtn, secondaryBtn, tag } from '../components/ui/styles';
 
 interface Props {
@@ -22,6 +23,8 @@ interface Props {
   onStart: (testId: string, sectionIds: string[], mode: ListeningMode) => void;
   onOpenDictation: () => void;
   onOpenDrill: () => void;
+  /** Dictation on YouTube videos, podcasts and stories. */
+  onOpenMedia?: () => void;
   onOpenAttempt: (attempt: IeltsAttempt) => void;
   onBack: () => void;
   /** Admins only: opens the test editor. */
@@ -49,7 +52,7 @@ function readMode(): ListeningMode {
 
 const questionTypes = (test: ListeningTest) => [...new Set(test.sections.flatMap((s) => s.groups.map((g) => GROUP_TYPE_LABELS[g.type])))];
 
-export default function IeltsListeningHub({ userId, onStart, onOpenDictation, onOpenDrill, onOpenAttempt, onBack, onOpenAdmin, generatedApi, loadLibrary }: Props) {
+export default function IeltsListeningHub({ userId, onStart, onOpenDictation, onOpenDrill, onOpenMedia, onOpenAttempt, onBack, onOpenAdmin, generatedApi, loadLibrary }: Props) {
   const [mode, setModeState] = useState<ListeningMode>(readMode);
   const setMode = (m: ListeningMode) => {
     setModeState(m);
@@ -80,6 +83,16 @@ export default function IeltsListeningHub({ userId, onStart, onOpenDictation, on
           Làm đề 4 part hoặc luyện từng part. Bài được chấm ngay, kèm loại lỗi và câu trong bài nghe chứa đáp án.
         </p>
       </header>
+
+      {onOpenMedia && (
+        <ReviewEntry
+          icon={Youtube}
+          tone="aqua"
+          title="Chép chính tả từ video và podcast"
+          text="Dán link YouTube hoặc audio, nghe từng câu và gõ lại. Ctrl để nghe lại."
+          onClick={onOpenMedia}
+        />
+      )}
 
       <section aria-labelledby="listening-mode" className={`${panel} p-4 sm:p-5`}>
         <h2 id="listening-mode" className="text-sm font-semibold text-slate-900 dark:text-white">

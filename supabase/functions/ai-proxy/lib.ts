@@ -3,7 +3,11 @@
  * Deno APIs, so vitest can import the ops directly.
  */
 
-export type Part = { text: string } | { inlineData: { mimeType: string; data: string } };
+export type Part =
+  | { text: string }
+  | { inlineData: { mimeType: string; data: string } }
+  /** A public YouTube video, optionally clipped ("40s" to "100s"). */
+  | { fileData: { fileUri: string }; videoMetadata?: { startOffset?: string; endOffset?: string } };
 export interface Content {
   role: 'user' | 'model';
   parts: Part[];

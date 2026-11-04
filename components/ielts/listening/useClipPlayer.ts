@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { aiErrorMessage } from '../../../services/aiClient';
 import { segmentAudioUrl, type AudioSegment } from '../../../services/listeningAudioService';
 import { isYouTubeSource } from '../../../services/youtubeLogic';
+import { mediaFragment } from '../../../services/mediaDictationLogic';
 import { YOUTUBE_TAP_HINT, YouTubeClipMedia, type CreatePlayer } from './youtubeMedia';
 
 export type ResolveClip = (seg: AudioSegment, signal?: AbortSignal) => Promise<string>;
@@ -129,6 +130,20 @@ export function useClipPlayer(resolve: ResolveClip = segmentAudioUrl, createYouT
           setActiveId(null);
           onEnded?.();
         };
+        // An outside file played from "#t=start,end": browsers pause at the end without an ended event.
+        const fragment = mediaFragment(url);
+        if (fragment) {
+          const watch = () => {
+            if (audio.current !== a) return;
+            if (a.currentTime >= fragment.end || a.ended) {
+              a.pause();
+              a.onended?.(new Event('ended'));
+              return;
+            }
+            requestAnimationFrame(watch);
+          };
+          a.onplaying = () => requestAnimationFrame(watch);
+        }
         a.onerror = () => {
           if (audio.current !== a) return;
           setActiveId(null);

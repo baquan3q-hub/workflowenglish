@@ -718,6 +718,29 @@
       transform-origin: center;
       animation: emotionBlink 3.8s ease-in-out infinite;
     }
+
+    /* IELTS review games: XP floating up, a wrong-answer shake, a card leaving
+       in the direction it was swiped. Each plays once; "reduce motion" above
+       makes them instant, and the game's "Tắt hiệu ứng" leaves the classes off. */
+    @keyframes xpFloat {
+      0% { opacity: 0; translate: 0 6px; }
+      20% { opacity: 1; translate: 0 0; }
+      100% { opacity: 0; translate: 0 -18px; }
+    }
+    .anim-xp-float { animation: xpFloat 900ms ease-out forwards; }
+    @keyframes gameShake {
+      0%, 100% { translate: 0 0; }
+      25% { translate: -6px 0; }
+      50% { translate: 5px 0; }
+      75% { translate: -3px 0; }
+    }
+    .anim-shake { animation: gameShake 360ms ease-in-out; }
+    @keyframes cardOutLeft { to { opacity: 0; translate: -120% 0; rotate: -12deg; } }
+    @keyframes cardOutRight { to { opacity: 0; translate: 120% 0; rotate: 12deg; } }
+    @keyframes cardOutUp { to { opacity: 0; translate: 0 -80%; } }
+    .anim-card-left { animation: cardOutLeft 260ms ease-in forwards; }
+    .anim-card-right { animation: cardOutRight 260ms ease-in forwards; }
+    .anim-card-up { animation: cardOutUp 260ms ease-in forwards; }
   </style>
   <script type="importmap">
 {

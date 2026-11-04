@@ -70,7 +70,7 @@ describe('learner context (app)', () => {
     expect(withLearner('ieltsChat', null)).toBeNull();
     expect(withLearner('ieltsChat', ['x'])).toEqual(['x']);
     expect([...PERSONALISED_OPS].sort()).toEqual(
-      ['generateLesson', 'generateReadingPassage', 'generateWritingPrompt', 'ieltsChat', 'ieltsIdeas', 'recommendWords'].sort(),
+      ['buildSpeakingAnswer', 'generateLesson', 'generateReadingPassage', 'generateTranslationSet', 'generateWritingPrompt', 'ieltsChat', 'ieltsIdeas', 'recommendWords'].sort(),
     );
   });
 });

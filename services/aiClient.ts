@@ -76,6 +76,8 @@ export function aiErrorMessage(err: unknown): string {
     case 'forbidden':
       return 'Chỉ quản trị viên được dùng tính năng này.';
     case 'bad_request':
+      // An op the deployed server does not have yet means ai-proxy needs deploying, not a bad entry.
+      if (err instanceof AiError && err.message.startsWith('Thao tác không được hỗ trợ')) return 'Máy chủ AI chưa được cập nhật cho tính năng này. Vui lòng thử lại sau.';
       return 'Yêu cầu chưa hợp lệ. Vui lòng kiểm tra nội dung rồi thử lại.';
     default:
       switch (err instanceof AiError ? err.reason : undefined) {

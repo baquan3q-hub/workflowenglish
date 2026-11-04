@@ -4,8 +4,9 @@ import { getSpeakingQuestions, getRandomSpeakingQuestion } from '../data/ieltsSp
 import { ieltsFrameworks } from '../data/ieltsFrameworks';
 import { QuestionCard, FilterBar, FrameworkCard } from '../components/IeltsCommon';
 import IeltsAttemptHistory from '../components/IeltsAttemptHistory';
-import { Mic, BookOpen, Filter, Lightbulb, ChevronDown, ChevronUp, ChevronRight, Shuffle, Star, MessageSquareText, LayoutList, AudioLines, Repeat } from 'lucide-react';
+import { Mic, BookOpen, Filter, Lightbulb, ChevronDown, ChevronUp, ChevronRight, Shuffle, Star, MessageSquareText, LayoutList, AudioLines, Repeat, Bookmark } from 'lucide-react';
 import type { SpeakingStudyTab } from './IeltsSpeakingStudy';
+import { ReviewEntry } from '../components/ielts/ReviewEntry';
 
 const STUDY_LINKS: ReadonlyArray<{ tab: SpeakingStudyTab; title: string; subtitle: string; icon: React.ElementType }> = [
   { tab: 'part1', title: 'Chủ đề Part 1', subtitle: 'Ý tưởng, từ vựng, mẫu band 6 và 7', icon: MessageSquareText },
@@ -20,9 +21,10 @@ interface Props {
   onSelectQuestion: (q: IeltsQuestion) => void;
   onStartMockTest: () => void;
   onOpenStudy: (tab: SpeakingStudyTab) => void;
+  onOpenBank?: () => void;
 }
 
-export default function IeltsSpeakingHub({ userId, onSelectQuestion, onStartMockTest, onOpenAttempt, onOpenStudy }: Props) {
+export default function IeltsSpeakingHub({ userId, onSelectQuestion, onStartMockTest, onOpenAttempt, onOpenStudy, onOpenBank }: Props) {
   const [activeTab, setActiveTab] = useState<'part_1' | 'part_2' | 'part_3'>('part_1');
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [showFrameworks, setShowFrameworks] = useState(false);
@@ -146,6 +148,16 @@ export default function IeltsSpeakingHub({ userId, onSelectQuestion, onStartMock
           <p className="text-[10px] text-slate-550 dark:text-slate-400 font-bold mt-1">Câu ngẫu nhiên</p>
         </button>
       </div>
+
+      {onOpenBank && (
+        <ReviewEntry
+          icon={Bookmark}
+          tone="peach"
+          title="Kho câu trả lời của bạn"
+          text="Bài mẫu, khung trả lời, AI viết từ ý của bạn và luyện nói tới khi không cần nhìn chữ"
+          onClick={onOpenBank}
+        />
+      )}
 
       {/* Study before speaking */}
       <section aria-labelledby="speaking-study-title" className="space-y-2">
