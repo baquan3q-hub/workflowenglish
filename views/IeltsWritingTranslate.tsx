@@ -89,9 +89,13 @@ const DEFAULT_API: WritingTranslateApi = {
   remove: deleteGeneratedSet,
 };
 
+export type WritingGameId = 'chunks' | 'hunt';
+
 interface Props {
   userId: string;
   onBack: () => void;
+  /** Open straight into a game (from the Writing hub). */
+  initialGame?: WritingGameId;
   /** Write the whole essay of a bank prompt next. */
   onPracticeQuestion?: (questionId: string) => void;
   /** Open the band 6/7/8 sample essays. */
@@ -116,7 +120,7 @@ const TASK_OPTIONS = [
   { value: 'task_1' as const, label: 'Task 1 · Biểu đồ' },
 ];
 
-export default function IeltsWritingTranslate({ userId, onBack, onPracticeQuestion, onOpenSamples, api = DEFAULT_API }: Props) {
+export default function IeltsWritingTranslate({ userId, onBack, initialGame, onPracticeQuestion, onOpenSamples, api = DEFAULT_API }: Props) {
   const target = useMemo(() => getPreferences(userId).ieltsTargetBand, [userId]);
   const [state, setState] = useState<TranslateState>(() => loadTranslateState(userId, target));
   const [generated, setGenerated] = useState<TranslationSet[]>([]);
@@ -124,7 +128,7 @@ export default function IeltsWritingTranslate({ userId, onBack, onPracticeQuesti
   const [reviewing, setReviewing] = useState(false);
   const [index, setIndex] = useState(0);
   const [mode, setMode] = useState<TranslationMode>('translate');
-  const [game, setGame] = useState<'chunks' | 'hunt' | null>(null);
+  const [game, setGame] = useState<WritingGameId | null>(initialGame ?? null);
   const profile = useGameProfile(userId);
 
   useEffect(() => {
