@@ -84,6 +84,7 @@ import { TAB_TONE, TONE_HOVER, toneClasses } from './components/ui/palette';
 // The IELTS review screens load on first use, to keep the main bundle within the offline cache limit.
 const AnalyticsDashboard = lazy(() => import('./views/AnalyticsDashboard'));
 const IeltsWritingTranslate = lazy(() => import('./views/IeltsWritingTranslate'));
+import type { WritingGameId } from './views/IeltsWritingTranslate';
 const IeltsSpeakingBank = lazy(() => import('./views/IeltsSpeakingBank'));
 const IeltsListeningMedia = lazy(() => import('./views/IeltsListeningMedia'));
 const IeltsReadingReview = lazy(() => import('./views/IeltsReadingReview'));
@@ -213,6 +214,7 @@ function App() {
   /** Question type "Luyện theo dạng" opens on when the Reading hub is reached from a lesson or a result. */
   const [ieltsReadingDrillKind, setIeltsReadingDrillKind] = useState<ReadingKind | undefined>(undefined);
   const [ieltsWritingStudyTab, setIeltsWritingStudyTab] = useState<WritingStudyTab>('guides');
+  const [ieltsWritingGame, setIeltsWritingGame] = useState<WritingGameId | undefined>();
   const [ieltsSpeakingStudyTab, setIeltsSpeakingStudyTab] = useState<SpeakingStudyTab>('part1');
   /** Listening session: which test and parts, and the answers once submitted. `run` restarts the sheet on retry. */
   const [ieltsListening, setIeltsListening] = useState<{
@@ -1637,7 +1639,10 @@ function App() {
               setIeltsWritingStudyTab(tab);
               setPhase(AppPhase.IELTS_WRITING_STUDY);
             }}
-            onOpenTranslate={() => setPhase(AppPhase.IELTS_WRITING_TRANSLATE)}
+            onOpenTranslate={(game) => {
+              setIeltsWritingGame(game);
+              setPhase(AppPhase.IELTS_WRITING_TRANSLATE);
+            }}
           />
         );
 
@@ -1645,6 +1650,7 @@ function App() {
         return (
           <IeltsWritingTranslate
             userId={currentUser?.id ?? ''}
+            initialGame={ieltsWritingGame}
             onBack={() => setPhase(AppPhase.IELTS_WRITING_HUB)}
             onPracticeQuestion={(id) => {
               const q = getWritingQuestionById(id);

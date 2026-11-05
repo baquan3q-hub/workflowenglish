@@ -9,7 +9,7 @@ import { ieltsFrameworks } from '../data/ieltsFrameworks';
 import { QuestionCard, FilterBar, FrameworkCard } from '../components/IeltsCommon';
 import IeltsAttemptHistory from '../components/IeltsAttemptHistory';
 import type { LucideIcon } from 'lucide-react';
-import { BookOpen, CheckCheck, ChevronDown, ChevronRight, ChevronUp, FileText, Filter, Languages, LayoutList, Lightbulb, PenLine, PenTool, TrendingUp } from 'lucide-react';
+import { BookOpen, CheckCheck, ChevronDown, ChevronRight, ChevronUp, FileText, Filter, Languages, LayoutList, Lightbulb, PenLine, PenTool, Puzzle, Search, TrendingUp } from 'lucide-react';
 import { WRITING_GUIDES } from '../data/ielts/writingGuides';
 import { questionTopics } from '../services/writingStudyLogic';
 import { countWords, listWritingDrafts, progressByPrompt, progressFor, readWritingMode, saveWritingMode, summarizeWriting, type WritingDraft, type WritingMode } from '../services/writingPracticeLogic';
@@ -19,6 +19,7 @@ import { toneClasses, type Tone } from '../components/ui/palette';
 import { Segmented } from '../components/ui/Segmented';
 import { panel } from '../components/ui/styles';
 import { ReviewEntry } from '../components/ielts/ReviewEntry';
+import type { WritingGameId } from './IeltsWritingTranslate';
 
 const STUDY_LINKS: ReadonlyArray<{ tab: WritingStudyTab; title: string; subtitle: string; icon: LucideIcon; tone: Tone }> = [
   { tab: 'guides', title: 'Cách viết từng dạng', subtitle: '7 dạng Task 1, 6 dạng Task 2', icon: LayoutList, tone: 'lavender' },
@@ -45,8 +46,8 @@ interface Props {
   onOpenAttempt: (attempt: IeltsAttempt) => void;
   onSelectQuestion: (q: IeltsQuestion, mode: WritingMode) => void;
   onOpenStudy: (tab: WritingStudyTab) => void;
-  /** "Viết từng câu" review drill. */
-  onOpenTranslate?: () => void;
+  /** "Viết từng câu" review drill, or straight into one of its games. */
+  onOpenTranslate?: (game?: WritingGameId) => void;
   /** Writing attempts of the learner; injectable for previews and tests. */
   loadAttempts?: (userId: string) => Promise<IeltsAttempt[]>;
   /** Published prompts from the admin library; injectable for previews and tests. */
@@ -66,6 +67,11 @@ function Stat({ icon: Icon, tone, value, label }: { icon: React.ElementType; ton
     </div>
   );
 }
+
+const WRITING_GAMES: readonly { game: WritingGameId; title: string; text: string; icon: LucideIcon; tone: Tone }[] = [
+  { game: 'chunks', title: 'Khởi động: Xếp câu', text: 'Xếp lại câu mẫu từ các mảnh. 2 phút, không cần AI.', icon: Puzzle, tone: 'lavender' },
+  { game: 'hunt', title: 'Săn lỗi', text: 'Tìm và sửa lỗi hay gặp, rồi chính lỗi bạn từng mắc.', icon: Search, tone: 'peach' },
+];
 
 export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttempt, onOpenStudy, onOpenTranslate, loadAttempts = loadWritingAttempts, loadLibrary = getPublishedWritingLibrary, generatedApi }: Props) {
   const [activeTab, setActiveTab] = useState<'task_1' | 'task_2'>('task_1');
@@ -228,8 +234,25 @@ export default function IeltsWritingHub({ userId, onSelectQuestion, onOpenAttemp
           tone="lavender"
           title="Viết từng câu từ bản tiếng Việt"
           text="Dịch bài mẫu từng câu, AI chấm ngay và gợi ý câu hay hơn một bậc. Độ khó tự điều chỉnh theo bạn."
-          onClick={onOpenTranslate}
+          onClick={() => onOpenTranslate()}
         />
+      )}
+      {onOpenTranslate && (
+        <section aria-label="Trò chơi Writing" className="grid gap-2 sm:grid-cols-2">
+          {WRITING_GAMES.map(({ game, title, text, icon, tone }) => (
+            <button key={game} type="button" onClick={() => onOpenTranslate(game)} className={`${panel} lift press flex items-center gap-3 p-4 text-left`}>
+              <IconTile icon={icon} tone={tone} />
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+                  {title}
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${toneClasses('mint').tile}`}>Mới</span>
+                </span>
+                <span className="block text-caption text-slate-600 dark:text-slate-400">{text}</span>
+              </span>
+              <ChevronRight className="h-4 w-4 text-slate-400" aria-hidden />
+            </button>
+          ))}
+        </section>
       )}
 
       {/* Study before writing */}
