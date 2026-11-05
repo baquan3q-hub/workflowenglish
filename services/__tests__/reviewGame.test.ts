@@ -129,6 +129,7 @@ describe('levels and profile', () => {
       bestCombo: 0,
       best: { b: 3 },
       quiet: false,
+      awarded: {},
     });
   });
 });
@@ -167,11 +168,11 @@ describe('garden', () => {
   it('reads the decks the review screens keep', () => {
     store.clear();
     store.set(GARDEN_KEYS.reading + 'u', JSON.stringify({ cards: { 't:p:1': { key: 't:p:1', box: 1, dueAt: ago(1) } }, mastered: 2 }));
-    store.set(GARDEN_KEYS.writing + 'u', JSON.stringify({ sentences: { 's/1': { box: 2, due: ago(-3) }, 's/2': { box: -1, due: null }, 's/3': { box: 3, due: null } } }));
+    store.set(GARDEN_KEYS.writing + 'u', JSON.stringify({ sentences: { 's/1': { box: 2, due: ago(-3) }, 's/2': { box: -1, due: null }, 's/3': { box: -1, due: null } }, mastered: 2 }));
     store.set(GARDEN_KEYS.speaking + 'u', JSON.stringify({ q1: { answer: 'I live in Hanoi.', stage: 1, dueAt: null, updatedAt: ago(4) }, q2: { answer: ' ', stage: 0 } }));
     const plants = loadGarden('u', NOW);
     expect(plants.map((p) => `${p.id}:${p.stage}:${p.state}`).sort()).toEqual(
-      ['r:t:p:1:1:thirsty', 'r:done:0:3:bloom', 'r:done:1:3:bloom', 'w:s/1:2:growing', 'w:s/3:3:bloom', 's:q1:1:wilted'].sort(),
+      ['r:t:p:1:1:thirsty', 'r:done:0:3:bloom', 'r:done:1:3:bloom', 'w:s/1:2:growing', 'w:done:0:3:bloom', 'w:done:1:3:bloom', 's:q1:1:wilted'].sort(),
     );
     store.set(GARDEN_KEYS.reading + 'u', 'not json');
     expect(() => loadGarden('u', NOW)).not.toThrow();

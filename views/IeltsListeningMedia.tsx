@@ -61,7 +61,8 @@ import { Segmented } from '../components/ui/Segmented';
 import { toneClasses } from '../components/ui/palette';
 import { field, ghostBtn, panel, primaryBtn, secondaryBtn, tag } from '../components/ui/styles';
 import type { CreatePlayer } from '../components/ielts/listening/youtubeMedia';
-import { awardXp } from '../services/reviewGameService';
+import { awardXp, useGameProfile } from '../services/reviewGameService';
+import { XpGain } from '../components/ielts/review/GameHud';
 import { scoreXp } from '../services/reviewGameLogic';
 
 export interface ListeningMediaApi {
@@ -632,6 +633,10 @@ function Player({ userId, exercise, api, createPlayer, onBack }: PlayerProps) {
   const done = index >= sentences.length;
   const summary = summarizeProgress(progress, sentences.length);
 
+  const profile = useGameProfile(userId);
+  const [redo, setRedo] = useState(false);
+  const [xp, setXp] = useState(0);
+
   const play = useCallback(() => {
     if (!sentence) return;
     void stage.current?.playRange(Math.max(0, sentence.start - 0.25), sentence.end + 0.4, slow ? 0.75 : 1);
@@ -639,6 +644,9 @@ function Player({ userId, exercise, api, createPlayer, onBack }: PlayerProps) {
 
   const go = (i: number, autoplay = true) => {
     stage.current?.pause();
+    // Same sentence again after its answer was shown: practice, no XP.
+    setRedo(i === index && !!result);
+    setXp(0);
     setIndex(i);
     setTyped('');
     setHint(0);
@@ -656,7 +664,8 @@ function Player({ userId, exercise, api, createPlayer, onBack }: PlayerProps) {
     const p = recordSentence(progress, sentence.id, r.accuracy, revealed, index + 1, new Date());
     setProgress(p);
     void api.saveProgress(userId, exercise.id, p);
-    awardXp(userId, scoreXp(r.accuracy, revealed ? 3 : 0));
+    // One payment per sentence and day: a redo or a replayed exercise does not farm XP.
+    setXp(redo ? 0 : awardXp(userId, scoreXp(r.accuracy, revealed ? 3 : 0), 0, new Date(), `l:${exercise.id}/${sentence.id}`));
   };
 
   const runCheck = () => {
@@ -769,7 +778,10 @@ function Player({ userId, exercise, api, createPlayer, onBack }: PlayerProps) {
             <div className="space-y-2 rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60">
               <p className="flex items-baseline justify-between gap-2">
                 <span className="text-caption font-semibold text-slate-500 dark:text-slate-400">Câu gốc</span>
-                <span className={`text-sm font-bold tabular-nums ${accuracyTone(result.accuracy)}`}>{result.accuracy}%</span>
+                <span className="flex items-center gap-2">
+                  <XpGain paid={xp} retry={redo} quiet={profile.quiet} />
+                  <span className={`text-sm font-bold tabular-nums ${accuracyTone(result.accuracy)}`}>{result.accuracy}%</span>
+                </span>
               </p>
               <DictationTokens tokens={result.tokens} />
             </div>

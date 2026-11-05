@@ -155,21 +155,30 @@ export async function generateTranslationSet(userId: string, task: IeltsWritingT
   return toTranslationSet(id, task, clean, g, createdAt);
 }
 
-export async function listGeneratedSets(userId: string): Promise<TranslationSet[]> {
-  if (!userId) return [];
+const LIST_LIMIT = 20;
+
+/**
+ * The learner's AI-written sets, newest first. `complete` is true when the
+ * list surely holds all of them (loaded without error, under the limit), so
+ * records of sets missing from it can be dropped.
+ */
+export async function listGeneratedSets(userId: string): Promise<{ sets: TranslationSet[]; complete: boolean }> {
+  if (!userId) return { sets: [], complete: false };
   const { data, error } = await supabase
     .from(SETS_TABLE)
     .select('id, task, prompt, body, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
-    .limit(20);
+    .limit(LIST_LIMIT);
   if (error) {
     console.warn('[Translate] could not load sets:', error.message);
-    return [];
+    return { sets: [], complete: false };
   }
-  return (data ?? []).flatMap((row: { id: string; task: IeltsWritingTask; prompt: string; body: unknown; created_at: string }) =>
+  const rows = data ?? [];
+  const sets = rows.flatMap((row: { id: string; task: IeltsWritingTask; prompt: string; body: unknown; created_at: string }) =>
     translationSetProblems(row.body).length ? [] : [toTranslationSet(row.id, row.task, row.prompt, row.body as GeneratedTranslationSet, row.created_at)],
   );
+  return { sets, complete: rows.length < LIST_LIMIT };
 }
 
 export async function deleteGeneratedSet(setId: string): Promise<boolean> {

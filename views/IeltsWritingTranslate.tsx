@@ -11,7 +11,9 @@ import {
   Lightbulb,
   Loader2,
   PenLine,
+  Puzzle,
   RotateCcw,
+  Search,
   Sparkles,
   Trash2,
   TrendingUp,
@@ -39,6 +41,8 @@ import {
   upgradeUnlocked,
   VERDICT_LABELS,
   verdictTone,
+  pruneSentences,
+  recordGrade,
   type TranslateState,
   type TranslationMode,
   type TranslationSentence,
@@ -46,6 +50,7 @@ import {
 } from '../services/writingTranslateLogic';
 import {
   deleteGeneratedSet,
+  GENERATED_SET_PREFIX,
   generateTranslationSet,
   gradeSentence,
   listGeneratedSets,
@@ -62,7 +67,10 @@ import { Segmented } from '../components/ui/Segmented';
 import { toneClasses } from '../components/ui/palette';
 import { field, ghostBtn, panel, primaryBtn, secondaryBtn, tag } from '../components/ui/styles';
 import type { IeltsWritingTask } from '../types';
-import { awardXp } from '../services/reviewGameService';
+import { awardXp, useGameProfile } from '../services/reviewGameService';
+import { XpBar, XpGain } from '../components/ielts/review/GameHud';
+import { ChunkGame, HuntGame } from '../components/ielts/review/WritingGames';
+import { MIN_OWN_ERRORS, type ChunkSource } from '../services/writingGamesLogic';
 import { scoreXp } from '../services/reviewGameLogic';
 
 export interface WritingTranslateApi {
@@ -116,10 +124,23 @@ export default function IeltsWritingTranslate({ userId, onBack, onPracticeQuesti
   const [reviewing, setReviewing] = useState(false);
   const [index, setIndex] = useState(0);
   const [mode, setMode] = useState<TranslationMode>('translate');
+  const [game, setGame] = useState<'chunks' | 'hunt' | null>(null);
+  const profile = useGameProfile(userId);
 
   useEffect(() => {
     let live = true;
-    api.list(userId).then((sets) => live && setGenerated(sets));
+    api.list(userId).then(({ sets, complete }) => {
+      if (!live) return;
+      setGenerated(sets);
+      // Records of sets that are gone (deleted, or never saved) would stay due forever.
+      if (complete) {
+        setState((s) => {
+          const next = pruneSentences(s, new Set(sets.map((x) => x.id)), GENERATED_SET_PREFIX);
+          if (next !== s) saveTranslateState(userId, next);
+          return next;
+        });
+      }
+    });
     return () => {
       live = false;
     };
@@ -148,6 +169,17 @@ export default function IeltsWritingTranslate({ userId, onBack, onPracticeQuesti
     setReviewing(true);
     setIndex(0);
   };
+
+  if (game === 'chunks') {
+    // Model sentences at the learner's band, from every set they can open.
+    const pool: ChunkSource[] = sets.flatMap((set) =>
+      allSentences(set).map(({ sentence }) => ({ key: sentenceKey(set.id, sentence.id), vi: sentence.vi, text: modelFor(sentence, state.level.band) })),
+    );
+    return <ChunkGame userId={userId} pool={pool} tried={new Set(Object.keys(state.sentences))} quiet={profile.quiet} best={profile.best.chunks} onExit={() => setGame(null)} />;
+  }
+  if (game === 'hunt') {
+    return <HuntGame userId={userId} errors={state.errors} quiet={profile.quiet} best={profile.best.hunt} onExit={() => setGame(null)} />;
+  }
 
   if (queue) {
     return (
@@ -182,7 +214,32 @@ export default function IeltsWritingTranslate({ userId, onBack, onPracticeQuesti
         </p>
       </header>
 
+      <XpBar userId={userId} profile={profile} compact />
+
       <LevelCard state={state} canUpgrade={canUpgrade} mode={mode} setMode={setMode} target={target} />
+
+      <section aria-label="Trò chơi Writing" className="grid gap-2 sm:grid-cols-2">
+        <button type="button" onClick={() => setGame('chunks')} className={`${panel} lift press flex items-center gap-3 p-4 text-left`}>
+          <IconTile icon={Puzzle} tone="lavender" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-slate-900 dark:text-white">Khởi động: Xếp câu</span>
+            <span className="block text-caption text-slate-600 dark:text-slate-400">Xếp lại 5 câu mẫu band {state.level.band} từ các mảnh. Nhanh, không cần AI.</span>
+          </span>
+        </button>
+        <button type="button" onClick={() => setGame('hunt')} className={`${panel} lift press flex items-center gap-3 p-4 text-left`}>
+          <IconTile icon={Search} tone="peach" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-slate-900 dark:text-white">
+              {state.errors.length >= MIN_OWN_ERRORS ? `Săn lỗi của tôi (${state.errors.length})` : 'Săn lỗi'}
+            </span>
+            <span className="block text-caption text-slate-600 dark:text-slate-400">
+              {state.errors.length >= MIN_OWN_ERRORS
+                ? 'Tìm và sửa những lỗi bạn từng mắc khi viết.'
+                : 'Lỗi người Việt hay mắc. Viết vài câu để săn chính lỗi của bạn.'}
+            </span>
+          </span>
+        </button>
+      </section>
 
       {due.length > 0 && (
         <button type="button" onClick={openReview} className={`${panel} lift press group flex w-full items-center gap-3 p-4 text-left`}>
@@ -219,7 +276,10 @@ export default function IeltsWritingTranslate({ userId, onBack, onPracticeQuesti
                       className={`${ghostBtn} -mr-2 -mt-2`}
                       onClick={async () => {
                         if (!window.confirm('Xoá bộ câu này?')) return;
-                        if (await api.remove(set.id)) setGenerated((g) => g.filter((s) => s.id !== set.id));
+                        if (await api.remove(set.id)) {
+                          setGenerated((g) => g.filter((s) => s.id !== set.id));
+                          update(pruneSentences(state, new Set(generated.filter((s) => s.id !== set.id).map((s) => s.id)), GENERATED_SET_PREFIX));
+                        }
                       }}
                     >
                       <Trash2 className="h-4 w-4" aria-hidden />
@@ -371,7 +431,11 @@ function Drill({ userId, queue, reviewing, index, setIndex, mode, state, update,
   const [previous, setPrevious] = useState('');
   const [levelNote, setLevelNote] = useState('');
   const [showPrompt, setShowPrompt] = useState(false);
+  /** Sentences the feedback showed (corrected, upgraded): a retry may not just copy them. */
+  const [shown, setShown] = useState<string[]>([]);
+  const [xp, setXp] = useState({ paid: 0, pulse: 0 });
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const profile = useGameProfile(userId);
   const band = state.level.band;
 
   // Fresh sentence: clear the box, keep focus in it.
@@ -380,6 +444,8 @@ function Drill({ userId, queue, reviewing, index, setIndex, mode, state, update,
     setHints(0);
     setGraded(null);
     setPrevious('');
+    setShown([]);
+    setXp({ paid: 0, pulse: 0 });
     setError('');
     setTimeout(() => inputRef.current?.focus(), 0);
   }, [index, item, mode]);
@@ -405,7 +471,10 @@ function Drill({ userId, queue, reviewing, index, setIndex, mode, state, update,
   const submit = async () => {
     const problem = answerProblem(answer, sentence.vi);
     if (problem) return setError(problem);
-    if (copiesModel(answer, hints >= HINT_STEPS.length ? [model] : [])) return setError('Đây là câu mẫu. Hãy che đi và viết lại bằng trí nhớ, hoặc thử cách diễn đạt của bạn.');
+    // A retry comes after the feedback, which shows the model and the corrected sentence.
+    const retry = !!previous;
+    const shownModels = retry ? [model, ...shown] : hints >= HINT_STEPS.length ? [model] : [];
+    if (copiesModel(answer, shownModels)) return setError('Đây là câu mẫu. Hãy che đi và viết lại bằng trí nhớ, hoặc thử cách diễn đạt của bạn.');
     setBusy(true);
     setError('');
     const req = { set, sentence, before: item.before, answer, band, mode, hintsUsed: hints, previous: previous || undefined };
@@ -413,13 +482,17 @@ function Drill({ userId, queue, reviewing, index, setIndex, mode, state, update,
       const g = await api.grade(req);
       setGraded(g);
       void api.log(userId, req, g);
-      awardXp(userId, scoreXp(g.finalScore, hints));
-      const level = nextLevel(state.level, { score: g.finalScore, band: g.band, hintsUsed: hints });
+      setShown([g.corrected, g.upgrade].filter(Boolean));
+      const key = sentenceKey(set.id, sentence.id);
+      // finalScore is already capped by the hints used. A retry pays nothing (the item already paid today).
+      const paid = retry ? 0 : awardXp(userId, scoreXp(g.finalScore), 0, new Date(), `w:${key}`);
+      setXp({ paid, pulse: Date.now() });
+      // The level and the review schedule follow first tries only.
+      const level = retry ? state.level : nextLevel(state.level, { score: g.finalScore, band: g.band, hintsUsed: hints });
       if (level.band > state.level.band) setLevelNote(`Bạn viết tốt 3 câu liền: câu mẫu lên band ${level.band}.`);
       else if (level.band < state.level.band) setLevelNote(`Câu mẫu tạm xuống band ${level.band} để bạn chắc tay hơn.`);
       else setLevelNote('');
-      const key = sentenceKey(set.id, sentence.id);
-      update({ level, sentences: { ...state.sentences, [key]: scheduleSentence(state.sentences[key], g.finalScore, answer.trim(), new Date()) } });
+      update({ ...recordGrade(state, key, { score: g.finalScore, answer: answer.trim(), errors: g.errors }, retry, new Date()), level });
     } catch (e) {
       setError(aiErrorMessage(e));
     } finally {
@@ -525,6 +598,7 @@ function Drill({ userId, queue, reviewing, index, setIndex, mode, state, update,
           band={band}
           mode={mode}
           levelNote={levelNote}
+          xp={<XpGain paid={xp.paid} retry={!!previous} quiet={profile.quiet} />}
           onRetry={retry}
           onNext={() => setIndex(index + 1)}
           last={index + 1 >= queue.length}
@@ -599,7 +673,9 @@ function Feedback({
   onRetry,
   onNext,
   last,
+  xp,
 }: {
+  xp?: React.ReactNode;
   graded: GradedSentence;
   hints: number;
   sentence: TranslationSentence;
@@ -622,6 +698,7 @@ function Feedback({
           {graded.band != null && <span className="text-sm text-slate-700 dark:text-slate-200">· khoảng band {graded.band.toFixed(1)}</span>}
           {graded.revision === 'better' && <span className={tag}>Tốt hơn lần trước</span>}
           {graded.revision === 'worse' && <span className={tag}>Kém hơn lần trước</span>}
+          {xp && <span className="ml-auto">{xp}</span>}
         </div>
         {capped && (
           <p className="mt-1 text-caption text-slate-600 dark:text-slate-300">

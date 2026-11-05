@@ -3,10 +3,10 @@
  * review done on time (seed → sprout → plant → tree → flower) and wilts when
  * left overdue. One button per skill opens that skill's review.
  */
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Bean, BookOpenText, Droplets, Flower2, Leaf, Mic, PenTool, Sprout, TreeDeciduous, type LucideIcon } from 'lucide-react';
 import { gardenBeds, gardenLine, gardenSummary, type GardenSkill, type Plant } from '../../../services/reviewGameLogic';
-import { loadGarden, useGameProfile } from '../../../services/reviewGameService';
+import { GARDEN_KEYS, loadGarden, useGameProfile } from '../../../services/reviewGameService';
 import { toneClasses, type Tone } from '../../ui/palette';
 import { panel } from '../../ui/styles';
 import { XpBar } from './GameHud';
@@ -51,8 +51,25 @@ interface Props {
 
 export default function ReviewGarden({ userId, onOpen }: Props) {
   const profile = useGameProfile(userId);
-  // Re-read when XP changes: a review that awarded XP also moved a card.
-  const plants = useMemo(() => loadGarden(userId), [userId, profile.totalXp]);
+  // Re-read when XP changes (a review that paid XP also moved a card), when the
+  // learner comes back to the tab, and when another tab changes the decks.
+  const [stamp, setStamp] = useState(0);
+  useEffect(() => {
+    const refresh = () => setStamp((n) => n + 1);
+    const onVisible = () => document.visibilityState === 'visible' && refresh();
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === null || Object.values(GARDEN_KEYS).some((k) => e.key!.startsWith(k))) refresh();
+    };
+    window.addEventListener('focus', refresh);
+    window.addEventListener('storage', onStorage);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('storage', onStorage);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []);
+  const plants = useMemo(() => loadGarden(userId), [userId, profile.totalXp, profile.bestCombo, stamp]);
   const summary = gardenSummary(plants);
   const beds = gardenBeds(plants, 24);
 

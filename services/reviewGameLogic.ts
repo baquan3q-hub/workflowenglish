@@ -10,6 +10,8 @@
  * Points reward recall, not speed: nothing here pays for answering fast.
  */
 
+import { localDay } from './dailyGoalsLogic';
+
 const DAY = 86_400_000;
 
 // --- XP and combo ----------------------------------------------------------------
@@ -112,29 +114,43 @@ export const levelTitle = (level: number) => TITLES[Math.min(TITLES.length - 1, 
 
 export interface GameProfile {
   totalXp: number;
-  /** XP per UTC day, `YYYY-MM-DD`, the last 14 days. */
+  /** XP per local day, `YYYY-MM-DD`, the last 14 days. */
   days: Record<string, number>;
   bestCombo: number;
   /** Best results per game: fastest paraphrase round in ms, best T/F/NG round score… */
   best: Record<string, number>;
   /** Turns the game effects (combo pop, shake) off. */
   quiet: boolean;
+  /**
+   * Items that already paid XP today (item key → local day). A card, sentence
+   * or answer pays once a day, so a retry or a replayed round cannot farm XP.
+   * Kept on the device only.
+   */
+  awarded: Record<string, string>;
 }
 
-export const emptyProfile = (): GameProfile => ({ totalXp: 0, days: {}, bestCombo: 0, best: {}, quiet: false });
+export const emptyProfile = (): GameProfile => ({ totalXp: 0, days: {}, bestCombo: 0, best: {}, quiet: false, awarded: {} });
 
-export const dayKey = (d: Date) => d.toISOString().slice(0, 10);
+/** The learner's own calendar day, as "Mục tiêu hôm nay" counts it. */
+export const dayKey = localDay;
 const KEEP_DAYS = 14;
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+/** Best results where smaller is better (times). */
+export const LOWER_IS_BETTER = new Set(['paraphrase-ms']);
 const count = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0);
+const record = (v: unknown): Record<string, unknown> => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 
-export function sanitizeProfile(raw: unknown): GameProfile {
-  const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+export function sanitizeProfile(raw: unknown, now = new Date()): GameProfile {
+  const o = record(raw);
   const days: Record<string, number> = {};
-  for (const [k, v] of Object.entries(o.days && typeof o.days === 'object' ? (o.days as object) : {})) if (DAY_RE.test(k) && count(v)) days[k] = count(v);
+  for (const [k, v] of Object.entries(record(o.days))) if (DAY_RE.test(k) && count(v)) days[k] = count(v);
   const best: Record<string, number> = {};
-  for (const [k, v] of Object.entries(o.best && typeof o.best === 'object' ? (o.best as object) : {})) if (count(v)) best[k] = count(v);
-  return { totalXp: count(o.totalXp), days, bestCombo: count(o.bestCombo), best, quiet: o.quiet === true };
+  for (const [k, v] of Object.entries(record(o.best))) if (count(v)) best[k] = count(v);
+  // Only today's claims matter; older ones are dropped.
+  const today = dayKey(now);
+  const awarded: Record<string, string> = {};
+  for (const [k, v] of Object.entries(record(o.awarded))) if (v === today && k.length <= 200) awarded[k] = v;
+  return { totalXp: count(o.totalXp), days, bestCombo: count(o.bestCombo), best, quiet: o.quiet === true, awarded };
 }
 
 /** Adds XP to today, and drops days older than two weeks. */
@@ -147,6 +163,23 @@ export function addXp(profile: GameProfile, xp: number, now: Date, combo = 0): G
   for (const [k, v] of Object.entries(profile.days)) if (k >= oldest) days[k] = v;
   if (gained) days[today] = (days[today] ?? 0) + gained;
   return { ...profile, totalXp: profile.totalXp + gained, days, bestCombo: Math.max(profile.bestCombo, count(combo)) };
+}
+
+/** Whether `item` has already paid XP today. */
+export const claimedToday = (profile: GameProfile, item: string, now: Date) => profile.awarded[item] === dayKey(now);
+
+/**
+ * XP for an item that pays once a day: the full amount the first time today,
+ * 0 after that. Returns the profile with the claim noted, and what was paid.
+ */
+export function claimXp(profile: GameProfile, item: string, xp: number, now: Date, combo = 0): { profile: GameProfile; paid: number } {
+  if (claimedToday(profile, item, now)) return { profile: addXp(profile, 0, now, combo), paid: 0 };
+  const today = dayKey(now);
+  const awarded: Record<string, string> = {};
+  for (const [k, v] of Object.entries(profile.awarded)) if (v === today) awarded[k] = v;
+  awarded[item] = today;
+  const paid = count(xp);
+  return { profile: { ...addXp(profile, paid, now, combo), awarded }, paid };
 }
 
 export const todayXp = (profile: GameProfile, now: Date) => profile.days[dayKey(now)] ?? 0;
@@ -163,12 +196,45 @@ export function weekXp(profile: GameProfile, now: Date): { day: string; xp: numb
  * Keeps a best result. `lower` means smaller is better (a time).
  * Returns the profile and whether this was a new record.
  */
-export function recordBest(profile: GameProfile, game: string, value: number, lower = false): { profile: GameProfile; record: boolean } {
+export function recordBest(profile: GameProfile, game: string, value: number, lower = LOWER_IS_BETTER.has(game)): { profile: GameProfile; record: boolean } {
   const v = count(value);
   if (!v) return { profile, record: false };
   const old = profile.best[game];
-  const record = old === undefined || (lower ? v < old : v > old);
-  return record ? { profile: { ...profile, best: { ...profile.best, [game]: v } }, record } : { profile, record };
+  const isRecord = old === undefined || (lower ? v < old : v > old);
+  return isRecord ? { profile: { ...profile, best: { ...profile.best, [game]: v } }, record: isRecord } : { profile, record: isRecord };
+}
+
+/**
+ * Two copies of one learner's profile (this device and the cloud) as one:
+ * the larger total, each day's larger count, each game's better record. The
+ * same input twice gives the same result, so syncing again changes nothing.
+ * `quiet` and today's claims come from `local`, this device's choice.
+ */
+export function mergeProfiles(local: GameProfile, remote: GameProfile): GameProfile {
+  const days: Record<string, number> = { ...remote.days };
+  for (const [k, v] of Object.entries(local.days)) days[k] = Math.max(days[k] ?? 0, v);
+  const best: Record<string, number> = { ...remote.best };
+  for (const [k, v] of Object.entries(local.best)) {
+    const old = best[k];
+    best[k] = old === undefined ? v : LOWER_IS_BETTER.has(k) ? Math.min(old, v) : Math.max(old, v);
+  }
+  return {
+    totalXp: Math.max(local.totalXp, remote.totalXp),
+    days,
+    bestCombo: Math.max(local.bestCombo, remote.bestCombo),
+    best,
+    quiet: local.quiet,
+    awarded: local.awarded,
+  };
+}
+
+/** Whether two profiles hold the same synced data (claims and `quiet` aside). */
+export function sameSynced(a: GameProfile, b: GameProfile): boolean {
+  const eq = (x: Record<string, number>, y: Record<string, number>) => {
+    const kx = Object.keys(x);
+    return kx.length === Object.keys(y).length && kx.every((k) => x[k] === y[k]);
+  };
+  return a.totalXp === b.totalXp && a.bestCombo === b.bestCombo && eq(a.days, b.days) && eq(a.best, b.best);
 }
 
 // --- Garden ---------------------------------------------------------------------------

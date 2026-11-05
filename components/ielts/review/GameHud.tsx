@@ -58,6 +58,21 @@ export function XpBar({ userId, profile, compact = false }: { userId: string; pr
   );
 }
 
+/**
+ * The XP a single graded try earned, for screens without a round (Writing,
+ * Speaking, Listening): "+N XP", or why it earned none.
+ */
+export function XpGain({ paid, retry = false, quiet }: { paid: number; retry?: boolean; quiet: boolean }) {
+  if (paid > 0) {
+    return (
+      <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-caption font-bold ${toneClasses('butter').tile} ${quiet ? '' : 'anim-goal-pop'}`}>
+        <Sparkles className="h-3.5 w-3.5" aria-hidden /> +{paid} XP
+      </span>
+    );
+  }
+  return <span className="text-caption text-slate-500 dark:text-slate-400">{retry ? 'Làm lại để luyện: không cộng thêm XP' : 'Câu này đã tính XP hôm nay'}</span>;
+}
+
 interface HudProps {
   run: Run;
   /** XP from the last answer; a new `pulse` key replays the float. */
@@ -66,13 +81,15 @@ interface HudProps {
   quiet: boolean;
   /** Hearts are hidden in rounds that do not use them. */
   hearts?: boolean;
+  /** The last right answer was an item that already paid XP today. */
+  repeat?: boolean;
 }
 
-export function RunHud({ run, gained, pulse, quiet, hearts = true }: HudProps) {
+export function RunHud({ run, gained, pulse, quiet, hearts = true, repeat = false }: HudProps) {
   const cheer = comboCheer(run.combo);
   const mult = comboMultiplier(run.combo);
   return (
-    <div className="flex items-center gap-3 text-sm" aria-live="polite">
+    <div className="flex items-center gap-3 text-sm">
       {hearts && (
         <span className="flex items-center gap-0.5" aria-label={`Còn ${run.hearts} tim`}>
           {Array.from({ length: START_HEARTS }, (_, i) => (
@@ -90,7 +107,8 @@ export function RunHud({ run, gained, pulse, quiet, hearts = true }: HudProps) {
           {cheer}
         </span>
       )}
-      <span className="relative ml-auto flex items-center gap-1 font-semibold text-tone-butter-fg">
+      {repeat && <span className="text-caption text-slate-500 dark:text-slate-400">Câu này đã tính XP hôm nay</span>}
+      <span className="relative ml-auto flex items-center gap-1 font-semibold text-tone-butter-fg" aria-live="polite" aria-atomic="true">
         <Sparkles className="h-4 w-4" aria-hidden />
         <span className="tabular-nums">{run.xp}</span> XP
         {gained > 0 && !quiet && (
@@ -106,28 +124,34 @@ export function RunHud({ run, gained, pulse, quiet, hearts = true }: HudProps) {
 /**
  * One game round: answer() scores and saves the XP as it goes, finish() adds
  * the end-of-round bonus once, reset() starts over.
+ *
+ * Each answer names its item (a question, a pair, a card): an item pays XP
+ * once a day, so replaying a round still trains but does not farm XP. The
+ * combo and hearts work as usual either way.
  */
 export function useGameRun(userId: string, hearts = START_HEARTS) {
   const [run, setRun] = useState<Run>(() => newRun(hearts));
-  const [last, setLast] = useState({ gained: 0, pulse: 0 });
+  const [last, setLast] = useState({ gained: 0, pulse: 0, repeat: false });
   const runRef = useRef(run);
   const finished = useRef<number | null>(null);
 
   const answer = useCallback(
-    (a: Answer): Run => {
-      const { run: next, gained } = scoreAnswer(runRef.current, a);
+    (a: Answer, item?: string): Run => {
+      const { run: scored, gained } = scoreAnswer(runRef.current, a);
+      // A wrong answer pays nothing and claims nothing: the item can still pay later today.
+      const paid = awardXp(userId, gained, scored.combo, new Date(), gained > 0 ? item : undefined);
+      const next = { ...scored, xp: runRef.current.xp + paid };
       runRef.current = next;
       setRun(next);
-      setLast((l) => ({ gained, pulse: l.pulse + 1 }));
-      awardXp(userId, gained, next.combo);
+      setLast((l) => ({ gained: paid, pulse: l.pulse + 1, repeat: gained > 0 && paid === 0 }));
       return next;
     },
     [userId],
   );
-  /** The bonus, awarded on the first call only. */
+  /** The bonus, awarded on the first call only, and only when the round earned XP. */
   const finish = useCallback((): number => {
     if (finished.current === null) {
-      finished.current = roundBonus(runRef.current);
+      finished.current = runRef.current.xp > 0 ? roundBonus(runRef.current) : 0;
       awardXp(userId, finished.current);
     }
     return finished.current;
@@ -136,8 +160,8 @@ export function useGameRun(userId: string, hearts = START_HEARTS) {
     runRef.current = newRun(hearts);
     finished.current = null;
     setRun(runRef.current);
-    setLast({ gained: 0, pulse: 0 });
+    setLast({ gained: 0, pulse: 0, repeat: false });
   }, [hearts]);
 
-  return { run, gained: last.gained, pulse: last.pulse, answer, finish, reset };
+  return { run, gained: last.gained, pulse: last.pulse, repeat: last.repeat, answer, finish, reset };
 }

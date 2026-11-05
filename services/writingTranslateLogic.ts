@@ -273,12 +273,86 @@ export function scheduleSentence(prev: SentenceRecord | undefined, score: number
   return box >= REVIEW_DAYS.length ? { ...base, box: -1, due: null } : { ...base, box, due: at(REVIEW_DAYS[box]) };
 }
 
+/** One of the learner's own mistakes, kept for "Săn lỗi". */
+export interface RecentError {
+  original: string;
+  corrected: string;
+  category: TranslationErrorCategory;
+  /** The sentence it was made in (`sentenceKey`). */
+  sentence: string;
+  /** The learner's whole answer, so the mistake can be shown in place. */
+  answer: string;
+  /** Why, in Vietnamese, from the grader. */
+  explanationVi?: string;
+}
+
+export const RECENT_ERRORS = 40;
+
 export interface TranslateState {
   level: TranslateLevel;
   sentences: Record<string, SentenceRecord>;
+  /** Sentences that passed their last review (they leave `sentences`' review and flower in the garden). */
+  mastered: number;
+  /** The learner's latest mistakes, newest first, for "Săn lỗi". */
+  errors: RecentError[];
 }
 
-export const emptyTranslateState = (target: number | null | undefined): TranslateState => ({ level: levelFor(target), sentences: {} });
+export const emptyTranslateState = (target: number | null | undefined): TranslateState => ({ level: levelFor(target), sentences: {}, mastered: 0, errors: [] });
+
+/**
+ * Notes a graded try. A first try is scheduled (and may finish a review); a
+ * retry after the feedback has been seen is practice only: it never moves a
+ * sentence on, since the model sentence was on screen. Mistakes are kept either way.
+ */
+export function recordGrade(
+  state: TranslateState,
+  key: string,
+  grade: { score: number; answer: string; errors: readonly TranslationError[] },
+  retry: boolean,
+  now: Date,
+): TranslateState {
+  const errors = addRecentErrors(state.errors, grade.errors, key, grade.answer);
+  if (retry) return { ...state, errors };
+  const prev = state.sentences[key];
+  const next = scheduleSentence(prev, grade.score, grade.answer, now);
+  const graduated = !!prev && prev.box >= 0 && prev.due !== null && next.box < 0;
+  return { ...state, sentences: { ...state.sentences, [key]: next }, mastered: state.mastered + (graduated ? 1 : 0), errors };
+}
+
+const errorId = (e: { original: string; corrected: string }) => `${e.original.trim().toLowerCase()}→${e.corrected.trim().toLowerCase()}`;
+
+/** New mistakes first, without repeats, at most RECENT_ERRORS. Mistakes with nothing to fix (same text) are skipped. */
+export function addRecentErrors(list: readonly RecentError[], fresh: readonly TranslationError[], sentence: string, answer: string): RecentError[] {
+  const add = fresh
+    .filter((e) => e.original.trim() && e.corrected.trim() && e.original.trim() !== e.corrected.trim() && e.category !== 'meaning')
+    .map((e) => ({ original: e.original.trim(), corrected: e.corrected.trim(), category: e.category, sentence, answer, explanationVi: (e.explanationVi ?? '').slice(0, 300) }));
+  const seen = new Set<string>();
+  const out: RecentError[] = [];
+  for (const e of [...add, ...list]) {
+    const id = errorId(e);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(e);
+    if (out.length >= RECENT_ERRORS) break;
+  }
+  return out;
+}
+
+/**
+ * Drops records of AI-written sets that no longer exist (deleted, or never
+ * saved before migration 017). Built-in sets are never touched. Call only
+ * with a complete list of the learner's sets.
+ */
+export function pruneSentences(state: TranslateState, generatedIds: ReadonlySet<string>, generatedPrefix: string): TranslateState {
+  let changed = false;
+  const sentences: Record<string, SentenceRecord> = {};
+  for (const [k, v] of Object.entries(state.sentences)) {
+    const setId = k.slice(0, k.indexOf('/'));
+    if (setId.startsWith(generatedPrefix) && !generatedIds.has(setId)) changed = true;
+    else sentences[k] = v;
+  }
+  return changed ? { ...state, sentences } : state;
+}
 
 const isBand = (v: unknown): v is TranslationBand => v === 6 || v === 7 || v === 8;
 const num = (v: unknown, fallback: number) => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
@@ -307,7 +381,24 @@ export function sanitizeTranslateState(raw: unknown, target: number | null | und
       lastAnswer: typeof v.lastAnswer === 'string' ? v.lastAnswer : '',
     };
   }
-  return { level, sentences };
+  const rr = raw as { mastered?: unknown; errors?: unknown };
+  const cats = new Set(Object.keys(ERROR_LABELS));
+  const errors: RecentError[] = [];
+  for (const e of Array.isArray(rr.errors) ? rr.errors : []) {
+    if (!e || typeof e !== 'object') continue;
+    const o = e as Record<string, unknown>;
+    if (typeof o.original !== 'string' || typeof o.corrected !== 'string' || typeof o.category !== 'string' || !cats.has(o.category)) continue;
+    errors.push({
+      original: o.original.slice(0, 200),
+      corrected: o.corrected.slice(0, 200),
+      category: o.category as TranslationErrorCategory,
+      sentence: typeof o.sentence === 'string' ? o.sentence : '',
+      answer: typeof o.answer === 'string' ? o.answer.slice(0, 600) : '',
+      explanationVi: typeof o.explanationVi === 'string' ? o.explanationVi.slice(0, 300) : '',
+    });
+    if (errors.length >= RECENT_ERRORS) break;
+  }
+  return { level, sentences, mastered: Math.max(0, Math.floor(num(rr.mastered, 0))), errors };
 }
 
 export const allSentences = (set: TranslationSet) => set.paragraphs.flatMap((p) => p.sentences.map((s) => ({ paragraph: p.label, sentence: s })));

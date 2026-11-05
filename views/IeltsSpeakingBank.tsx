@@ -53,7 +53,8 @@ import { IconTile } from '../components/ui/IconTile';
 import { Segmented } from '../components/ui/Segmented';
 import { toneClasses } from '../components/ui/palette';
 import { field, ghostBtn, panel, primaryBtn, secondaryBtn, tag } from '../components/ui/styles';
-import { awardXp } from '../services/reviewGameService';
+import { awardXp, useGameProfile } from '../services/reviewGameService';
+import { XpGain } from '../components/ielts/review/GameHud';
 import { PRACTICE_XP } from '../services/reviewGameLogic';
 
 export interface SpeakingBankApi {
@@ -612,15 +613,25 @@ function Practice({ userId, keys, saved, store, api, onExit }: PracticeProps) {
   const [error, setError] = useState('');
   const [peek, setPeek] = useState(false);
   const live = useRef(true);
+  const profile = useGameProfile(userId);
+  /** XP from the card just rated, shown on the next one. */
+  const [lastXp, setLastXp] = useState<{ paid: number; why: 'paid' | 'early' | 'silent' | 'repeat' } | null>(null);
+  // Whether the card was due when it was shown: practising ahead of time trains, but pays no XP.
+  const dueWhenShown = useMemo(() => (current ? isDue(current, new Date()) : false), [index]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // Set here too: in StrictMode the cleanup runs once before the real mount.
+    live.current = true;
+    return () => {
       live.current = false;
       cancelRecording();
-    },
-    [],
-  );
+    };
+  }, []);
   useEffect(() => {
+    // A new card: a recording still running belongs to the last one.
+    cancelRecording();
+    setRecording(false);
+    setBusy(false);
     setTake(null);
     setError('');
     setPeek(false);
@@ -668,9 +679,17 @@ function Practice({ userId, keys, saved, store, api, onExit }: PracticeProps) {
     }
   };
 
+  // XP needs a real try: a recording, or saying it aloud where recording is not possible.
+  const tried = !!take || !isRecordingSupported();
   const rate = (rating: PracticeRating) => {
+    if (recording || busy) return;
     store(afterPractice(current, rating, new Date()));
-    awardXp(userId, PRACTICE_XP[rating]);
+    if (!dueWhenShown) setLastXp({ paid: 0, why: 'early' });
+    else if (!tried) setLastXp({ paid: 0, why: 'silent' });
+    else {
+      const paid = awardXp(userId, PRACTICE_XP[rating], 0, new Date(), `s:${keys[index]}`);
+      setLastXp({ paid, why: paid ? 'paid' : 'repeat' });
+    }
     setIndex((i) => i + 1);
   };
 
@@ -685,7 +704,13 @@ function Practice({ userId, keys, saved, store, api, onExit }: PracticeProps) {
         <button type="button" onClick={onExit} className={`${ghostBtn} -ml-3`}>
           <ArrowLeft className="h-4 w-4" aria-hidden /> Kho câu trả lời
         </button>
-        <span className="text-caption text-slate-500">
+        <span className="flex items-center gap-2 text-caption text-slate-500">
+          {lastXp &&
+            (lastXp.why === 'paid' || lastXp.why === 'repeat' ? (
+              <XpGain key={index} paid={lastXp.paid} quiet={profile.quiet} />
+            ) : (
+              <span>{lastXp.why === 'early' ? 'Câu trước chưa đến hạn: luyện thêm, không cộng XP' : 'Câu trước chưa ghi âm: không cộng XP'}</span>
+            ))}
           {index + 1} / {keys.length}
         </span>
       </div>
@@ -788,13 +813,13 @@ function Practice({ userId, keys, saved, store, api, onExit }: PracticeProps) {
       <section className="space-y-2" aria-label="Tự đánh giá">
         <p className="text-sm font-semibold text-slate-900 dark:text-white">Lần này bạn nói thế nào?</p>
         <div className="grid grid-cols-3 gap-2">
-          <button type="button" className={secondaryBtn} onClick={() => rate('again')}>
+          <button type="button" className={secondaryBtn} onClick={() => rate('again')} disabled={recording || busy}>
             Chưa ổn
           </button>
-          <button type="button" className={secondaryBtn} onClick={() => rate('good')}>
+          <button type="button" className={secondaryBtn} onClick={() => rate('good')} disabled={recording || busy}>
             Được
           </button>
-          <button type="button" className={primaryBtn} onClick={() => rate('easy')}>
+          <button type="button" className={primaryBtn} onClick={() => rate('easy')} disabled={recording || busy}>
             Rất trôi
           </button>
         </div>

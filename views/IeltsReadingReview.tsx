@@ -47,7 +47,7 @@ import { readingGroupKind } from '../components/ielts/questions/questionLogic';
 import { Segmented } from '../components/ui/Segmented';
 import { RunHud, useGameRun, XpBar } from '../components/ielts/review/GameHud';
 import SwipeCard, { type SwipeDir } from '../components/ielts/review/SwipeCard';
-import { comboCheer, outOfHearts, roundBonus } from '../services/reviewGameLogic';
+import { comboCheer, outOfHearts } from '../services/reviewGameLogic';
 import { saveBest, useGameProfile } from '../services/reviewGameService';
 import { toneClasses } from '../components/ui/palette';
 import { field, ghostBtn, panel, primaryBtn, secondaryBtn, tag } from '../components/ui/styles';
@@ -113,6 +113,13 @@ function MissedReview({ userId, deck, onDeck, loading, quiet }: { userId: string
   const [picked, setPicked] = useState<{ para: string; sentence: number } | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [results, setResults] = useState({ good: 0, again: 0 });
+  const [bonus, setBonus] = useState(0);
+  const done = !!queue && index >= queue.length;
+  const { finish } = game;
+  // The round is over however the last card ended (rated or skipped): pay the bonus once.
+  useEffect(() => {
+    if (done) setBonus(finish());
+  }, [done, finish]);
 
   const due = useMemo(() => dueCards(deck, new Date()), [deck]);
   const start = () => {
@@ -165,7 +172,7 @@ function MissedReview({ userId, deck, onDeck, loading, quiet }: { userId: string
           Đã nắm {results.good} câu, cần ôn lại {results.again} câu (sẽ quay lại ngày mai).
         </p>
         <p className={`${tag} mx-auto w-fit font-semibold`}>
-          <Sparkles className="h-3 w-3" aria-hidden /> +{game.run.xp + roundBonus(game.run)} XP
+          <Sparkles className="h-3 w-3" aria-hidden /> +{game.run.xp + bonus} XP
         </p>
         <button type="button" className={secondaryBtn} onClick={() => setQueue(null)}>
           Về danh sách
@@ -193,8 +200,7 @@ function MissedReview({ userId, deck, onDeck, loading, quiet }: { userId: string
   const rate = (result: 'again' | 'good') => {
     onDeck(reviewCard(deck, found.key, result, new Date()));
     // Found the sentence first: full XP. Knew it only after the answer was shown: counted as a hint.
-    game.answer({ correct: result === 'good', hintsUsed: result === 'good' && !correctPick ? 1 : 0 });
-    if (index + 1 >= queue.length) game.finish();
+    game.answer({ correct: result === 'good', hintsUsed: result === 'good' && !correctPick ? 1 : 0 }, `m:${found.key}`);
     setResults((r) => ({ ...r, [result]: r[result] + 1 }));
     setIndex(index + 1);
     setPicked(null);
@@ -203,7 +209,7 @@ function MissedReview({ userId, deck, onDeck, loading, quiet }: { userId: string
 
   return (
     <section className="space-y-4">
-      <RunHud run={game.run} gained={game.gained} pulse={game.pulse} quiet={quiet} hearts={false} />
+      <RunHud run={game.run} gained={game.gained} pulse={game.pulse} quiet={quiet} hearts={false} repeat={game.repeat} />
       <Progress at={index} total={queue.length} />
       <div className={`${panel} space-y-2 p-4`}>
         <p className="flex flex-wrap items-center gap-2 text-caption text-slate-600 dark:text-slate-400">
@@ -294,7 +300,7 @@ const paragraphText = (passage: ReadingPassage, label: string) => passage.paragr
 
 // --- TRUE / FALSE / NOT GIVEN ---------------------------------------------------------
 
-function TfngDrill({ userId, deck, onMiss, quiet }: { userId: string; deck: ReviewDeck; onMiss: (key: string) => void; quiet: boolean }) {
+function TfngDrill({ userId, deck, onMiss, quiet, best }: { userId: string; deck: ReviewDeck; onMiss: (key: string) => void; quiet: boolean; best?: number }) {
   const pool = useMemo(() => tfngPool(), []);
   // Questions under review come first. The round is fixed when it starts, so a miss does not reshuffle it.
   const newRound = () => tfngRound(pool, new Set(Object.keys(deck.cards)), 8, newSeed());
@@ -312,7 +318,7 @@ function TfngDrill({ userId, deck, onMiss, quiet }: { userId: string; deck: Revi
     if (given || !item) return;
     setAnswers((a) => [...a, v]);
     const ok = v === item.answer;
-    game.answer({ correct: ok });
+    game.answer({ correct: ok }, `t:${item.key}`);
     if (!ok) {
       onMiss(item.key);
       setShake((n) => n + 1);
@@ -360,7 +366,7 @@ function TfngDrill({ userId, deck, onMiss, quiet }: { userId: string; deck: Revi
               <Zap className="h-3 w-3" aria-hidden /> Combo {game.run.bestCombo}
             </span>
           )}
-          {result?.record && <span className={`${tag} text-tone-peach-fg`}>Kỷ lục mới!</span>}
+          {result?.record ? <span className={`${tag} text-tone-peach-fg`}>Kỷ lục mới!</span> : best !== undefined && <span className={tag}>Kỷ lục {best} XP</span>}
         </p>
         {ng.length > 0 && (
           <p className="text-sm text-slate-600 dark:text-slate-300">
@@ -380,7 +386,7 @@ function TfngDrill({ userId, deck, onMiss, quiet }: { userId: string; deck: Revi
   const ok = given === item.answer;
   return (
     <section className="space-y-4">
-      <RunHud run={game.run} gained={game.gained} pulse={game.pulse} quiet={quiet} />
+      <RunHud run={game.run} gained={game.gained} pulse={game.pulse} quiet={quiet} repeat={game.repeat} />
       <Progress at={index} total={round.length} />
       <p className="text-caption text-slate-600 dark:text-slate-400">
         {item.passageTitle} · đoạn {item.paragraph.label} · {item.variant === 'ynng' ? 'ý kiến của tác giả (YES/NO)' : 'thông tin (TRUE/FALSE)'}
@@ -392,6 +398,8 @@ function TfngDrill({ userId, deck, onMiss, quiet }: { userId: string; deck: Revi
         disabled={!!given}
         quiet={quiet}
         shakeKey={shake}
+        autoFocus={index > 0}
+        label={`Câu ${index + 1}: ${item.statement}`}
         resultClass={given ? toneClasses(ok ? 'mint' : 'blush').surface : toneClasses('sky').surface}
       >
         {item.statement}
@@ -444,6 +452,8 @@ function ParaphraseDrill({ userId, quiet, best }: { userId: string; quiet: boole
   const [result, setResult] = useState<{ ms: number; bonus: number; record: boolean } | null>(null);
   const game = useGameRun(userId, 0);
   const done = round.pairs.length > 0 && matched.length === round.pairs.length;
+  const wrongTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => clearTimeout(wrongTimer.current), []);
 
   useEffect(() => {
     if (startedAt === null || done) return;
@@ -471,18 +481,20 @@ function ParaphraseDrill({ userId, quiet, best }: { userId: string; quiet: boole
     if (key === left) {
       setMatched((m) => [...m, key]);
       setLeft(null);
-      game.answer({ correct: true });
+      game.answer({ correct: true }, `p:${key}`);
     } else {
       setMistakes((n) => n + 1);
       setWrong(key);
       game.answer({ correct: false });
-      window.setTimeout(() => setWrong(null), 600);
+      clearTimeout(wrongTimer.current);
+      wrongTimer.current = window.setTimeout(() => setWrong(null), 600);
     }
   };
   const restart = () => {
     setSeed(newSeed());
     setLeft(null);
     setMatched([]);
+    setWrong(null);
     setMistakes(0);
     setStartedAt(null);
     setResult(null);
@@ -504,7 +516,7 @@ function ParaphraseDrill({ userId, quiet, best }: { userId: string; quiet: boole
         </span>
         {best !== undefined && <span className="text-caption text-slate-500">Kỷ lục {fmtTime(best)}</span>}
         <div className="flex-1">
-          <RunHud run={game.run} gained={game.gained} pulse={game.pulse} quiet={quiet} hearts={false} />
+          <RunHud run={game.run} gained={game.gained} pulse={game.pulse} quiet={quiet} hearts={false} repeat={game.repeat} />
         </div>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -814,7 +826,7 @@ export default function IeltsReadingReview({ userId, onBack, api = readingReview
         ]}
       />
       {tab === 'review' && <MissedReview userId={userId} deck={deck} onDeck={setDeck} loading={loading} quiet={profile.quiet} />}
-      {tab === 'tfng' && <TfngDrill userId={userId} deck={deck} onMiss={onMiss} quiet={profile.quiet} />}
+      {tab === 'tfng' && <TfngDrill userId={userId} deck={deck} onMiss={onMiss} quiet={profile.quiet} best={profile.best.tfng} />}
       {tab === 'paraphrase' && <ParaphraseDrill userId={userId} quiet={profile.quiet} best={profile.best['paraphrase-ms']} />}
       {tab === 'speed' && <SpeedReader />}
     </div>

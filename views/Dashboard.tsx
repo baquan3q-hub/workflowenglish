@@ -28,7 +28,7 @@ import { getWrongSentences } from '../services/sentenceService';
 import { getLessonLists, getLibraryWords } from '../services/vocabLibraryService';
 import { listProgress, matchesStatus, type LessonList, type LibraryWord } from '../services/vocabLibraryLogic';
 import { countInputWords, greeting, heroCardText, lessonMinutes, streakWeek } from '../services/dashboardLogic';
-import { countToday } from '../services/dailyGoalsLogic';
+import { countToday, localDay } from '../services/dailyGoalsLogic';
 import TodayHero from '../components/dashboard/TodayHero';
 import { getRecentIeltsAttempts } from '../services/ieltsAttemptService';
 import { overallBand, PRACTISED_SKILLS, skillProgress } from '../services/ieltsProgressLogic';
@@ -369,7 +369,18 @@ const Dashboard: React.FC<DashboardProps> = ({
   const wordCount = countInputWords(inputText);
   const gameProfile = useGameProfile(userId);
   const minutes = lessonMinutes(wordCount);
-  const now = useMemo(() => new Date(), [recent]);
+  // "Today" rolls over at the learner's midnight even if the page stays open.
+  const [dayStamp, setDayStamp] = useState(() => localDay(new Date()));
+  useEffect(() => {
+    const check = () => setDayStamp(localDay(new Date()));
+    const t = window.setInterval(check, 60_000);
+    window.addEventListener('focus', check);
+    return () => {
+      window.clearInterval(t);
+      window.removeEventListener('focus', check);
+    };
+  }, []);
+  const now = useMemo(() => new Date(), [recent, dayStamp]); // eslint-disable-line react-hooks/exhaustive-deps
   // Templates at the chosen level first, then the rest.
   const templates = useMemo(
     () => [...VOCABULARY_TEMPLATES].sort((a, b) => Number(b.cefrLevel === settings.level) - Number(a.cefrLevel === settings.level)),
