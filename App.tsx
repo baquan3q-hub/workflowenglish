@@ -1294,6 +1294,7 @@ function App() {
             onBack={() => setPhase(AppPhase.DASHBOARD)}
             onStartLesson={() => setPhase(AppPhase.DASHBOARD)}
             onStartReview={() => setPhase(AppPhase.REVIEW_SESSION)}
+            onOpenIelts={followIeltsAction}
             onStartTargetedLesson={async (lesson: GeneratedLesson) => {
               // Resolve the user's current preferred level so the targeted
               // practice lesson runs at the right difficulty. Fall back to

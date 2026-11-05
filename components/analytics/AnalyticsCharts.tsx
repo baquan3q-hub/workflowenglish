@@ -1,9 +1,8 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import type { DayCount } from '../../services/analyticsLogic';
 
 /**
- * Small, quiet charts for the analytics screen: one accent colour (blue),
- * slate for tracks and labels, no axes beyond what a value needs.
+ * Charts for the analytics screen with compact axes and inline labels.
  */
 
 const WEEKDAYS_VI = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
@@ -27,10 +26,10 @@ export function weekdayLabel(key: string): string {
 function heatClass(count: number, max: number): string {
   if (count <= 0) return 'bg-slate-100 dark:bg-slate-800';
   const r = count / Math.max(max, 1);
-  if (r <= 0.25) return 'bg-blue-200 dark:bg-blue-900';
-  if (r <= 0.5) return 'bg-blue-300 dark:bg-blue-700';
-  if (r <= 0.75) return 'bg-blue-500 dark:bg-blue-500';
-  return 'bg-blue-700 dark:bg-blue-300';
+  if (r <= 0.25) return 'bg-teal-100 dark:bg-teal-950';
+  if (r <= 0.5) return 'bg-teal-200 dark:bg-teal-800';
+  if (r <= 0.75) return 'bg-teal-400 dark:bg-teal-600';
+  return 'bg-teal-700 dark:bg-teal-400';
 }
 
 /**
@@ -38,36 +37,66 @@ function heatClass(count: number, max: number): string {
  * the first column is padded so weeks line up, and days after today stay blank.
  */
 export const ActivityHeatmap: React.FC<{ days: ReadonlyArray<DayCount> }> = ({ days }) => {
+  const [selectedDate, setSelectedDate] = useState<string>();
+  const buttons = useRef<Record<string, HTMLButtonElement | null>>({});
   if (days.length === 0) return null;
+  const selected = days.find((day) => day.date === selectedDate) ?? days[days.length - 1];
   const max = days.reduce((m, d) => Math.max(m, d.count), 0);
   const lead = (parseKey(days[0].date).getDay() + 6) % 7; // Mon=0
   const cells: Array<DayCount | null> = [...Array(lead).fill(null), ...days];
   while (cells.length % 7 !== 0) cells.push(null);
   const weeks = cells.length / 7;
 
+  const onNavigate = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    let next: number;
+    switch (event.key) {
+      case 'ArrowUp': next = index - 1; break;
+      case 'ArrowDown': next = index + 1; break;
+      case 'ArrowLeft': next = index - 7; break;
+      case 'ArrowRight': next = index + 7; break;
+      case 'Home': next = 0; break;
+      case 'End': next = days.length - 1; break;
+      default: return;
+    }
+    event.preventDefault();
+    const date = days[Math.max(0, Math.min(days.length - 1, next))].date;
+    setSelectedDate(date);
+    buttons.current[date]?.focus();
+  };
+
   return (
-    <div
-      role="img"
-      aria-label={`Hoạt động ôn tập ${weeks} tuần qua`}
-      className="grid w-full max-w-[26rem] grid-flow-col grid-rows-7 gap-1"
-      style={{ gridTemplateColumns: `1.5rem repeat(${weeks}, minmax(0, 1fr))` }}
-    >
-      {['T2', '', 'T4', '', 'T6', '', 'CN'].map((d, i) => (
-        <span key={`label-${i}`} aria-hidden="true" className="flex items-center text-[10px] leading-none text-slate-400 dark:text-slate-500">
-          {d}
-        </span>
-      ))}
-      {cells.map((cell, i) =>
-        cell ? (
-          <div
-            key={cell.date}
-            title={`${shortDate(cell.date)}: ${cell.count} lượt ôn`}
-            className={`aspect-square w-full rounded-[3px] ${heatClass(cell.count, max)}`}
-          />
-        ) : (
-          <div key={`pad-${i}`} className="aspect-square w-full" />
-        ),
-      )}
+    <div className="space-y-2.5">
+      <div
+        role="group"
+        aria-label={`Hoạt động ôn tập trong ${days.length} ngày`}
+        className="grid w-full grid-flow-col grid-rows-7 gap-1"
+        style={{ gridTemplateColumns: `1.25rem repeat(${weeks}, minmax(0, 1fr))` }}
+      >
+        {['T2', '', 'T4', '', 'T6', '', 'CN'].map((d, i) => (
+          <span key={`label-${i}`} aria-hidden="true" className="flex items-center text-[10px] leading-none text-slate-500 dark:text-slate-400">
+            {d}
+          </span>
+        ))}
+        {cells.map((cell, i) => {
+          if (!cell) return <span key={`pad-${i}`} aria-hidden="true" className="h-5 w-full sm:h-6" />;
+          const active = cell.date === selected.date;
+          const label = `${shortDate(cell.date)} · ${cell.count} lượt ôn`;
+          return (
+            <button key={cell.date} type="button" aria-label={label} title={label} aria-pressed={active}
+              ref={(element) => { buttons.current[cell.date] = element; }}
+              tabIndex={active ? 0 : -1} onClick={() => setSelectedDate(cell.date)}
+              onKeyDown={(event) => onNavigate(event, i - lead)}
+              className={`relative h-5 w-full rounded-[4px] sm:h-6 ${heatClass(cell.count, max)} ${active ? 'ring-2 ring-inset ring-tone-aqua-fg' : 'hover:ring-1 hover:ring-inset hover:ring-tone-aqua-fg'}`}
+            />
+          );
+        })}
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p aria-live="polite" className="rounded-lg bg-tone-aqua px-2.5 py-1 text-xs font-medium tabular-nums text-tone-aqua-fg">
+          {weekdayLabel(selected.date)}, {shortDate(selected.date)} · {selected.count} lượt ôn
+        </p>
+        <HeatmapLegend />
+      </div>
     </div>
   );
 };

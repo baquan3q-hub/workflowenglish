@@ -2,8 +2,8 @@
  * Analytics Service — read-only aggregations powering the analytics dashboard.
  *
  * Responsibilities:
- *   - `getAnalyticsSnapshot`    → the analytics screen's raw data in four
- *                                 queries (aggregated by `analyticsLogic`).
+ *   - `getAnalyticsSnapshot`    → the analytics screen's raw data
+ *                                 (aggregated by `analyticsLogic`).
  *   - `getMasteryDistribution`  → counts of words at each `MasteryLevel`.
  *   - `getActivityHeatmap`      → per-day review counts for the last N days,
  *                                 backfilling empty days with `count: 0`.
@@ -299,6 +299,22 @@ export async function getMasteredWords(
 /** Days of review_logs the analytics screen reads: the 12-week heatmap. */
 export const ANALYTICS_LOG_DAYS = 84;
 
+// PostgREST caps the size of each response. Load complete windows for rates
+// and period comparisons, with a stable tie-breaker for equal timestamps.
+const PAGE_SIZE = 500;
+
+async function readAnalyticsPages<T>(
+  read: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await read(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if (!data || data.length < PAGE_SIZE) return rows;
+  }
+}
+
 export interface AnalyticsSnapshot {
   /** Every tracked word, newest first. */
   words: WordMasteryRecord[];
@@ -309,34 +325,34 @@ export interface AnalyticsSnapshot {
 }
 
 /**
- * Everything the analytics screen needs, in four queries: word_mastery,
- * review_logs, learning_history and user_goals. Aggregation happens in
+ * Vocabulary data from word_mastery, review_logs, learning_history and
+ * user_goals. Aggregation happens in
  * `analyticsLogic`. A missing review_logs table (migration 005 not applied)
  * is not an error: `logs` is null and the screen degrades.
  */
 export async function getAnalyticsSnapshot(userId: string, now: Date = new Date()): Promise<AnalyticsSnapshot> {
-  const since = new Date(startOfLocalDay(now).getTime() - (ANALYTICS_LOG_DAYS - 1) * MS_PER_DAY);
+  const since = startOfLocalDay(now);
+  since.setDate(since.getDate() - (ANALYTICS_LOG_DAYS - 1));
 
-  const [words, logsRes, quizTrend, goals] = await Promise.all([
+  const [words, logs, quizTrend, goals] = await Promise.all([
     getAllTrackedWords(userId),
-    supabase
+    readAnalyticsPages<ReviewLogLite>((from, to) => supabase
       .from(REVIEW_LOGS_TABLE)
       .select('word, reviewed_at, rating, level_before')
       .eq('user_id', userId)
       .gte('reviewed_at', since.toISOString())
-      .order('reviewed_at', { ascending: false }),
+      .lte('reviewed_at', now.toISOString())
+      .order('reviewed_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(from, to)).catch((error: unknown) => {
+        console.warn('[Analytics] review_logs unavailable:', error);
+        return null;
+      }),
     getQuizScoreTrend(userId, 12),
     getOrCreateUserGoals(userId),
   ]);
 
-  let logs: ReviewLogLite[] | null = null;
-  if (logsRes.error) {
-    console.warn('[Analytics] review_logs unavailable:', logsRes.error);
-  } else {
-    logs = (logsRes.data ?? []) as ReviewLogLite[];
-  }
-
-  return { words: words as WordMasteryRecord[], logs, quizTrend, goals };
+  return { words, logs, quizTrend, goals };
 }
 
 /**
@@ -344,14 +360,13 @@ export async function getAnalyticsSnapshot(userId: string, now: Date = new Date(
  */
 export async function getAllTrackedWords(
   userId: string
-): Promise<any[]> {
-  const { data, error } = await supabase
+): Promise<WordMasteryRecord[]> {
+  return readAnalyticsPages<WordMasteryRecord>((from, to) => supabase
     .from(WORD_MASTERY_TABLE)
     .select('*')
     .eq('user_id', userId)
-    .order('created_at', { ascending: false });
-
-  if (error) throw error;
-  return data ?? [];
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .range(from, to));
 }
 
