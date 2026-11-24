@@ -83,6 +83,7 @@ import { TAB_TONE, TONE_HOVER, toneClasses } from './components/ui/palette';
 
 // The IELTS review screens load on first use, to keep the main bundle within the offline cache limit.
 const AnalyticsDashboard = lazy(() => import('./views/AnalyticsDashboard'));
+const LifelongLearning = lazy(() => import('./views/LifelongLearning'));
 const IeltsWritingTranslate = lazy(() => import('./views/IeltsWritingTranslate'));
 import type { WritingGameId } from './views/IeltsWritingTranslate';
 const IeltsSpeakingBank = lazy(() => import('./views/IeltsSpeakingBank'));
@@ -1254,10 +1255,17 @@ function App() {
             onStartVocabTest={() => setPhase(AppPhase.VOCAB_TEST)}
             onOpenIelts={() => setPhase(AppPhase.IELTS_HOME)}
             onOpenStats={() => navigateTo({ phase: AppPhase.ANALYTICS, analyticsSection: 'overview' })}
+            onOpenLll={() => setPhase(AppPhase.LIFELONG_LEARNING)}
             displayName={currentUser?.displayName}
             onOpenProfile={() => setPhase(AppPhase.PROFILE)}
           />
         );
+
+      case AppPhase.LIFELONG_LEARNING:
+        return currentUser ? (
+          <LifelongLearning key={currentUser.id} userId={currentUser.id}
+            onBack={() => setPhase(AppPhase.DASHBOARD)} onVocab={() => setPhase(AppPhase.VOCAB_LIBRARY)} />
+        ) : null;
 
       case AppPhase.VOCAB_LIBRARY:
         return currentUser ? (
