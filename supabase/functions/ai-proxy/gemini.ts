@@ -1,7 +1,7 @@
 /**
  * Gemini REST calls with model fallback. Uses only fetch, no SDK.
  */
-import type { GeminiRequest, OpSpec } from './lib.ts';
+import { parseModelJson, type GeminiRequest, type OpSpec } from './lib.ts';
 import { generateBody, interactionAudio, interactionsBody, usesInteractions, wavToPcm } from './models.ts';
 
 const API = 'https://generativelanguage.googleapis.com/v1beta';
@@ -22,6 +22,8 @@ export interface CallResult {
   model: string;
   /** Parsed JSON, plain text or base64 audio depending on the op kind. */
   data: unknown;
+  /** Gemini's full response, for ops with an `after` hook. */
+  raw: unknown;
 }
 
 function send(apiKey: string, url: string, body: unknown, label: string, timeoutMs: number): Promise<Response> {
@@ -67,7 +69,7 @@ function extract(spec: OpSpec, model: string, json: GeminiJson): unknown {
   const text = textOf(json).trim();
   if (!text) throw new Error('empty response');
   if (spec.kind === 'text') return text;
-  const parsed = JSON.parse(text);
+  const parsed = parseModelJson(text);
   return spec.finalize ? spec.finalize(parsed) : parsed;
 }
 
@@ -94,7 +96,7 @@ export async function callWithFallback(
         }
         const json = (await res.json()) as GeminiJson;
         try {
-          return { model, data: extract(spec, model, json) };
+          return { model, data: extract(spec, model, json), raw: json };
         } catch (err) {
           last = new UpstreamError(`${model}: invalid output (${err})`, 502);
           continue; // same model once more

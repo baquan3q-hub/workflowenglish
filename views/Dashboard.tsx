@@ -35,6 +35,7 @@ import { overallBand, PRACTISED_SKILLS, skillProgress } from '../services/ieltsP
 import { getLearningProfile, learningProfileAvailable } from '../services/learningProfileService';
 import { isProfileEmpty } from '../services/learningProfileLogic';
 import { UserRound } from 'lucide-react';
+import { grammarLessonNow } from '../services/grammar/peek';
 import { Skeleton } from '../components/ui/States';
 import { IconTile } from '../components/ui/IconTile';
 import { TONE_HOVER, toneClasses, type Tone } from '../components/ui/palette';
@@ -61,6 +62,7 @@ interface DashboardProps {
   onOpenIelts?: () => void;
   /** Opens Thống kê (streak and history). */
   onOpenStats?: () => void;
+  onOpenGrammar?: () => void;
   onOpenLll?: () => void;
   /** Shown in the greeting. */
   displayName?: string;
@@ -162,11 +164,13 @@ const Dashboard: React.FC<DashboardProps> = ({
   onStartVocabTest,
   onOpenIelts,
   onOpenStats,
+  onOpenGrammar,
   onOpenLll,
   displayName,
   onOpenProfile,
 }) => {
   const [inputText, setInputText] = useState('');
+  const grammarNow = useMemo(() => (userId ? grammarLessonNow(userId) : undefined), [userId]);
   const [error, setError] = useState<string | null>(null);
   const [dueCount, setDueCount] = useState<number | null>(null);
   const [wrongSentences, setWrongSentences] = useState<SentenceItem[]>([]);
@@ -479,13 +483,21 @@ const Dashboard: React.FC<DashboardProps> = ({
         </ul>
       </section>
 
+      {onOpenGrammar && <button type="button" onClick={onOpenGrammar} className="press group flex w-full items-center gap-4 rounded-2xl border border-tone-periwinkle-border bg-tone-periwinkle p-4 text-left sm:p-5">
+        <IconTile imageSrc="/grammar-book.webp" tone="periwinkle" size="lg" />
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold text-slate-900 dark:text-white">Ngữ pháp</span>
+          <span className="block text-sm text-slate-600 dark:text-slate-300">{grammarNow ? 'Đang học: ' + grammarNow : 'Từ mất gốc đến IELTS: 12 thì, bị động, mệnh đề quan hệ…'}</span>
+        </span>
+        <ChevronRight className="h-5 w-5 shrink-0 text-tone-periwinkle-fg transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+      </button>}
       {onOpenLll && (
         <button type="button" onClick={onOpenLll} className="press group flex w-full items-center gap-4 rounded-2xl border border-tone-lavender-border bg-gradient-to-br from-tone-lavender to-tone-aqua p-4 text-left sm:p-5">
           <IconTile imageSrc="/lll-globe.webp" tone="lavender" size="lg" />
           <span className="min-w-0 flex-1">
             <span className="block text-xs font-bold uppercase tracking-wide text-tone-lavender-fg">Life long learning</span>
             <span className="block font-semibold text-slate-900 dark:text-white">LLL · Bản chọn hôm nay</span>
-            <span className="block text-sm text-slate-600 dark:text-slate-300">Bài viết và video cho vài phút rảnh.</span>
+            <span className="block text-sm text-slate-600 dark:text-slate-300">Đọc tiếng Anh cùng AI · 3 bài hợp với bạn hôm nay</span>
           </span>
           <ChevronRight className="h-5 w-5 shrink-0 text-tone-lavender-fg transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
         </button>
