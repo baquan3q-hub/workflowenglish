@@ -61,6 +61,7 @@ interface DashboardProps {
   onOpenIelts?: () => void;
   /** Opens Thống kê (streak and history). */
   onOpenStats?: () => void;
+  onOpenLll?: () => void;
   /** Shown in the greeting. */
   displayName?: string;
   /** Opens Hồ sơ học tập; the hero asks for it while the profile is empty. */
@@ -161,6 +162,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   onStartVocabTest,
   onOpenIelts,
   onOpenStats,
+  onOpenLll,
   displayName,
   onOpenProfile,
 }) => {
@@ -476,6 +478,18 @@ const Dashboard: React.FC<DashboardProps> = ({
           ))}
         </ul>
       </section>
+
+      {onOpenLll && (
+        <button type="button" onClick={onOpenLll} className="press group flex w-full items-center gap-4 rounded-2xl border border-tone-lavender-border bg-gradient-to-br from-tone-lavender to-tone-aqua p-4 text-left sm:p-5">
+          <IconTile imageSrc="/lll-globe.webp" tone="lavender" size="lg" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs font-bold uppercase tracking-wide text-tone-lavender-fg">Life long learning</span>
+            <span className="block font-semibold text-slate-900 dark:text-white">LLL · Bản chọn hôm nay</span>
+            <span className="block text-sm text-slate-600 dark:text-slate-300">Bài viết và video cho vài phút rảnh.</span>
+          </span>
+          <ChevronRight className="h-5 w-5 shrink-0 text-tone-lavender-fg transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+        </button>
+      )}
 
       {/* New lesson */}
       <section className={`${panel} space-y-5 p-5 sm:p-6`} aria-labelledby="dash-new">

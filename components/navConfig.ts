@@ -76,7 +76,7 @@ export function isIeltsPhase(phase: AppPhase): boolean {
 
 /** The tab to highlight for a screen; `null` for screens outside the tabs (history). */
 export function activeNavTab(phase: AppPhase): NavTabId | null {
-  if (phase === AppPhase.DASHBOARD || isLessonPhase(phase) || phase === AppPhase.LESSON_SUMMARY || phase === AppPhase.SENTENCE_DRILL)
+  if (phase === AppPhase.DASHBOARD || phase === AppPhase.LIFELONG_LEARNING || isLessonPhase(phase) || phase === AppPhase.LESSON_SUMMARY || phase === AppPhase.SENTENCE_DRILL)
     return 'learn';
   if (phase === AppPhase.REVIEW_SESSION || phase === AppPhase.VOCAB_TEST) return 'review';
   if (phase === AppPhase.VOCAB_LIBRARY) return 'vocab';
