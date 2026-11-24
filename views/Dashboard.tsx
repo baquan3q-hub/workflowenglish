@@ -61,6 +61,7 @@ interface DashboardProps {
   onOpenIelts?: () => void;
   /** Opens Thống kê (streak and history). */
   onOpenStats?: () => void;
+  onOpenGrammar?: () => void;
   onOpenLll?: () => void;
   /** Shown in the greeting. */
   displayName?: string;
@@ -162,6 +163,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   onStartVocabTest,
   onOpenIelts,
   onOpenStats,
+  onOpenGrammar,
   onOpenLll,
   displayName,
   onOpenProfile,
@@ -479,6 +481,11 @@ const Dashboard: React.FC<DashboardProps> = ({
         </ul>
       </section>
 
+      {onOpenGrammar && <button type="button" onClick={onOpenGrammar} className="press group flex w-full items-center gap-4 rounded-2xl border border-tone-periwinkle-border bg-tone-periwinkle p-4 text-left sm:p-5">
+        <img src="/grammar/map.svg" alt="" width="40" height="40"/>
+        <span className="flex-1"><strong className="block">Ngữ pháp</strong><span className="text-sm">Học 12 thì, câu bị động và các chuyên đề</span></span>
+        <ChevronRight size={20} aria-hidden/>
+      </button>}
       {onOpenLll && (
         <button type="button" onClick={onOpenLll} className="press group flex w-full items-center gap-4 rounded-2xl border border-tone-lavender-border bg-gradient-to-br from-tone-lavender to-tone-aqua p-4 text-left sm:p-5">
           <IconTile imageSrc="/lll-globe.webp" tone="lavender" size="lg" />

@@ -4,6 +4,7 @@ import { activeNavTab, dueBadgeText, isLessonPhase, showsTabBar } from '../navCo
 
 describe('navConfig', () => {
   it('maps every screen to its tab', () => {
+    expect(activeNavTab(AppPhase.GRAMMAR)).toBe('learn');
     expect(activeNavTab(AppPhase.DASHBOARD)).toBe('learn');
     expect(activeNavTab(AppPhase.QUIZ)).toBe('learn');
     expect(activeNavTab(AppPhase.REVIEW_SESSION)).toBe('review');

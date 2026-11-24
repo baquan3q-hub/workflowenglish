@@ -14,6 +14,7 @@ export enum AppPhase {
   HISTORY = 'HISTORY',
   REVIEW_SESSION = 'REVIEW_SESSION',
   ANALYTICS = 'ANALYTICS',
+  GRAMMAR = 'GRAMMAR',
   VOCAB_LIBRARY = 'VOCAB_LIBRARY',
   /** IELTS overview: skills, target band, entry to the library. */
   IELTS_HOME = 'IELTS_HOME',

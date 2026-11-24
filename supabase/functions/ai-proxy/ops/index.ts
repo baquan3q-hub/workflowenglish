@@ -12,6 +12,7 @@ import { generateSentences, gradeSentence } from './sentences.ts';
 import { generateWritingPrompt } from './writingGenerate.ts';
 import { generateTranslationSet, gradeTranslation } from './writingTranslate.ts';
 import { buildSpeakingAnswer } from './speakingBank.ts';
+import { explainGrammar, gradeGrammarProduction } from './grammar.ts';
 import { transcribeYouTube } from './mediaTranscript.ts';
 
 /** Story narration: 24 kHz mono 16-bit PCM, returned as base64. */
@@ -35,6 +36,8 @@ const tts: OpSpec = {
 
 /** Everything the proxy will do. Anything else is a 400. */
 export const OPS: Record<string, OpSpec> = {
+  explainGrammar,
+  gradeGrammarProduction,
   generateLesson,
   generateRemedialLesson,
   recommendWords,

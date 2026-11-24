@@ -31,6 +31,9 @@ export default defineConfig(({ mode }) => {
           navigateFallbackDenylist: [/^\/auth/, /supabase/],
         },
         includeAssets: [
+          'grammar/map.svg',
+          'grammar/mic.svg',
+          'grammar/notebook.svg',
           'app-logo.png',
           'avatarandlogo.png',
           'favicon.ico',

@@ -83,6 +83,7 @@ import { TAB_TONE, TONE_HOVER, toneClasses } from './components/ui/palette';
 
 // The IELTS review screens load on first use, to keep the main bundle within the offline cache limit.
 const AnalyticsDashboard = lazy(() => import('./views/AnalyticsDashboard'));
+const Grammar = lazy(() => import('./views/Grammar'));
 const LifelongLearning = lazy(() => import('./views/LifelongLearning'));
 const IeltsWritingTranslate = lazy(() => import('./views/IeltsWritingTranslate'));
 import type { WritingGameId } from './views/IeltsWritingTranslate';
@@ -175,6 +176,8 @@ function App() {
   // App navigation: which part of the analytics screen to open ("Sổ từ" lives
   // there until it gets its own screen), the due-word badge, and the lesson
   // step to resume from the dashboard.
+  const [grammarSkill, setGrammarSkill] = useState<string>();
+  const [grammarFocused, setGrammarFocused] = useState(false);
   const [analyticsSection, setAnalyticsSection] = useState<AnalyticsSection>('overview');
   const [dueCount, setDueCount] = useState<number | null>(null);
   const [lastLessonPhase, setLastLessonPhase] = useState<AppPhase>(AppPhase.FLASHCARDS);
@@ -1276,11 +1279,16 @@ function App() {
             onStartVocabTest={() => setPhase(AppPhase.VOCAB_TEST)}
             onOpenIelts={() => setPhase(AppPhase.IELTS_HOME)}
             onOpenStats={() => navigateTo({ phase: AppPhase.ANALYTICS, analyticsSection: 'overview' })}
+            onOpenGrammar={() => { setGrammarSkill(undefined); setPhase(AppPhase.GRAMMAR); }}
             onOpenLll={() => setPhase(AppPhase.LIFELONG_LEARNING)}
             displayName={currentUser?.displayName}
             onOpenProfile={() => setPhase(AppPhase.PROFILE)}
           />
         );
+
+      case AppPhase.GRAMMAR:
+        return currentUser ? <Grammar key={currentUser.id} user={currentUser.id} initialSkill={grammarSkill}
+          onFocus={setGrammarFocused} onExit={() => setPhase(grammarSkill ? AppPhase.IELTS_WRITING_FEEDBACK : AppPhase.DASHBOARD)} /> : null;
 
       case AppPhase.LIFELONG_LEARNING:
         return currentUser ? (
@@ -1766,6 +1774,7 @@ function App() {
             question={selectedIeltsQuestion}
             userAnswer={ieltsUserAnswer}
             feedback={ieltsFeedbackData}
+            onGrammar={skill => { setGrammarSkill(skill); setPhase(AppPhase.GRAMMAR); }}
             previous={ieltsWritingPrevious}
             exam={ieltsWritingExam}
             onRewrite={() => {
@@ -1866,7 +1875,7 @@ function App() {
   const showHeader = phase !== AppPhase.LANDING && phase !== AppPhase.AUTH;
   const showLessonBar =
     showHeader && !!lessonData && (isLessonPhase(phase) || phase === AppPhase.LESSON_SUMMARY);
-  const showAppTabBar = showHeader && !!currentUser && showsTabBar(phase);
+  const showAppTabBar = showHeader && !!currentUser && !(phase === AppPhase.GRAMMAR && grammarFocused) && showsTabBar(phase);
   const today = new Date().toDateString();
   const flashcardsRated = Object.values(lessonMasteryMap).some(
     (r: any) => !!r?.last_reviewed_at && new Date(r.last_reviewed_at).toDateString() === today,
@@ -2198,7 +2207,7 @@ function App() {
       )}
 
       {/* IELTS AI ChatBox — floating widget, always visible when logged in */}
-      {currentUser && showHeader && (
+      {currentUser && showHeader && !(phase === AppPhase.GRAMMAR && grammarFocused) && (
         <IeltsChatBox key={currentUser.id} darkMode={darkMode} currentUser={currentUser} currentPhase={phase} />
       )}
     </div>

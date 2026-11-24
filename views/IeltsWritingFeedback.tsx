@@ -17,6 +17,7 @@ interface Props {
   previous?: { answer: string; feedback: IeltsAiFeedback } | null;
   /** Set when the essay was written in exam mode. */
   exam?: { autoSubmitted: boolean } | null;
+  onGrammar: (skill: string) => void;
   onRewrite: () => void;
   onBackToHub: () => void;
 }
@@ -25,7 +26,11 @@ const panel = `${sharedPanel} p-4 sm:p-5`;
 const primaryBtn = `${sharedPrimary} flex-1`;
 const secondaryBtn = `${sharedSecondary.replace('px-4', 'px-5')} flex-1`;
 
-export default function IeltsWritingFeedback({ userId, question, userAnswer, feedback, previous, exam, onRewrite, onBackToHub }: Props) {
+export default function IeltsWritingFeedback({ userId, question, userAnswer, feedback, previous, exam, onRewrite, onBackToHub, onGrammar }: Props) {
+  const studyLinks = [
+    { category: 'article', skill: 'articles', label: 'Mạo từ' },
+    { category: 'agreement', skill: 'agreement', label: 'Hòa hợp chủ ngữ và động từ' },
+  ].filter(link => feedback.sentenceCorrections.some(c => c.category === link.category));
   const [showImproved, setShowImproved] = useState(false);
 
   return (
@@ -92,6 +97,7 @@ export default function IeltsWritingFeedback({ userId, question, userAnswer, fee
       {feedback.sentenceCorrections.length > 0 && (
         <section className={panel}>
           <CorrectionsByCategory corrections={feedback.sentenceCorrections} />
+          {studyLinks.map(link => <button key={link.skill} className={secondaryBtn} onClick={() => onGrammar(link.skill)}>Luyện ngữ pháp · {link.label}</button>)}
         </section>
       )}
 
