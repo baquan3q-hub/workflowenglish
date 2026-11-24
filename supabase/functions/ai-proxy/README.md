@@ -15,6 +15,9 @@ Edge Function that holds the Gemini key. The app calls it through
 | generateListeningSection | 10 |
 | aiHealth (admins only) | 10 |
 | listeningNotes (admins only) | 30 |
+| lllDiscover (Google Search grounding) | 15 |
+| lllCompanion | 30 (cached files are free) |
+| lllReflect | 40 |
 
 ## Models
 
@@ -42,7 +45,9 @@ Failures now carry a `reason` (`not_configured`, `key_invalid`, `model_unavailab
 1. Run `docs/migrations/007_ai_usage.sql` in the Supabase SQL Editor,
    `009_ielts_listening.sql` for the `ielts-audio` bucket used by `listeningAudio`,
    and `011_listening_library.sql` for `app_admins` (admin-only ops) plus the
-   insert line at its top that makes you an admin.
+   insert line at its top that makes you an admin. The Lifelong Learning ops
+   need `supabase/migrations/20261124120000_lll_ai.sql` (the `lll-companion`
+   bucket).
 2. Install the CLI and sign in: `npm i -g supabase`, then `supabase login`.
 3. Link the project: `supabase link --project-ref <project-ref>` (the ref is the
    subdomain of your Supabase URL).
@@ -59,3 +64,15 @@ provided to the function automatically.
   `ai_usage` table and the `ielts-audio` bucket, and says how to fix each failure.
 - No JWT gives 401, an unknown op gives 400.
 - Latency per op: see the query at the end of `007_ai_usage.sql`.
+
+## Lifelong Learning ops
+
+- `lllDiscover` asks Gemini with the `google_search` tool. Only the URLs in the
+  response's `groundingMetadata.groundingChunks` are used, never one the model
+  wrote: each is opened by the proxy (https, public host name, at most 4
+  redirects, 5 s, 200 HTML) and its real title and length are read. The
+  response carries `searchEntryPoint`, which Google requires the app to show
+  with grounded results. Grounded calls may be billed separately on the key.
+- `lllCompanion` uses the `url_context` tool (or the YouTube video itself) and
+  stores readable results in `lll-companion`; a page that could not be read is
+  returned without being stored, so it is tried again next time.

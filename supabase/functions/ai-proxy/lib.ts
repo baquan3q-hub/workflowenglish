@@ -28,6 +28,8 @@ export interface GeminiRequest {
    * 'low' for harder answers such as reviewing an essay. Never sent as is.
    */
   thinking?: 'minimal' | 'low';
+  /** Built-in Gemini tools, e.g. `[{ google_search: {} }]` or `[{ url_context: {} }]`. */
+  tools?: Record<string, unknown>[];
 }
 
 export interface SpeechRequest {
@@ -67,6 +69,12 @@ export interface OpSpec {
   storage?: StorageSpec;
   /** Only users listed in app_admins (migration 011) may call it. */
   adminOnly?: boolean;
+  /**
+   * Runs after a successful call, with the finalized data and Gemini's raw
+   * response (grounding and URL-context metadata live there). May do network
+   * checks. Its result is what the app (or the storage file) receives.
+   */
+  after?(data: unknown, raw: unknown, payload: unknown): Promise<unknown>;
 }
 
 export interface StorageSpec {
@@ -75,6 +83,8 @@ export interface StorageSpec {
   path(payload: unknown): Promise<string>;
   /** Turns the model output into the file body. */
   encode(data: unknown): { body: Uint8Array; contentType: string };
+  /** False to return this result directly instead of storing it (e.g. a page that could not be read). */
+  cacheable?(data: unknown): boolean;
 }
 
 export class BadRequest extends Error {}
@@ -123,6 +133,24 @@ export function inlineData(v: unknown, name: string, allowedPrefix: string[]): {
   if (!allowedPrefix.some((p) => mimeType.startsWith(p))) throw new BadRequest(`${name}.mimeType is not allowed`);
   const data = str(o, 'data', { max: MAX_INLINE_BASE64 });
   return { mimeType, data };
+}
+
+/**
+ * JSON from a model reply. Ops that use tools cannot ask for JSON mode, so the
+ * reply may be wrapped in a ```json fence or have a sentence around it.
+ */
+export function parseModelJson(text: string): unknown {
+  const trimmed = text.trim();
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(trimmed)?.[1];
+    if (fenced) return JSON.parse(fenced.trim());
+    const start = trimmed.search(/[[{]/);
+    const end = Math.max(trimmed.lastIndexOf('}'), trimmed.lastIndexOf(']'));
+    if (start >= 0 && end > start) return JSON.parse(trimmed.slice(start, end + 1));
+    throw new Error('no JSON in reply');
+  }
 }
 
 /** Quote user text inside a prompt without letting it close the quotes. */

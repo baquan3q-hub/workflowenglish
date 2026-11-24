@@ -14,6 +14,7 @@ import { generateTranslationSet, gradeTranslation } from './writingTranslate.ts'
 import { buildSpeakingAnswer } from './speakingBank.ts';
 import { explainGrammar, gradeGrammarProduction } from './grammar.ts';
 import { transcribeYouTube } from './mediaTranscript.ts';
+import { lllCompanion, lllDiscover, lllReflect } from './lll.ts';
 
 /** Story narration: 24 kHz mono 16-bit PCM, returned as base64. */
 const tts: OpSpec = {
@@ -60,6 +61,9 @@ export const OPS: Record<string, OpSpec> = {
   generateTranslationSet,
   buildSpeakingAnswer,
   transcribeYouTube,
+  lllDiscover,
+  lllCompanion,
+  lllReflect,
 };
 
 export type OpName = keyof typeof OPS;

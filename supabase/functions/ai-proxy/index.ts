@@ -227,8 +227,10 @@ Deno.serve(async (req) => {
         headers: { ...CORS, 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'x-ai-model': model },
       });
     }
-    const { model, data } = await callWithFallback(apiKey, spec, request, models);
-    if (spec.storage && storagePath) {
+    const result = await callWithFallback(apiKey, spec, request, models);
+    const model = result.model;
+    const data = spec.after ? await spec.after(result.data, result.raw, body.payload) : result.data;
+    if (spec.storage && storagePath && (spec.storage.cacheable?.(data) ?? true)) {
       const { body: file, contentType } = spec.storage.encode(data);
       const bucket = admin.storage.from(spec.storage.bucket);
       const { error } = await bucket.upload(storagePath, file, { contentType, upsert: true, cacheControl: '31536000' });

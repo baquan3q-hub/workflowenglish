@@ -1,7 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowUpRight } from 'lucide-react';
-import { LLL_CATALOG } from '../../data/lllCatalog';
-import { LLL_TOPICS, pickLllToday } from '../../services/lllLogic';
+import { LLL_TOPICS, pickLllToday, type LllEditorial } from '../../services/lllLogic';
 
 /** What the real analytics screen shows, tab by tab (views/AnalyticsDashboard). */
 const REPORT = [
@@ -33,25 +32,33 @@ function localDay() {
 function LllPicker() {
   const [minutes, setMinutes] = useState<(typeof MINUTES)[number]>(10);
   const day = useMemo(localDay, []);
+  // The catalog (about 100 links) loads on its own so it stays out of the main bundle.
+  const [catalog, setCatalog] = useState<readonly LllEditorial[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    import('../../data/lllCatalog').then((m) => { if (!cancelled) setCatalog(m.LLL_CATALOG); }).catch(() => { if (!cancelled) setCatalog([]); });
+    return () => { cancelled = true; };
+  }, []);
   // The app treats minutes as a ceiling, so a longer budget can return the same
   // short links. Here each choice draws from its own time band first (up to 5,
   // 6 to 10, 11 to 20 minutes), then tops up from everything under the ceiling.
   const picks = useMemo(() => {
-    const filters = { minutes, language: 'all', topic: 'all' } as const;
+    if (!catalog) return [];
+    const filters = { minutes, topic: 'all' } as const;
     const floor = MINUTES[MINUTES.indexOf(minutes) - 1] ?? 0;
-    const band = LLL_CATALOG.filter((item) => item.minutes > floor);
+    const band = catalog.filter((item) => item.minutes > floor);
     const first = pickLllToday(band, [], [], filters, day);
     const seen = new Set(first.map((p) => p.item.url));
-    const rest = pickLllToday(LLL_CATALOG.filter((item) => !seen.has(item.url)), [], [], filters, day);
+    const rest = pickLllToday(catalog.filter((item) => !seen.has(item.url)), [], [], filters, day);
     return [...first, ...rest].slice(0, 3);
-  }, [minutes, day]);
+  }, [catalog, minutes, day]);
 
   return (
     <div className="lp-lll">
       <img className="lp-lll__globe" src="/lll-globe.webp" alt="" width={256} height={256} loading="lazy" decoding="async" />
       <h3 className="lp-lll__title">Học suốt đời</h3>
       <p className="lp-lll__lede">
-        Ngoài giờ học từ, app gợi ý vài bài đọc và video ngắn về công nghệ, cách học và khoa học đời sống.
+        Ngoài giờ học từ, app gợi ý vài bài đọc và video tiếng Anh ngắn, kèm AI tóm tắt và giải thích từ khó.
         Bạn rảnh bao lâu?
       </p>
       <div className="lp-seg" role="radiogroup" aria-label="Thời gian bạn có">
@@ -79,9 +86,10 @@ function LllPicker() {
         ))}
       </div>
       <ol className="lp-lll__list" aria-live="polite">
-        {picks.length === 0 && <li className="lp-lll__empty">Chưa có bài nào vừa {minutes} phút.</li>}
+        {!catalog && <li className="lp-lll__empty">Đang tải gợi ý…</li>}
+        {catalog && picks.length === 0 && <li className="lp-lll__empty">Chưa có bài nào vừa {minutes} phút.</li>}
         {picks.map(({ item }) => {
-          const extra = 'publisher' in item ? (item as typeof LLL_CATALOG[number]) : null;
+          const extra = 'description' in item ? (item as LllEditorial) : null;
           return (
             <li key={item.url} className="lp-lll__item">
               <a href={item.url} target="_blank" rel="noopener noreferrer">
@@ -98,7 +106,7 @@ function LllPicker() {
           );
         })}
       </ol>
-      <p className="lp-lll__foot">Danh sách đổi theo ngày. Trong app, bạn lưu được cả link của riêng mình.</p>
+      <p className="lp-lll__foot">Danh sách đổi theo ngày. Trong app, bạn hỏi AI tìm bài theo chủ đề và lưu được cả link của riêng mình.</p>
     </div>
   );
 }
