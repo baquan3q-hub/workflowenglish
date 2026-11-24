@@ -176,7 +176,7 @@ function App() {
   // App navigation: which part of the analytics screen to open ("Sổ từ" lives
   // there until it gets its own screen), the due-word badge, and the lesson
   // step to resume from the dashboard.
-  const [grammarSkill, setGrammarSkill] = useState<string>();
+  const [grammarLesson, setGrammarLesson] = useState<string>();
   const [grammarFocused, setGrammarFocused] = useState(false);
   const [analyticsSection, setAnalyticsSection] = useState<AnalyticsSection>('overview');
   const [dueCount, setDueCount] = useState<number | null>(null);
@@ -1279,7 +1279,7 @@ function App() {
             onStartVocabTest={() => setPhase(AppPhase.VOCAB_TEST)}
             onOpenIelts={() => setPhase(AppPhase.IELTS_HOME)}
             onOpenStats={() => navigateTo({ phase: AppPhase.ANALYTICS, analyticsSection: 'overview' })}
-            onOpenGrammar={() => { setGrammarSkill(undefined); setPhase(AppPhase.GRAMMAR); }}
+            onOpenGrammar={() => { setGrammarLesson(undefined); setPhase(AppPhase.GRAMMAR); }}
             onOpenLll={() => setPhase(AppPhase.LIFELONG_LEARNING)}
             displayName={currentUser?.displayName}
             onOpenProfile={() => setPhase(AppPhase.PROFILE)}
@@ -1287,8 +1287,8 @@ function App() {
         );
 
       case AppPhase.GRAMMAR:
-        return currentUser ? <Grammar key={currentUser.id} user={currentUser.id} initialSkill={grammarSkill}
-          onFocus={setGrammarFocused} onExit={() => setPhase(grammarSkill ? AppPhase.IELTS_WRITING_FEEDBACK : AppPhase.DASHBOARD)} /> : null;
+        return currentUser ? <Grammar key={currentUser.id} user={currentUser.id} initialLesson={grammarLesson}
+          onFocus={setGrammarFocused} onExit={() => setPhase(grammarLesson ? AppPhase.IELTS_WRITING_FEEDBACK : AppPhase.DASHBOARD)} /> : null;
 
       case AppPhase.LIFELONG_LEARNING:
         return currentUser ? (
@@ -1774,7 +1774,7 @@ function App() {
             question={selectedIeltsQuestion}
             userAnswer={ieltsUserAnswer}
             feedback={ieltsFeedbackData}
-            onGrammar={skill => { setGrammarSkill(skill); setPhase(AppPhase.GRAMMAR); }}
+            onGrammar={lesson => { setGrammarLesson(lesson); setPhase(AppPhase.GRAMMAR); }}
             previous={ieltsWritingPrevious}
             exam={ieltsWritingExam}
             onRewrite={() => {

@@ -5,6 +5,7 @@ import { ArrowLeft, BarChart3, RotateCcw, ChevronDown, Sparkles, LayoutList, Tim
 import { IconTile } from '../components/ui/IconTile';
 import { toneClasses } from '../components/ui/palette';
 import WordPicker from '../components/ielts/WordPicker';
+import { WRITING_CATEGORY_LESSON } from '../data/grammar/legacy';
 import { CorrectionsByCategory, EssayByParagraph, RewriteComparison, Task1Checklist } from '../components/ielts/writing/FeedbackSections';
 import { panel as sharedPanel, primaryBtn as sharedPrimary, secondaryBtn as sharedSecondary } from '../components/ui/styles';
 
@@ -17,7 +18,8 @@ interface Props {
   previous?: { answer: string; feedback: IeltsAiFeedback } | null;
   /** Set when the essay was written in exam mode. */
   exam?: { autoSubmitted: boolean } | null;
-  onGrammar: (skill: string) => void;
+  /** Opens the grammar lesson that fixes this kind of error. */
+  onGrammar: (lesson: string) => void;
   onRewrite: () => void;
   onBackToHub: () => void;
 }
@@ -27,10 +29,9 @@ const primaryBtn = `${sharedPrimary} flex-1`;
 const secondaryBtn = `${sharedSecondary.replace('px-4', 'px-5')} flex-1`;
 
 export default function IeltsWritingFeedback({ userId, question, userAnswer, feedback, previous, exam, onRewrite, onBackToHub, onGrammar }: Props) {
-  const studyLinks = [
-    { category: 'article', skill: 'articles', label: 'Mạo từ' },
-    { category: 'agreement', skill: 'agreement', label: 'Hòa hợp chủ ngữ và động từ' },
-  ].filter(link => feedback.sentenceCorrections.some(c => c.category === link.category));
+  const studyLinks = Object.entries(WRITING_CATEGORY_LESSON)
+    .filter(([category]) => feedback.sentenceCorrections.some(c => c.category === category))
+    .map(([, link]) => link);
   const [showImproved, setShowImproved] = useState(false);
 
   return (
@@ -97,7 +98,7 @@ export default function IeltsWritingFeedback({ userId, question, userAnswer, fee
       {feedback.sentenceCorrections.length > 0 && (
         <section className={panel}>
           <CorrectionsByCategory corrections={feedback.sentenceCorrections} />
-          {studyLinks.map(link => <button key={link.skill} className={secondaryBtn} onClick={() => onGrammar(link.skill)}>Luyện ngữ pháp · {link.label}</button>)}
+          {studyLinks.map(link => <button key={link.lesson} className={secondaryBtn} onClick={() => onGrammar(link.lesson)}>Luyện ngữ pháp · {link.label}</button>)}
         </section>
       )}
 
