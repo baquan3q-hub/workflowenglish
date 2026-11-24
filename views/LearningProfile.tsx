@@ -3,7 +3,7 @@
  * pick examples, topics and level for them. Kept in `learning_profiles`.
  */
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, CircleAlert, CircleCheck, Loader2, Save, ShieldCheck, UserRound } from 'lucide-react';
+import { ArrowLeft, CircleAlert, CircleCheck, Loader2, Newspaper, Save, ShieldCheck, UserRound } from 'lucide-react';
 import { IconTile } from '../components/ui/IconTile';
 import { toneClasses, type Tone } from '../components/ui/palette';
 import { field, ghostBtn, panel, primaryBtn } from '../components/ui/styles';
@@ -29,6 +29,8 @@ import { getLearningProfile, saveLearningProfile } from '../services/learningPro
 interface Props {
   userId: string;
   onBack: () => void;
+  /** Opens the public landing page (the app's "magazine" introduction). */
+  onOpenLanding?: () => void;
   /** Service calls; injectable for previews and tests. */
   api?: { load: (userId: string) => Promise<Profile>; save: (userId: string, p: Profile) => Promise<Profile> };
 }
@@ -67,7 +69,7 @@ function Section({ title, hintText, children }: { title: string; hintText?: stri
 
 const toggle = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
 
-export default function LearningProfile({ userId, onBack, api = defaultApi }: Props) {
+export default function LearningProfile({ userId, onBack, onOpenLanding, api = defaultApi }: Props) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [saved, setSaved] = useState<Profile | null>(null);
   const [busy, setBusy] = useState(false);
@@ -122,9 +124,16 @@ export default function LearningProfile({ userId, onBack, api = defaultApi }: Pr
 
   return (
     <div className="mx-auto max-w-3xl space-y-4 anim-fade-up">
-      <button type="button" onClick={onBack} className={`${ghostBtn} -ml-3`}>
-        <ArrowLeft className="h-4 w-4" /> Quay lại
-      </button>
+      <div className="flex items-center justify-between gap-2">
+        <button type="button" onClick={onBack} className={`${ghostBtn} -ml-3`}>
+          <ArrowLeft className="h-4 w-4" /> Quay lại
+        </button>
+        {onOpenLanding && (
+          <button type="button" onClick={onOpenLanding} className={`${ghostBtn} -mr-3`}>
+            <Newspaper className="h-4 w-4" /> Xem trang giới thiệu
+          </button>
+        )}
+      </div>
 
       <header className={`group ${panel} flex flex-col gap-4 p-5 sm:flex-row sm:items-center`}>
         <IconTile icon={UserRound} tone="periwinkle" size="lg" />
