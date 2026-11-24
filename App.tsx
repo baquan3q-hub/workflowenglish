@@ -130,6 +130,17 @@ function appUserFromAuthUser(user: any): AppUser {
 
 let isExplicitLogout = false;
 
+/** `?gioi-thieu` in the URL shows the landing page even to a signed-in user. */
+const LANDING_PARAM = 'gioi-thieu';
+const wantsLanding = () => new URLSearchParams(window.location.search).has(LANDING_PARAM);
+const setLandingParam = (on: boolean) => {
+  const url = new URL(window.location.href);
+  if (on) url.searchParams.set(LANDING_PARAM, '');
+  else url.searchParams.delete(LANDING_PARAM);
+  // `?gioi-thieu=` reads better without the trailing "=".
+  window.history.replaceState(window.history.state, '', url.toString().replace(`${LANDING_PARAM}=`, LANDING_PARAM));
+};
+
 function App() {
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [phase, setPhase] = useState<AppPhase>(AppPhase.LANDING);
@@ -506,14 +517,14 @@ function App() {
             username: profile.username,
             displayName: profile.display_name,
           });
-          setPhase(AppPhase.DASHBOARD);
+          setPhase(wantsLanding() ? AppPhase.LANDING : AppPhase.DASHBOARD);
         }
       } catch (err) {
         console.error('Session check failed:', err);
         const cachedSession = getCachedSession();
         if (cachedSession?.user?.id && cachedSession?.access_token) {
           setCurrentUser(appUserFromAuthUser(cachedSession.user));
-          setPhase(AppPhase.DASHBOARD);
+          setPhase(wantsLanding() ? AppPhase.LANDING : AppPhase.DASHBOARD);
         }
       } finally {
         initialCheckDone = true;
@@ -1230,6 +1241,16 @@ function App() {
   const renderContent = () => {
     switch (phase) {
       case AppPhase.LANDING:
+        if (currentUser) {
+          // Signed in and viewing the landing on purpose: every call to action
+          // goes back into the app instead of to the sign-in form.
+          const backToApp = () => {
+            setLandingParam(false);
+            window.scrollTo(0, 0);
+            setPhase(AppPhase.DASHBOARD);
+          };
+          return <LandingPage onGetStarted={backToApp} onGoogle={async () => backToApp()} />;
+        }
         return <LandingPage onGetStarted={() => setPhase(AppPhase.AUTH)} />;
 
       case AppPhase.AUTH:
@@ -1281,7 +1302,15 @@ function App() {
         ) : null;
 
       case AppPhase.PROFILE:
-        return currentUser ? <LearningProfile userId={currentUser.id} onBack={() => setPhase(AppPhase.DASHBOARD)} /> : null;
+        return currentUser ? <LearningProfile
+            userId={currentUser.id}
+            onBack={() => setPhase(AppPhase.DASHBOARD)}
+            onOpenLanding={() => {
+              setLandingParam(true);
+              window.scrollTo(0, 0);
+              setPhase(AppPhase.LANDING);
+            }}
+          /> : null;
 
       case AppPhase.HISTORY:
         return currentUser ? (
