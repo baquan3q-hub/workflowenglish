@@ -13,15 +13,20 @@ export async function gradeSpeakingAnswer(
   audioMimeType?: string,
   /** Fluency measured on the device (fluencySummaryForGrader). */
   measured?: string,
+  signal?: AbortSignal,
 ): Promise<IeltsAiFeedback> {
   const audio = audioBase64 ? { data: audioBase64, mimeType: audioMimeType || 'audio/webm' } : undefined;
-  return invokeAi<IeltsAiFeedback>('gradeIeltsSpeaking', { question, transcript, part, targetBand, audio, measured });
+  return invokeAi<IeltsAiFeedback>('gradeIeltsSpeaking', { question, transcript, part, targetBand, audio, measured }, { signal });
 }
 
 // ─── Transcribe audio with Gemini ──────────────────────────────────
 
-export async function transcribeAudioWithGemini(audioBase64: string, mimeType: string = 'audio/webm'): Promise<string> {
-  const text = await invokeAi<string>('transcribeAudio', { audio: { data: audioBase64, mimeType } });
+export async function transcribeAudioWithGemini(
+  audioBase64: string,
+  mimeType: string = 'audio/webm',
+  signal?: AbortSignal,
+): Promise<string> {
+  const text = await invokeAi<string>('transcribeAudio', { audio: { data: audioBase64, mimeType } }, { signal });
   if (!text?.trim()) throw new Error('No transcript returned');
   return text.trim();
 }

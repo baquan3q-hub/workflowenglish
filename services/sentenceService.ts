@@ -12,7 +12,7 @@ import { supabase } from './supabaseClient';
 const TABLE = 'sentence_attempts';
 
 /** Sentences for a lesson's words. The server validates the shape and retries once. */
-export async function generateSentences(cards: FlashcardData[], level: string, topic: string): Promise<SentenceItem[]> {
+export async function generateSentences(cards: FlashcardData[], level: string, topic: string, signal?: AbortSignal): Promise<SentenceItem[]> {
   const { items } = await invokeAi<{ items: Array<Omit<SentenceItem, 'id'>> }>(
     'generateSentences',
     {
@@ -20,7 +20,7 @@ export async function generateSentences(cards: FlashcardData[], level: string, t
       topic,
       words: cards.slice(0, 30).map((c) => ({ word: c.word, meaning: c.meaningVietnamese, partOfSpeech: c.partOfSpeech })),
     },
-    { timeoutMs: 60_000 },
+    { timeoutMs: 60_000, signal },
   );
   const sentences = withIds(items ?? [], `s${Date.now().toString(36)}`);
   if (sentences.length === 0) throw new Error('No sentences returned');
@@ -30,14 +30,14 @@ export async function generateSentences(cards: FlashcardData[], level: string, t
 type ServerGrade = Omit<SentenceGrade, 'gradedBy' | 'latencyMs'>;
 
 /** Local match first; otherwise one AI call (10 s per model on the server). */
-export async function gradeSentence(item: SentenceItem, answer: string, level: string): Promise<SentenceGrade> {
+export async function gradeSentence(item: SentenceItem, answer: string, level: string, signal?: AbortSignal): Promise<SentenceGrade> {
   const local = localGrade(item, answer);
   if (local) return local;
   const started = performance.now();
   const g = await invokeAi<ServerGrade>(
     'gradeSentence',
     { promptVi: item.promptVi, targetWords: item.targetWords, references: item.references, answer, level },
-    { timeoutMs: 25_000 },
+    { timeoutMs: 25_000, signal },
   );
   return { ...g, gradedBy: 'ai', latencyMs: Math.round(performance.now() - started) };
 }

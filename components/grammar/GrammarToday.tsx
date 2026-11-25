@@ -5,9 +5,10 @@ import type { HubId } from '../../data/grammar/types';
 import { isDone, type Recommendation, type Snapshot } from '../../services/grammar/progress';
 import type { Session } from '../../services/grammar/session';
 import type { ModuleState } from '../../services/grammar/store';
+import type { GrammarErrorTag } from '../../supabase/functions/ai-proxy/ops/grammar';
 import { primaryBtn, secondaryBtn } from '../ui/styles';
 import { MODE_LABEL } from './PracticeRunner';
-import { LESSON_STEPS, card, stageTone } from './shared';
+import { ERROR_TAG_LABEL, LESSON_STEPS, card, stageTone } from './shared';
 
 interface Props {
   snap: Snapshot;
@@ -20,6 +21,7 @@ interface Props {
   dueCount: number;
   errorCount: number;
   pendingCount: number;
+  topErrors: { tag: GrammarErrorTag; count: number }[];
   goalLabel?: string;
   busy: boolean;
   onOpenLesson: (id: string) => void;
@@ -28,6 +30,7 @@ interface Props {
   onRecommended: () => void;
   onResume: () => void;
   onBook: () => void;
+  onErrorTag: (tag: GrammarErrorTag) => void;
   onHub: (hub: HubId) => void;
 }
 
@@ -93,16 +96,18 @@ export default function GrammarToday(p: Props) {
       {upNext.length > 0 && (
         <section className="flex flex-col gap-2">
           <h2 className="text-sm font-bold text-slate-700 dark:text-slate-200">Tiếp theo</h2>
-          {upNext.map((l) => (
-            <button key={l.id} type="button" onClick={() => p.onOpenLesson(l.id)} className={'press flex items-center gap-3 text-left ' + card}>
-              <span className={'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-bold ' + stageTone(l.stage).soft + ' ' + stageTone(l.stage).fg}>{l.cefr}</span>
-              <span className="flex-1">
-                <span className="block text-[15px] font-semibold text-slate-900 dark:text-white">{l.title}</span>
-                <span className="block text-sm text-slate-600 dark:text-slate-300">{l.hook}</span>
-              </span>
-              <ArrowRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
-            </button>
-          ))}
+          <div className="grid gap-2 md:grid-cols-2">
+            {upNext.map((l) => (
+              <button key={l.id} type="button" onClick={() => p.onOpenLesson(l.id)} className={'press flex items-center gap-3 text-left ' + card}>
+                <span className={'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-bold ' + stageTone(l.stage).soft + ' ' + stageTone(l.stage).fg}>{l.cefr}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[15px] font-semibold text-slate-900 dark:text-white">{l.title}</span>
+                  <span className="block truncate text-sm text-slate-600 dark:text-slate-300">{l.hook}</span>
+                </span>
+                <ArrowRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+              </button>
+            ))}
+          </div>
         </section>
       )}
 
@@ -137,6 +142,24 @@ export default function GrammarToday(p: Props) {
           {p.stats.studied} bài đã bắt đầu · {p.stats.solid} bài vững (đúng cả khi ôn trễ)
         </p>
       </section>
+
+      {p.topErrors.length > 0 && (
+        <section className={card}>
+          <h2 className="text-sm font-bold text-slate-700 dark:text-slate-200">Lỗi hay gặp cần chú ý</h2>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {p.topErrors.map(({ tag, count }) => (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => p.onErrorTag(tag)}
+                className="press min-h-touch rounded-xl border border-tone-blush-border bg-tone-blush-soft px-3 text-sm font-semibold text-tone-blush-fg hover:bg-tone-blush"
+              >
+                {ERROR_TAG_LABEL[tag]} · {count}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className={card + ' flex items-center gap-3'}>
         <Compass className="h-5 w-5 shrink-0 text-tone-periwinkle-fg" aria-hidden="true" />

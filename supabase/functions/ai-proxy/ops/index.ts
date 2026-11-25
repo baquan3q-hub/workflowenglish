@@ -12,7 +12,7 @@ import { generateSentences, gradeSentence } from './sentences.ts';
 import { generateWritingPrompt } from './writingGenerate.ts';
 import { generateTranslationSet, gradeTranslation } from './writingTranslate.ts';
 import { buildSpeakingAnswer } from './speakingBank.ts';
-import { explainGrammar, gradeGrammarProduction } from './grammar.ts';
+import { explainGrammar, generateGrammarDrills, gradeGrammarProduction } from './grammar.ts';
 import { transcribeYouTube } from './mediaTranscript.ts';
 import { lllCompanion, lllDiscover, lllReflect } from './lll.ts';
 
@@ -39,6 +39,7 @@ const tts: OpSpec = {
 export const OPS: Record<string, OpSpec> = {
   explainGrammar,
   gradeGrammarProduction,
+  generateGrammarDrills,
   generateLesson,
   generateRemedialLesson,
   recommendWords,

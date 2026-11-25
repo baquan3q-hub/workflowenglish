@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { AiError, aiErrorFromResponse, aiErrorMessage } from '../aiClient';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { AiError, aiErrorFromResponse, aiErrorMessage, invokeAi, isAbortError, withAbortSignal } from '../aiClient';
 import { OPS } from '../../supabase/functions/ai-proxy/ops/index.ts';
 import { BadRequest } from '../../supabase/functions/ai-proxy/lib.ts';
 
@@ -34,6 +34,39 @@ describe('aiErrorMessage', () => {
     expect(aiErrorMessage(new AiError('network', 'x'))).toMatch(/Mất kết nối|máy chủ AI/);
     expect(aiErrorMessage(new AiError('timeout', 'x'))).toContain('quá lâu');
     expect(aiErrorMessage(new Error('boom'))).toContain('AI đang bận');
+    expect(aiErrorMessage(new DOMException('Aborted', 'AbortError'))).toContain('Đã hủy');
+  });
+});
+
+describe('abort helpers', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('distinguishes learner abort from AiError timeout', () => {
+    expect(isAbortError(new DOMException('Aborted', 'AbortError'))).toBe(true);
+    expect(isAbortError(Object.assign(new Error('stopped'), { name: 'AbortError' }))).toBe(true);
+    expect(isAbortError(new AiError('timeout', 'timed out'))).toBe(false);
+    expect(isAbortError(new Error('boom'))).toBe(false);
+  });
+
+  it('rejects invokeAi immediately when caller signal is already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    await expect(invokeAi('explainGrammar', {}, { signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
+  it('lets a caller cancel a shared promise via withAbortSignal without altering the underlying promise', async () => {
+    let settle!: (v: string) => void;
+    const shared = new Promise<string>((resolve) => {
+      settle = resolve;
+    });
+    const controller = new AbortController();
+    const raced = withAbortSignal(shared, controller.signal);
+    controller.abort();
+    await expect(raced).rejects.toMatchObject({ name: 'AbortError' });
+    settle('ok');
+    await expect(shared).resolves.toBe('ok');
   });
 });
 
@@ -68,9 +101,12 @@ describe('ai-proxy ops', () => {
     expect(req.contents[1].role).toBe('model');
   });
 
-  it('checks lesson output before returning it', () => {
+  it('checks lesson and recommendation output before returning it', () => {
     expect(() => OPS.generateLesson.finalize!({ flashcards: [] })).toThrow();
     const ok = { flashcards: [], quiz: [], story: { title: '', content: '', translation: '' } };
     expect(OPS.generateLesson.finalize!(ok)).toBe(ok);
+    expect(() => OPS.recommendWords.finalize!([])).toThrow();
+    const recs = [{ word: 'resilient' }];
+    expect(OPS.recommendWords.finalize!(recs)).toBe(recs);
   });
 });

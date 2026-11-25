@@ -8,7 +8,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, CircleAlert, Loader2, ShieldCheck, Sparkles, Trash2, Wand2 } from 'lucide-react';
 import { DIFFICULTY_LABELS } from '../../../data/ielts/reading';
 import { GENERATED_KINDS, MAX_WANTED_KINDS, readingPlan } from '../../../supabase/functions/ai-proxy/ops/readingGenerate.ts';
-import { aiErrorMessage } from '../../../services/aiClient';
+import { aiErrorMessage, isAbortError } from '../../../services/aiClient';
+import AiProgress from '../../ui/AiProgress';
 import {
   generatedReadingTestId,
   READING_DIFFICULTY_HINTS,
@@ -30,7 +31,7 @@ import { field, ghostBtn, panel, primaryBtn, secondaryBtn, tag } from '../../ui/
 /** Service calls, swappable for previews and tests. */
 export interface GeneratedPassagesApi {
   list: (userId: string) => Promise<GeneratedReadingItem[]>;
-  generate: (userId: string, req: GenerateReadingRequest) => Promise<GeneratedReadingItem>;
+  generate: (userId: string, req: GenerateReadingRequest, signal?: AbortSignal) => Promise<GeneratedReadingItem>;
   remove: (id: string) => Promise<boolean>;
 }
 
@@ -73,6 +74,7 @@ export default function GeneratedPassages({ userId, onStart, api = defaultApi }:
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -83,6 +85,7 @@ export default function GeneratedPassages({ userId, onStart, api = defaultApi }:
       .catch(() => live && setItems([]));
     return () => {
       live = false;
+      abortRef.current?.abort();
     };
   }, [userId]);
 
@@ -94,16 +97,24 @@ export default function GeneratedPassages({ userId, onStart, api = defaultApi }:
     setKinds((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : prev.length >= MAX_WANTED_KINDS ? prev : [...prev, k]));
 
   const generate = async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setBusy(true);
     setError('');
     try {
-      const item = await apiRef.current.generate(userId, { part, topic: topic.trim(), difficulty, kinds });
+      const item = await apiRef.current.generate(userId, { part, topic: topic.trim(), difficulty, kinds }, controller.signal);
+      if (controller.signal.aborted) return;
       setItems((prev) => [item, ...(prev ?? [])]);
       setTopic('');
     } catch (err) {
+      if (isAbortError(err) || controller.signal.aborted) return;
       setError(err instanceof ReadingCheckError ? err.message : aiErrorMessage(err));
     } finally {
-      setBusy(false);
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+        setBusy(false);
+      }
     }
   };
 
@@ -220,6 +231,17 @@ export default function GeneratedPassages({ userId, onStart, api = defaultApi }:
             {busy ? 'Thường mất 40–120 giây, kể cả bước kiểm tra.' : 'Tối đa 10 đề mỗi giờ.'}
           </p>
         </div>
+
+        {busy && (
+          <AiProgress
+            tone="periwinkle"
+            label={`AI đang viết bài Reading Passage ${part}…`}
+            detail="Bao gồm bước đối chiếu bằng chứng trong đoạn văn và kiểm tra thứ tự câu hỏi."
+            stages={['Viết đoạn đọc', 'Tạo câu hỏi', 'Kiểm định bằng chứng']}
+            estimatedMs={55_000}
+            onCancel={() => abortRef.current?.abort()}
+          />
+        )}
 
         {error && (
           <p role="alert" className="flex items-start gap-2 rounded-xl border border-tone-blush-border bg-tone-blush p-3 text-sm text-tone-blush-fg">

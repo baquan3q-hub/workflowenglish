@@ -10,6 +10,7 @@ import IdeasPanel from '../components/ielts/writing/IdeasPanel';
 import { IconTile } from '../components/ui/IconTile';
 import { toneClasses } from '../components/ui/palette';
 import { panel, primaryBtn, secondaryBtn } from '../components/ui/styles';
+import AiProgress from '../components/ui/AiProgress';
 import { countWords, examOutcome, readWritingDraft, saveWritingDraft, writingLimits, type WritingMode } from '../services/writingPracticeLogic';
 
 const compactBtn = secondaryBtn.replace('px-4', 'px-3');
@@ -31,13 +32,14 @@ interface Props {
   onSubmit: (answer: string, durationSeconds: number, meta: { mode: WritingMode; autoSubmitted: boolean }) => void;
   onBack: () => void;
   isGrading: boolean;
+  onCancelGrading?: () => void;
   /** Text to start from when rewriting; otherwise the draft kept on this device. */
   initialDraft?: string;
   /** Exam: countdown that sends the essay when it ends, no hints, no draft kept. */
   mode?: WritingMode;
 }
 
-export default function IeltsWritingPractice({ userId, question, onSubmit, onBack, isGrading, initialDraft, mode = 'practice' }: Props) {
+export default function IeltsWritingPractice({ userId, question, onSubmit, onBack, isGrading, onCancelGrading, initialDraft, mode = 'practice' }: Props) {
   const isExam = mode === 'exam';
   const [restored] = useState(() => (initialDraft || isExam ? null : readWritingDraft(userId, question.id)));
   const [answer, setAnswer] = useState(initialDraft || restored?.text || '');
@@ -141,6 +143,16 @@ export default function IeltsWritingPractice({ userId, question, onSubmit, onBac
           {isGrading ? 'AI đang chấm...' : 'Gửi bài chấm thật'}
         </button>
       </div>
+      {isGrading && (
+        <AiProgress
+          tone="sky"
+          label="AI đang chấm bài Writing IELTS…"
+          detail="Đánh giá 4 tiêu chí chấm điểm và gợi ý sửa lỗi. Bài viết của bạn vẫn được giữ nguyên nếu hủy."
+          stages={['Đọc bài viết', 'Chấm 4 tiêu chí', 'Gợi ý chỉnh sửa']}
+          estimatedMs={18_000}
+          onCancel={onCancelGrading}
+        />
+      )}
     </div>
   );
 

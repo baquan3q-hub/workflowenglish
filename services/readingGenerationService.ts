@@ -39,13 +39,13 @@ const newId = () =>
       });
 
 /** Asks the op for a passage, checks it, saves it and makes it openable. Throws AiError or ReadingCheckError. */
-export async function generateReading(userId: string, req: GenerateReadingRequest): Promise<GeneratedReadingItem> {
+export async function generateReading(userId: string, req: GenerateReadingRequest, signal?: AbortSignal): Promise<GeneratedReadingItem> {
   const topic = req.topic.trim().slice(0, 100);
   // The op may retry and fall back to a second model, up to 120 s each; the default 90 s would give up first.
   const raw = await invokeAi<unknown>(
     'generateReadingPassage',
     { part: req.part, topic, difficulty: req.difficulty, kinds: req.kinds },
-    { timeoutMs: GENERATE_TIMEOUT_MS },
+    { timeoutMs: GENERATE_TIMEOUT_MS, ...(signal ? { signal } : {}) },
   );
   const problems = generatedReadingProblems(raw, req.part, req.kinds, req.difficulty);
   if (problems.length) {

@@ -54,7 +54,8 @@ import {
   type StoredExercise,
 } from '../services/mediaDictationService';
 import { formatTimestamp, parseTimestamp, parseYouTubeId, youtubeThumbnail } from '../services/youtubeLogic';
-import { aiErrorMessage } from '../services/aiClient';
+import { aiErrorMessage, isAbortError } from '../services/aiClient';
+import AiProgress from '../components/ui/AiProgress';
 import MediaStage, { type MediaStageHandle } from '../components/ielts/listening/MediaStage';
 import { DictationTokens, accuracyTone } from '../components/ielts/DictationTokens';
 import { Segmented } from '../components/ui/Segmented';
@@ -325,6 +326,9 @@ function Studio({ userId, isAdmin, initial, api, createPlayer, onCancel, onSaved
   const [note, setNote] = useState('');
   const [tapping, setTapping] = useState<number[] | null>(null);
   const stage = useRef<MediaStageHandle>(null);
+  const aiAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => aiAbortRef.current?.abort(), []);
 
   const problems = exerciseProblems({ title, sentences });
 
@@ -348,10 +352,14 @@ function Studio({ userId, isAdmin, initial, api, createPlayer, onCancel, onSaved
       setError(`Chọn một đoạn dài tối đa ${MAX_CLIP_SECONDS / 60} phút.`);
       return;
     }
+    aiAbortRef.current?.abort();
+    const controller = new AbortController();
+    aiAbortRef.current = controller;
     setBusy('ai');
     setError('');
     try {
-      const s = await api.transcribe(source.videoId, start, end);
+      const s = await api.transcribe(source.videoId, start, end, controller.signal);
+      if (controller.signal.aborted) return;
       if (s.length < 2) {
         setError('Không nghe được lời nói tiếng Anh trong đoạn này. Thử đoạn khác hoặc dán phụ đề.');
         return;
@@ -359,9 +367,13 @@ function Studio({ userId, isAdmin, initial, api, createPlayer, onCancel, onSaved
       setSentences(s);
       setNote(`AI đã chép ${s.length} câu. Mốc thời gian có thể lệch khoảng 1 giây: nghe thử và chỉnh bằng nút − / +.`);
     } catch (err) {
+      if (isAbortError(err) || controller.signal.aborted) return;
       setError(aiErrorMessage(err));
     } finally {
-      setBusy('');
+      if (aiAbortRef.current === controller) {
+        aiAbortRef.current = null;
+        setBusy('');
+      }
     }
   };
 
@@ -492,6 +504,16 @@ function Studio({ userId, isAdmin, initial, api, createPlayer, onCancel, onSaved
                 {busy === 'ai' ? 'AI đang nghe… (tới 2 phút)' : 'Chép lời bằng AI'}
               </button>
             </div>
+            {busy === 'ai' && (
+              <AiProgress
+                tone="aqua"
+                label="AI đang nghe và chép lời từ video YouTube…"
+                detail="Bạn có thể hủy nếu muốn tự dán văn bản hoặc chọn đoạn ngắn hơn."
+                stages={['Đọc đoạn audio', 'Chép từng câu', 'Gắn mốc thời gian']}
+                estimatedMs={45_000}
+                onCancel={() => aiAbortRef.current?.abort()}
+              />
+            )}
           </div>
         ) : (
           <p className="text-sm text-slate-600 dark:text-slate-400">AI chép lời chỉ dùng được với video YouTube. Với file audio, hãy dán văn bản rồi chấm mốc.</p>

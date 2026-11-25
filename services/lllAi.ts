@@ -2,7 +2,7 @@
  * Lifelong Learning AI: find English pages (Google Search grounding), help
  * before reading (shared, cached companion), feedback after reading.
  */
-import { invokeAi } from './aiClient';
+import { invokeAi, withAbortSignal } from './aiClient';
 import type { LllLevel, LllLink } from './lllLogic';
 import type { Companion, DiscoverItem, Reflection } from '../supabase/functions/ai-proxy/ops/lll.ts';
 
@@ -17,8 +17,9 @@ export interface DiscoverResult {
 export function discoverLll(
   req: { query: string; level: LllLevel; minutes: number; perspectives: boolean; exclude: string[] },
   api: typeof invokeAi = invokeAi,
+  signal?: AbortSignal,
 ): Promise<DiscoverResult> {
-  return api<DiscoverResult>('lllDiscover', { ...req, exclude: req.exclude.slice(0, 200) }, { timeoutMs: 75_000 });
+  return api<DiscoverResult>('lllDiscover', { ...req, exclude: req.exclude.slice(0, 200) }, { timeoutMs: 75_000, signal });
 }
 
 export const discoverToLink = (item: DiscoverItem): LllLink => ({
@@ -32,10 +33,12 @@ const companions = new Map<string, Promise<Companion>>();
 export function getLllCompanion(
   url: string, title: string, level: LllLevel,
   api: typeof invokeAi = invokeAi, fetchFn: (url: string) => Promise<Response> = (url) => fetch(url),
+  signal?: AbortSignal,
 ): Promise<Companion> {
+  if (signal?.aborted) return withAbortSignal(Promise.resolve(undefined as never), signal);
   const key = `${level}\u0000${url}`;
   const hit = companions.get(key);
-  if (hit) return hit;
+  if (hit) return withAbortSignal(hit, signal);
   const p = api<Companion | { url: string }>('lllCompanion', { url, title, level }, { timeoutMs: 120_000 }).then(async (data) => {
     if (data && 'url' in data && typeof data.url === 'string') {
       const res = await fetchFn(data.url);
@@ -47,14 +50,15 @@ export function getLllCompanion(
   companions.set(key, p);
   // Failures and unreadable pages are not remembered, so "Thử lại" asks again.
   p.then((c) => { if (!c.readable) companions.delete(key); }, () => companions.delete(key));
-  return p;
+  return withAbortSignal(p, signal);
 }
 
 export function reflectLll(
   req: { title: string; question: string; answer: string; level: LllLevel },
   api: typeof invokeAi = invokeAi,
+  signal?: AbortSignal,
 ): Promise<Reflection> {
-  return api<Reflection>('lllReflect', req, { timeoutMs: 40_000 });
+  return api<Reflection>('lllReflect', req, { timeoutMs: 40_000, signal });
 }
 
 // --- Words saved from LLL, kept on this device for the weekly line ------------

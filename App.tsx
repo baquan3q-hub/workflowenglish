@@ -1,7 +1,7 @@
 import React, { Suspense, lazy, useState, useEffect, useRef } from 'react';
 import { AppPhase, DifficultyLevel, GeneratedLesson, LessonProgress, SentenceItem, StepResult, UserSettings, FlashcardData, IeltsQuestion, IeltsAiFeedback, IeltsAttempt, IeltsSkill } from './types';
 import { generateLessonContent } from './services/geminiService';
-import { aiErrorMessage } from './services/aiClient';
+import { aiErrorMessage, isAbortError } from './services/aiClient';
 import { generateSentences } from './services/sentenceService';
 import { supabase, getProfile, signOut, saveLearningRecord, getLearningRecordFull, LearningRecord, saveLessonAudio, withTimeout, getCachedSession, resumeAuthRefresh, pauseAuthRefresh } from './services/supabaseClient';
 import {
@@ -643,7 +643,29 @@ function App() {
     }
   };
 
+  const generateAbortRef = useRef<AbortController | null>(null);
+  const sentencesAbortRef = useRef<AbortController | null>(null);
+  const ieltsGradeAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => {
+    generateAbortRef.current?.abort();
+    sentencesAbortRef.current?.abort();
+    ieltsGradeAbortRef.current?.abort();
+  }, []);
+
+  const handleCancelGenerate = () => {
+    generateAbortRef.current?.abort();
+  };
+
+  const handleCancelSentences = () => {
+    sentencesAbortRef.current?.abort();
+    setSentencesGenerating(false);
+  };
+
   const handleGenerate = async (text: string, settings: UserSettings) => {
+    generateAbortRef.current?.abort();
+    const controller = new AbortController();
+    generateAbortRef.current = controller;
     setIsLoading(true);
     setError(null);
     setLessonSettings(settings);
@@ -651,7 +673,8 @@ function App() {
     setFlashcardIndex(0);
     setLessonMasteryMap({});
     try {
-      const data = await generateLessonContent(text, settings.level, settings.topic);
+      const data = await generateLessonContent(text, settings.level, settings.topic, controller.signal);
+      if (controller.signal.aborted) return;
       setLessonData(data);
       setCurrentRecordId(null);
       setPhase(AppPhase.FLASHCARDS);
@@ -659,13 +682,17 @@ function App() {
       // learner works through the cards; the next save stores them.
       void loadSentences(data.flashcards, settings, false);
     } catch (err) {
+      if (isAbortError(err) || controller.signal.aborted) return;
       console.error(err);
       showToast(aiErrorMessage(err), 'error', {
         action: { label: 'Thử lại', onClick: () => void handleGenerate(text, settings) },
         durationMs: 8000,
       });
     } finally {
-      setIsLoading(false);
+      if (generateAbortRef.current === controller) {
+        generateAbortRef.current = null;
+        setIsLoading(false);
+      }
     }
   };
 
@@ -673,10 +700,19 @@ function App() {
    * Make the Luyện câu sentences and attach them to the lesson, unless the
    * learner has moved to another lesson meanwhile.
    */
+
+  /**
+   * Sentences stay separate from the main call so flashcards render right away.
+   * When there's a lesson record to attach to, the finished batch saves into it.
+   */
   const loadSentences = async (cards: FlashcardData[], settings: UserSettings, persist: boolean) => {
+    sentencesAbortRef.current?.abort();
+    const controller = new AbortController();
+    sentencesAbortRef.current = controller;
     setSentencesGenerating(true);
     try {
-      const items = await generateSentences(cards, settings.level, settings.topic || 'General');
+      const items = await generateSentences(cards, settings.level, settings.topic || 'General', controller.signal);
+      if (controller.signal.aborted) return;
       const current = lessonDataRef.current;
       if (!current || current.flashcards !== cards) return;
       const next = { ...current, sentencePractice: items };
@@ -684,10 +720,14 @@ function App() {
       setLessonData(next);
       if (persist) void persistLesson({ data: next }).catch((err) => console.error('Failed to save sentences:', err));
     } catch (err) {
+      if (isAbortError(err) || controller.signal.aborted) return;
       console.error('[Sentence] generation failed:', err);
       if (persist) showToast(`Chưa tạo được câu luyện. ${aiErrorMessage(err)}`, 'error');
     } finally {
-      setSentencesGenerating(false);
+      if (sentencesAbortRef.current === controller) {
+        sentencesAbortRef.current = null;
+        setSentencesGenerating(false);
+      }
     }
   };
 
@@ -1208,6 +1248,9 @@ function App() {
     part: string,
     sub: SpeakingSubmission | MockSubmission,
   ) => {
+    ieltsGradeAbortRef.current?.abort();
+    const controller = new AbortController();
+    ieltsGradeAbortRef.current = controller;
     setIsIeltsGrading(true);
     try {
       const feedback = await gradeSpeakingAnswer(
@@ -1218,7 +1261,9 @@ function App() {
         sub.audioBase64,
         sub.audioMimeType,
         sub.fluency ? fluencySummaryForGrader(sub.fluency) : undefined,
+        controller.signal,
       );
+      if (controller.signal.aborted) return;
       setSelectedIeltsQuestion(question);
       setIeltsUserAnswer(sub.transcript);
       setIeltsSpeakingFluency(sub.fluency);
@@ -1234,10 +1279,14 @@ function App() {
         details: sub.fluency ? { fluency: sub.fluency } : undefined,
       });
     } catch (err) {
+      if (isAbortError(err) || controller.signal.aborted) return;
       console.error('Speaking grading failed:', err);
       showToast(`Chưa chấm được bài. ${aiErrorMessage(err)}`, 'error');
     } finally {
-      setIsIeltsGrading(false);
+      if (ieltsGradeAbortRef.current === controller) {
+        ieltsGradeAbortRef.current = null;
+        setIsIeltsGrading(false);
+      }
     }
   };
 
@@ -1263,6 +1312,7 @@ function App() {
         return (
           <Dashboard
             onGenerate={handleGenerate}
+            onCancelGenerate={handleCancelGenerate}
             isLoading={isLoading}
             userId={currentUser?.id ?? ''}
             onStartReview={() => setPhase(AppPhase.REVIEW_SESSION)}
@@ -1455,6 +1505,7 @@ function App() {
             userId={currentUser.id}
             lessonRecordId={currentRecordId}
             generating={sentencesGenerating}
+            onCancelGenerate={handleCancelSentences}
             onGenerate={lessonSettings ? () => void loadSentences(lessonData.flashcards, lessonSettings, true) : undefined}
             onComplete={handleSentencesComplete}
             completeLabel="Xem tổng kết"
@@ -1726,6 +1777,9 @@ function App() {
             question={selectedIeltsQuestion}
             mode={ieltsWritingMode}
             onSubmit={async (answer, durationSeconds, meta) => {
+              ieltsGradeAbortRef.current?.abort();
+              const controller = new AbortController();
+              ieltsGradeAbortRef.current = controller;
               setIsIeltsGrading(true);
               setIeltsUserAnswer(answer);
               // Looked up before this attempt is saved, so it is the one before it.
@@ -1738,8 +1792,10 @@ function App() {
                   answer,
                   selectedIeltsQuestion.questionType,
                   selectedIeltsQuestion.targetBand,
-                  selectedIeltsQuestion.taskOrPart as 'task_1' | 'task_2'
+                  selectedIeltsQuestion.taskOrPart as 'task_1' | 'task_2',
+                  controller.signal,
                 );
+                if (controller.signal.aborted) return;
                 setIeltsWritingPrevious(await previous);
                 setIeltsFeedbackData(feedback);
                 setIeltsWritingExam(meta.mode === 'exam' ? { autoSubmitted: meta.autoSubmitted } : null);
@@ -1755,13 +1811,21 @@ function App() {
                   details: writingAttemptDetails(selectedIeltsQuestion, meta),
                 });
               } catch (err) {
+                if (isAbortError(err) || controller.signal.aborted) return;
                 console.error('Writing grading failed:', err);
                 showToast(`Chưa chấm được bài. ${aiErrorMessage(err)}`, 'error');
               } finally {
-                setIsIeltsGrading(false);
+                if (ieltsGradeAbortRef.current === controller) {
+                  ieltsGradeAbortRef.current = null;
+                  setIsIeltsGrading(false);
+                }
               }
             }}
-            onBack={() => setPhase(AppPhase.IELTS_WRITING_HUB)}
+            onCancelGrading={() => ieltsGradeAbortRef.current?.abort()}
+            onBack={() => {
+              ieltsGradeAbortRef.current?.abort();
+              setPhase(AppPhase.IELTS_WRITING_HUB);
+            }}
             isGrading={isIeltsGrading}
             initialDraft={ieltsWritingDraft}
           />
@@ -1830,8 +1894,12 @@ function App() {
             key={selectedIeltsQuestion.id}
             question={selectedIeltsQuestion}
             onSubmit={(sub) => void gradeIeltsSpeaking(selectedIeltsQuestion, selectedIeltsQuestion.taskOrPart, sub)}
-            onBack={() => setPhase(AppPhase.IELTS_SPEAKING_HUB)}
+            onBack={() => {
+              ieltsGradeAbortRef.current?.abort();
+              setPhase(AppPhase.IELTS_SPEAKING_HUB);
+            }}
             isGrading={isIeltsGrading}
+            onCancelGrading={() => ieltsGradeAbortRef.current?.abort()}
           />
         ) : null;
 
@@ -1840,8 +1908,12 @@ function App() {
           <IeltsSpeakingMock
             key={ieltsMockRun}
             onSubmit={(sub) => void gradeIeltsSpeaking(sub.question, 'mock', sub)}
-            onBack={() => setPhase(AppPhase.IELTS_SPEAKING_HUB)}
+            onBack={() => {
+              ieltsGradeAbortRef.current?.abort();
+              setPhase(AppPhase.IELTS_SPEAKING_HUB);
+            }}
             isGrading={isIeltsGrading}
+            onCancelGrading={() => ieltsGradeAbortRef.current?.abort()}
           />
         );
 

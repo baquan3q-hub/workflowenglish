@@ -60,7 +60,8 @@ import {
   TranslationSetError,
   type GradedSentence,
 } from '../services/writingTranslateService';
-import { aiErrorMessage } from '../services/aiClient';
+import { aiErrorMessage, isAbortError } from '../services/aiClient';
+import AiProgress from '../components/ui/AiProgress';
 import { getPreferences } from '../services/preferencesService';
 import { IconTile } from '../components/ui/IconTile';
 import { Segmented } from '../components/ui/Segmented';
@@ -359,21 +360,33 @@ function GenerateForm({ userId, api, onCreated }: { userId: string; api: Writing
   const [prompt, setPrompt] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const submit = async () => {
     if (prompt.trim().length < 30) {
       setError('Dán đầy đủ đề bài (ít nhất một câu hoàn chỉnh).');
       return;
     }
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setBusy(true);
     setError('');
     try {
-      onCreated(await api.generate(userId, task, prompt));
+      const created = await api.generate(userId, task, prompt, controller.signal);
+      if (controller.signal.aborted) return;
+      onCreated(created);
       setPrompt('');
     } catch (e) {
+      if (isAbortError(e) || controller.signal.aborted) return;
       setError(e instanceof TranslationSetError ? e.message : aiErrorMessage(e));
     } finally {
-      setBusy(false);
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+        setBusy(false);
+      }
     }
   };
 
@@ -403,6 +416,16 @@ function GenerateForm({ userId, api, onCreated }: { userId: string; api: Writing
         {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Sparkles className="h-4 w-4" aria-hidden />}
         {busy ? 'Đang viết bộ câu (khoảng 1 phút)…' : 'Tạo bộ câu'}
       </button>
+      {busy && (
+        <AiProgress
+          tone="periwinkle"
+          label="AI đang viết bộ câu song ngữ từ đề bài…"
+          detail="Tạo bài mẫu band 6 · 7 · 8, tách từng câu tiếng Việt và cụm từ khóa."
+          stages={['Lập dàn ý', 'Viết từng câu band 6–8', 'Kiểm định câu mẫu']}
+          estimatedMs={28_000}
+          onCancel={() => abortRef.current?.abort()}
+        />
+      )}
     </section>
   );
 }
@@ -472,6 +495,10 @@ function Drill({ userId, queue, reviewing, index, setIndex, mode, state, update,
   const model = mode === 'upgrade' ? sentence.band8 : modelFor(sentence, band);
   const record = state.sentences[sentenceKey(set.id, sentence.id)];
 
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
+
   const submit = async () => {
     const problem = answerProblem(answer, sentence.vi);
     if (problem) return setError(problem);
@@ -479,11 +506,15 @@ function Drill({ userId, queue, reviewing, index, setIndex, mode, state, update,
     const retry = !!previous;
     const shownModels = retry ? [model, ...shown] : hints >= HINT_STEPS.length ? [model] : [];
     if (copiesModel(answer, shownModels)) return setError('Đây là câu mẫu. Hãy che đi và viết lại bằng trí nhớ, hoặc thử cách diễn đạt của bạn.');
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setBusy(true);
     setError('');
     const req = { set, sentence, before: item.before, answer, band, mode, hintsUsed: hints, previous: previous || undefined };
     try {
-      const g = await api.grade(req);
+      const g = await api.grade(req, controller.signal);
+      if (controller.signal.aborted) return;
       setGraded(g);
       void api.log(userId, req, g);
       setShown([g.corrected, g.upgrade].filter(Boolean));
@@ -498,9 +529,13 @@ function Drill({ userId, queue, reviewing, index, setIndex, mode, state, update,
       else setLevelNote('');
       update({ ...recordGrade(state, key, { score: g.finalScore, answer: answer.trim(), errors: g.errors }, retry, new Date()), level });
     } catch (e) {
+      if (isAbortError(e) || controller.signal.aborted) return;
       setError(aiErrorMessage(e));
     } finally {
-      setBusy(false);
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+        setBusy(false);
+      }
     }
   };
 
@@ -584,12 +619,23 @@ function Drill({ userId, queue, reviewing, index, setIndex, mode, state, update,
         />
         {error && <p className="text-sm text-tone-blush-fg" role="alert">{error}</p>}
         {!graded && (
-          <div className="flex flex-wrap items-center gap-2">
-            <button type="button" className={primaryBtn} onClick={submit} disabled={busy}>
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" aria-hidden />}
-              {busy ? 'Đang chấm…' : previous ? 'Chấm lại' : 'Chấm câu'}
-            </button>
-            <span className="text-caption text-slate-500 dark:text-slate-400">Ctrl + Enter · điểm tối đa {scoreCap(hints)}</span>
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" className={primaryBtn} onClick={submit} disabled={busy}>
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Check className="h-4 w-4" aria-hidden />}
+                {busy ? 'Đang chấm…' : previous ? 'Chấm lại' : 'Chấm câu'}
+              </button>
+              <span className="text-caption text-slate-500 dark:text-slate-400">Ctrl + Enter · điểm tối đa {scoreCap(hints)}</span>
+            </div>
+            {busy && (
+              <AiProgress
+                compact
+                tone="lavender"
+                label={previous ? 'AI đang chấm lại câu viết…' : 'AI đang chấm câu viết…'}
+                estimatedMs={8_000}
+                onCancel={() => abortRef.current?.abort()}
+              />
+            )}
           </div>
         )}
       </div>

@@ -3,13 +3,14 @@
  * meaning (from the passage glossary first, otherwise the AI) or a sentence
  * explained by the AI. Escape or the close button dismisses it.
  */
-import React, { useCallback, useEffect, useState } from 'react';
-import { BookOpen, Languages, Loader2, RotateCcw, Sparkles, X } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { BookOpen, Languages, RotateCcw, Sparkles, X } from 'lucide-react';
 import type { GlossaryEntry } from '../../../data/ielts/reading/types';
 import { explainReading, type ExplainResult } from '../../../services/readingExplainService';
-import { aiErrorMessage } from '../../../services/aiClient';
+import { aiErrorMessage, isAbortError } from '../../../services/aiClient';
 import type { SelectionKind } from '../../../services/readingTools';
 import AddToReviewButton from '../AddToReviewButton';
+import AiProgress from '../../ui/AiProgress';
 import IconTile from '../../ui/IconTile';
 import { ghostBtn, panel, secondaryBtn } from '../../ui/styles';
 
@@ -56,16 +57,25 @@ function List({ title, items }: { title: string; items: React.ReactNode[] }) {
 export default function LookupPanel({ lookup, userId, onClose, explain = explainReading }: Props) {
   const word = lookup.mode === 'word';
   const [state, setState] = useState<State>({ kind: 'idle' });
+  const abortRef = useRef<AbortController | null>(null);
 
   const ask = useCallback(() => {
-    let live = true;
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setState({ kind: 'loading' });
-    explain(lookup.mode, lookup.text, lookup.context).then(
-      (result) => live && setState({ kind: 'done', result }),
-      (err) => live && setState({ kind: 'error', message: aiErrorMessage(err) }),
+    explain(lookup.mode, lookup.text, lookup.context, undefined, controller.signal).then(
+      (result) => !controller.signal.aborted && setState({ kind: 'done', result }),
+      (err) => {
+        if (isAbortError(err) || controller.signal.aborted) {
+          setState({ kind: 'idle' });
+          return;
+        }
+        setState({ kind: 'error', message: aiErrorMessage(err) });
+      },
     );
     return () => {
-      live = false;
+      controller.abort();
     };
   }, [explain, lookup]);
 
@@ -127,9 +137,13 @@ export default function LookupPanel({ lookup, userId, onClose, explain = explain
         {!word && result?.translationVi && <p className="text-base text-slate-800 dark:text-slate-100">{result.translationVi}</p>}
 
         {state.kind === 'loading' && (
-          <p className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-            <Loader2 className="h-4 w-4 animate-spin text-tone-lavender-fg" aria-hidden /> Đang hỏi AI…
-          </p>
+          <AiProgress
+            compact
+            tone="lavender"
+            label={word ? 'AI đang tra ngữ cảnh từ…' : 'AI đang giải thích câu…'}
+            estimatedMs={7_000}
+            onCancel={() => abortRef.current?.abort()}
+          />
         )}
 
         {state.kind === 'error' && (
@@ -156,6 +170,11 @@ export default function LookupPanel({ lookup, userId, onClose, explain = explain
           </>
         )}
 
+        {state.kind === 'idle' && !(word && lookup.glossary) && (
+          <button type="button" onClick={ask} className={smallBtn}>
+            <Sparkles className="h-4 w-4 text-tone-lavender-fg" aria-hidden /> Hỏi lại AI
+          </button>
+        )}
         {word && lookup.glossary && state.kind === 'idle' && (
           <button type="button" onClick={ask} className={smallBtn}>
             <Sparkles className="h-4 w-4 text-tone-lavender-fg" aria-hidden /> Hỏi AI thêm

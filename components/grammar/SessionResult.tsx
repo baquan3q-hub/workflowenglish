@@ -1,6 +1,6 @@
 import React from 'react';
 import { ArrowRight, BookMarked, Check, Clock, X } from 'lucide-react';
-import type { Lesson, Level } from '../../data/grammar/types';
+import type { Item, Lesson, Level } from '../../data/grammar/types';
 import { getMeta, stageLessons, stages } from '../../data/grammar/meta';
 import { chronological, type Attempt, type Snapshot } from '../../services/grammar/progress';
 import type { Session } from '../../services/grammar/session';
@@ -12,6 +12,7 @@ interface Props {
   session: Session;
   attempts: Attempt[];
   lessons: Map<string, Lesson>;
+  aiItems?: Map<string, Item>;
   snap: Snapshot;
   /** Lesson to suggest next. */
   next?: string;
@@ -28,7 +29,7 @@ function finalAnswers(all: Attempt[], session: string) {
   return { mine, last: [...byItem.values()] };
 }
 
-export default function SessionResult({ session, attempts, lessons, snap, next, onOpenLesson, onBook, onHome }: Props) {
+export default function SessionResult({ session, attempts, lessons, aiItems, snap, next, onOpenLesson, onBook, onHome }: Props) {
   const { mine, last } = finalAnswers(attempts, session.id);
   const firstTry = new Map<string, Attempt>();
   for (const a of mine) if (!firstTry.has(a.itemId)) firstTry.set(a.itemId, a);
@@ -42,7 +43,7 @@ export default function SessionResult({ session, attempts, lessons, snap, next, 
   const byLevel = ([1, 2, 3, 4, 5] as Level[])
     .map((lv) => ({ lv, list: last.filter((a) => a.level === lv) }))
     .filter((x) => x.list.length);
-  const itemOf = (a: Attempt) => lessons.get(a.lesson)?.items.find((i) => i.id === a.itemId);
+  const itemOf = (a: Attempt) => session.extraItems?.[a.itemId] ?? aiItems?.get(a.itemId) ?? lessons.get(a.lesson)?.items.find((i) => i.id === a.itemId);
   return (
     <section className="flex flex-col gap-4" aria-labelledby="gr-result">
       <div className={card}>
@@ -118,7 +119,7 @@ export default function SessionResult({ session, attempts, lessons, snap, next, 
                   <p lang="en" className="font-semibold text-tone-mint-fg">
                     {a.feedback?.corrected || a.expected}
                   </p>
-                  <p className="text-slate-600 dark:text-slate-300">{a.feedback?.explanationVi || (item && 'why' in item ? item.why : '')}</p>
+                  <p className="text-slate-600 dark:text-slate-300">{a.feedback?.explanationVi || (item && 'why' in item ? item.why : '') || a.note || ''}</p>
                 </li>
               );
             })}

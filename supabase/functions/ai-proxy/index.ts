@@ -241,6 +241,23 @@ Deno.serve(async (req) => {
     await logUsage(userId, op, model, startedAt, true);
     return json(200, { data, model });
   } catch (err) {
+    const authErrorUpstream = err instanceof UpstreamError && (err.status === 401 || err.status === 403);
+    if (spec.fallback && !authErrorUpstream) {
+      try {
+        const fb = await spec.fallback({
+          payload: body.payload,
+          error: err,
+          run: (subSpec, subPayload) => {
+            const subModels = resolveModels(subSpec.modelsFor?.(subPayload) ?? subSpec.models, modelEnv());
+            return callWithFallback(apiKey, subSpec, subSpec.build(subPayload), subModels);
+          },
+        });
+        await logUsage(userId, op, fb.model, startedAt, true);
+        return json(200, { data: fb.data, model: fb.model });
+      } catch (fbErr) {
+        err = fbErr;
+      }
+    }
     await logUsage(userId, op, null, startedAt, false);
     console.error(`[ai-proxy] ${op} failed:`, err instanceof Error ? err.message : err);
     if (err instanceof UpstreamError && err.status === 'timeout') {

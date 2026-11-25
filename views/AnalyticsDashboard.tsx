@@ -23,7 +23,8 @@ import { streakWeek } from '../services/dashboardLogic';
 import { PRACTISED_SKILLS, type NextActionTarget } from '../services/ieltsProgressLogic';
 import { getPreferences, type UserPreferences } from '../services/preferencesService';
 import { getIeltsAttempts } from '../services/ieltsAttemptService';
-import { aiErrorMessage } from '../services/aiClient';
+import { aiErrorMessage, isAbortError } from '../services/aiClient';
+import AiProgress from '../components/ui/AiProgress';
 import { analyzeWeaknesses, generateHardestWordsLesson, generateTargetedLesson } from '../services/weaknessService';
 import { AppPhase, type GeneratedLesson, type IeltsAttempt, type WeaknessPattern } from '../types';
 import { ActivityHeatmap, ColumnChart, ScoreLine, StackedBar, shortDate, weekdayLabel } from '../components/analytics/AnalyticsCharts';
@@ -312,6 +313,9 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   const [activityWeeks, setActivityWeeks] = useState<4 | 12>(12);
   const [generating, setGenerating] = useState<string | null>(null);
   const [practiceError, setPracticeError] = useState<string | null>(null);
+  const practiceAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => practiceAbortRef.current?.abort(), []);
 
   useEffect(() => {
     setTab(focusSection === 'vocab' ? 'vocab' : 'overview');
@@ -343,17 +347,26 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
     };
   }, [snapshot, now]);
 
-  const practice = async (key: string, make: () => Promise<GeneratedLesson>) => {
+  const practice = async (key: string, make: (signal: AbortSignal) => Promise<GeneratedLesson>) => {
     if (generating) return;
+    practiceAbortRef.current?.abort();
+    const controller = new AbortController();
+    practiceAbortRef.current = controller;
     setPracticeError(null);
     setGenerating(key);
     try {
-      onStartTargetedLesson?.(await make());
+      const lesson = await make(controller.signal);
+      if (controller.signal.aborted) return;
+      onStartTargetedLesson?.(lesson);
     } catch (err) {
+      if (isAbortError(err) || controller.signal.aborted) return;
       console.error('Failed to generate practice lesson:', err);
       setPracticeError(aiErrorMessage(err));
     } finally {
-      setGenerating(null);
+      if (practiceAbortRef.current === controller) {
+        practiceAbortRef.current = null;
+        setGenerating(null);
+      }
     }
   };
 
@@ -598,7 +611,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                   type="button"
                   className={primaryBtn}
                   disabled={generating !== null}
-                  onClick={() => practice('forgotten', () => generateHardestWordsLesson(stats.forgotten, level))}
+                  onClick={() => practice('forgotten', (signal) => generateHardestWordsLesson(stats.forgotten, level, signal))}
                 >
                   {generating === 'forgotten' && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
                   Luyện các từ này
@@ -606,6 +619,17 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               ) : undefined
             }
           >
+            {generating === 'forgotten' && (
+              <div className="mb-4">
+                <AiProgress
+                  tone="periwinkle"
+                  label="AI đang soạn bài luyện riêng cho các từ hay quên…"
+                  stages={['Phân tích từ yếu', 'Tạo flashcard & truyện ngắn']}
+                  estimatedMs={14_000}
+                  onCancel={() => practiceAbortRef.current?.abort()}
+                />
+              </div>
+            )}
             {stats.forgotten.length === 0 ? (
               <Placeholder>Chưa có từ nào bị trả lời sai.</Placeholder>
             ) : (
@@ -700,7 +724,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                           type="button"
                           className={`${secondaryBtn} sm:flex-shrink-0`}
                           disabled={generating !== null}
-                          onClick={() => practice(w.category, () => generateTargetedLesson(w, level))}
+                          onClick={() => practice(w.category, (signal) => generateTargetedLesson(w, level, signal))}
                         >
                           {generating === w.category && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
                           Luyện tập
@@ -710,6 +734,17 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
                   );
                 })}
               </ul>
+            )}
+            {generating !== null && generating !== 'forgotten' && (
+              <div className="mt-4">
+                <AiProgress
+                  tone="periwinkle"
+                  label="AI đang soạn bài ôn khắc phục điểm yếu…"
+                  stages={['Phân tích lỗi sai', 'Tạo bài luyện cá nhân hóa']}
+                  estimatedMs={14_000}
+                  onCancel={() => practiceAbortRef.current?.abort()}
+                />
+              </div>
             )}
           </Panel>
 

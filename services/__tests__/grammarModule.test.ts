@@ -1,10 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { lessonIds, loadLessons, stageLessons } from '../../data/grammar/meta';
 import type { Lesson } from '../../data/grammar/types';
-import { isDone, lessonStats, nextInPath, placementOf, recommend, snapshot, toAttempt, type Attempt } from '../grammar/progress';
-import { advance, errorSession, learnSession, placementSession, reviewSession } from '../grammar/session';
-import { dropOldDraft, getAttempts, getDraft, getOldLibrary, getState, record, saveDraft, syncGrammar } from '../grammar/store';
-import { parseGrammarGrade } from '../../supabase/functions/ai-proxy/ops/grammar';
+import { isDone, lessonStats, nextInPath, placementOf, recommend, snapshot, toAttempt, topErrorTags, type Attempt } from '../grammar/progress';
+import { advance, aiDrillSession, clampQuestionCount, errorSession, learnSession, placementSession, reviewSession } from '../grammar/session';
+import {
+  dropOldDraft,
+  getAiItemMap,
+  getAiItems,
+  getAttempts,
+  getDraft,
+  getOldLibrary,
+  getState,
+  record,
+  recordAiItemOutcome,
+  saveAiItems,
+  saveDraft,
+  syncGrammar,
+} from '../grammar/store';
+import { explainGrammar, generateGrammarDrills, parseGeneratedDrills, parseGrammarGrade } from '../../supabase/functions/ai-proxy/ops/grammar';
 
 const from = vi.hoisted(() => vi.fn());
 vi.mock('../supabaseClient', () => ({ supabase: { from } }));
@@ -276,5 +289,176 @@ describe('AI grade parser', () => {
   });
   it('rejects feedback without an explanation', () => {
     expect(() => parseGrammarGrade({ ...base, explanationVi: ' ' })).toThrow();
+  });
+  it('trims and caps tutor hints and rejects blank hints', () => {
+    expect(explainGrammar.finalize!({ hint: '  Dùng is với chủ ngữ số ít.  ' })).toEqual({ hint: 'Dùng is với chủ ngữ số ít.' });
+    expect(() => explainGrammar.finalize!({ hint: '   ' })).toThrow();
+    expect((explainGrammar.finalize!({ hint: 'a'.repeat(2000) }) as { hint: string }).hint).toHaveLength(1800);
+  });
+
+  it('includes history and feedback in explainGrammar prompts', () => {
+    const req = explainGrammar.build({
+      goal: 'Be',
+      rule: 'am/is/are',
+      prompt: 'Cô ấy là bác sĩ',
+      answer: 'She a doctor',
+      feedback: 'Lỗi: missing_word · Thiếu is',
+      history: [{ q: 'Vì sao thiếu?', a: 'Cần động từ be.' }],
+      question: 'Thế còn số nhiều?',
+    });
+    const text = (req.contents[0].parts[0] as { text: string }).text;
+    expect(text).toContain('Nhận xét vừa nhận');
+    expect(text).toContain('Hội thoại trước đó');
+    expect(text).toContain('Thế còn số nhiều?');
+  });
+});
+
+describe('AI drill generator & error insights', () => {
+  it('parses valid drills, drops broken or duplicate ones, and requires at least 3', () => {
+    const parsed = parseGeneratedDrills(
+      {
+        items: [
+          { kind: 'fill', prompt: 'She ___ a nurse.', cue: 'be', answer: 'is', accept: ["'s", 'is'], why: 'Chủ ngữ số ít dùng is.' },
+          { kind: 'fill', prompt: 'Missing blank', answer: 'is', why: 'Bad' },
+          { kind: 'fix', wrong: 'They is happy.', answer: 'They are happy.', accept: [], why: 'They đi với are.' },
+          { kind: 'fix', wrong: 'Same.', answer: 'Same.', why: 'No change' },
+          { kind: 'translate', task: 'Tôi là sinh viên.', model: 'I am a student.', why: 'Dùng I am.' },
+          { kind: 'write', task: 'Viết 1 câu về nghề nghiệp của bạn.', model: 'I am an engineer.', why: 'Dùng be + a/an.' },
+        ],
+      },
+      'ai:be:1'
+    );
+    expect(parsed).toHaveLength(4);
+    expect(parsed[0]).toMatchObject({ id: 'ai:be:1-1', kind: 'fill', level: 2, cue: 'be', accept: ["'s"] });
+    expect(parsed[1]).toMatchObject({ id: 'ai:be:1-2', kind: 'fix', level: 2 });
+    expect(parsed[2]).toMatchObject({ id: 'ai:be:1-3', kind: 'translate', level: 3 });
+    expect(parsed[3]).toMatchObject({ id: 'ai:be:1-4', kind: 'write', level: 4 });
+    expect(() => parseGeneratedDrills({ items: [{ kind: 'fill', prompt: 'A ___ B', answer: 'x', why: 'y' }] })).toThrow();
+
+    const req = generateGrammarDrills.build({ goal: 'Be', rule: 'am/is/are', focusTag: 'agreement', theme: 'Bóng đá', avoidPrompts: ['She is tall'] });
+    const text = (req.contents[0].parts[0] as { text: string }).text;
+    expect(text).toContain('agreement');
+    expect(text).toContain('Bóng đá');
+    expect(text).toContain('She is tall');
+  });
+
+  it('keeps extraItems across aiDrillSession advance and clears orderPicked', () => {
+    const lesson = byId.get('be')!;
+    const drills = parseGeneratedDrills(
+      {
+        items: [
+          { kind: 'fill', prompt: 'He ___ here.', answer: 'is', why: 'He dùng is.' },
+          { kind: 'fix', wrong: 'We am ready.', answer: 'We are ready.', why: 'We dùng are.' },
+          { kind: 'translate', task: 'Họ ở nhà.', model: 'They are at home.', why: 'Dùng are.' },
+        ],
+      },
+      'ai:be:2'
+    );
+    const s = { ...aiDrillSession(lesson, drills as unknown as Lesson['items']), orderPicked: [1, 0] };
+    expect(s.tasks).toHaveLength(3);
+    expect(s.extraItems?.['ai:be:2-1']).toBeDefined();
+    const next = advance(s, [], byId)!;
+    expect(next.index).toBe(1);
+    expect(next.orderPicked).toBeUndefined();
+    expect(next.extraItems?.['ai:be:2-2']).toBeDefined();
+  });
+
+  it('summarizes top open error tags excluding other and resolved mistakes', () => {
+    const items = byId.get('be')!.items;
+    const fb = (errorTag: 'tense' | 'agreement' | 'article' | 'other') => ({
+      meaningKept: true,
+      targetMet: false,
+      original: 'x',
+      corrected: 'y',
+      explanationVi: 'z',
+      retryVi: 'r',
+      errorTag,
+    });
+    const list = [
+      attempt({ lesson: 'be', itemId: items[0].id, result: 'incorrect', at: at(1), feedback: fb('agreement') }),
+      attempt({ lesson: 'be', itemId: items[1].id, result: 'incorrect', at: at(2), feedback: fb('agreement') }),
+      attempt({ lesson: 'be', itemId: items[2].id, result: 'incorrect', at: at(3), feedback: fb('tense') }),
+      attempt({ lesson: 'be', itemId: items[3].id, result: 'incorrect', at: at(4), feedback: fb('other') }),
+      attempt({ lesson: 'be', itemId: items[4].id, result: 'incorrect', at: at(5), feedback: fb('article') }),
+      attempt({ lesson: 'be', itemId: items[4].id, result: 'correct', at: at(6) }),
+    ];
+    expect(topErrorTags(snapshot(list))).toEqual([
+      { tag: 'agreement', count: 2 },
+      { tag: 'tense', count: 1 },
+    ]);
+  });
+
+  it('caps learner-chosen session counts at 10 and supports up to 10 AI drills', () => {
+    expect(clampQuestionCount(25)).toBe(10);
+    expect(clampQuestionCount(0)).toBe(1);
+    const lesson = byId.get('present-perfect')!;
+    expect(learnSession(lesson, [], 15, undefined, 6).tasks).toHaveLength(6);
+    expect(learnSession(lesson, [], 15, undefined, 99).tasks).toHaveLength(10);
+
+    const many = Array.from({ length: 10 }, (_, idx) => ({
+      kind: 'fill' as const,
+      prompt: `She ___ item ${idx + 1}.`,
+      answer: 'has',
+      why: `Lý do ${idx + 1}.`,
+    }));
+    const parsed = parseGeneratedDrills({ items: many }, 'ai:present-perfect:10');
+    expect(parsed).toHaveLength(10);
+    expect(aiDrillSession(lesson, parsed as unknown as Lesson['items'], 'learn', 8).tasks).toHaveLength(8);
+
+    const req = generateGrammarDrills.build({
+      goal: 'Present Perfect',
+      rule: 'have/has + V3',
+      count: 10,
+      weakTags: ['tense', 'agreement'],
+      recentMistakes: ['I have see -> I have seen'],
+      avoidPrompts: ['Q1', 'Q2'],
+    });
+    const text = (req.contents[0].parts[0] as { text: string }).text;
+    expect(text).toContain('Create exactly 10 items');
+    expect(text).toContain('I have see -> I have seen');
+    expect(text).toContain('Q1');
+  });
+
+  it('persists AI drills locally, tracks outcomes, feeds errorSession, and skips gracefully if remote table is missing', async () => {
+    const lesson = byId.get('be')!;
+    const drills = parseGeneratedDrills(
+      {
+        items: [
+          { kind: 'fill', prompt: 'My coffee ___ hot.', answer: 'is', why: 'Chủ ngữ số ít dùng is.' },
+          { kind: 'fix', wrong: 'The servers is busy.', answer: 'The servers are busy.', why: 'Số nhiều dùng are.' },
+          { kind: 'translate', task: 'Tôi đang ở văn phòng.', model: 'I am at the office.', why: 'Dùng am.' },
+        ],
+      },
+      'ai:be:persist'
+    ) as unknown as Lesson['items'];
+
+    saveAiItems('alice', drills, { lessonId: 'be', focusTag: 'agreement', theme: 'Công việc', sourceMode: 'learn' });
+    expect(getAiItems('alice', 'be')).toHaveLength(3);
+
+    recordAiItemOutcome('alice', drills[0].id, 'incorrect');
+    expect(getAiItems('alice', 'be').find((x) => x.id === drills[0].id)).toMatchObject({
+      timesSeen: 1,
+      timesCorrect: 0,
+      lastResult: 'incorrect',
+    });
+
+    const errAttempt: Attempt = {
+      ...attempt({ lesson: 'be' }),
+      itemId: drills[0].id,
+      kind: drills[0].kind,
+      level: drills[0].level,
+      result: 'incorrect',
+    };
+    const errSess = errorSession(byId, [errAttempt], [errAttempt], 'be', 5, getAiItemMap('alice'));
+    expect(errSess.tasks[0].itemId).toBe(drills[0].id);
+    expect(errSess.extraItems?.[drills[0].id]).toBeDefined();
+
+    // Missing remote table (PGRST205) should not crash syncGrammar.
+    from.mockImplementation((tbl: string) =>
+      tbl === 'grammar_attempts'
+        ? { upsert: vi.fn().mockResolvedValue({ error: null }) }
+        : { upsert: vi.fn().mockResolvedValue({ error: { code: 'PGRST205', message: 'Could not find the table' } }) }
+    );
+    await expect(syncGrammar('alice', false)).resolves.toBeUndefined();
   });
 });

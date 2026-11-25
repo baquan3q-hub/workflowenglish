@@ -44,7 +44,8 @@ import {
   type SpeakingPartKey,
 } from '../services/speakingBankLogic';
 import { bandForTarget, buildAnswer, deleteAnswer, loadSavedAnswers, saveAnswer, SpeakingAnswerError } from '../services/speakingBankService';
-import { aiErrorMessage } from '../services/aiClient';
+import { aiErrorMessage, isAbortError } from '../services/aiClient';
+import AiProgress from '../components/ui/AiProgress';
 import { getPreferences } from '../services/preferencesService';
 import { transcribeAudioWithGemini } from '../services/ieltsSpeakingService';
 import { blobToBase64, cancelRecording, formatDuration, isRecordingSupported, startRecording, stopRecording } from '../services/speechService';
@@ -62,7 +63,7 @@ export interface SpeakingBankApi {
   save: typeof saveAnswer;
   remove: typeof deleteAnswer;
   build: typeof buildAnswer;
-  transcribe: (base64: string, mimeType: string) => Promise<string>;
+  transcribe: (base64: string, mimeType: string, signal?: AbortSignal) => Promise<string>;
 }
 
 const DEFAULT_API: SpeakingBankApi = {
@@ -325,6 +326,9 @@ function Builder({ target, saved, band, api, store, drop, onBack, onPractice }: 
   const [text, setText] = useState(draft.answer || draft.built?.answer || '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const buildAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => buildAbortRef.current?.abort(), []);
   const [showSample, setShowSample] = useState(!saved?.answer);
   const [showVi, setShowVi] = useState(false);
   const [turn] = useState(() => Math.floor(Math.random() * 3));
@@ -336,24 +340,35 @@ function Builder({ target, saved, band, api, store, drop, onBack, onPractice }: 
   const dirty = text.trim() !== (saved?.answer ?? '').trim() || JSON.stringify(draft.ideas) !== JSON.stringify(saved?.ideas ?? []) || draft.notes !== (saved?.notes ?? '');
 
   const build = async () => {
+    buildAbortRef.current?.abort();
+    const controller = new AbortController();
+    buildAbortRef.current = controller;
     setBusy(true);
     setError('');
     try {
-      const built = await api.build({
-        part: target.part,
-        question: target.question,
-        bullets: target.bullets,
-        frame: frame.name,
-        ideas: frame.slots.map((s) => ({ slot: s.label, text: ideaFor(s.label) })),
-        notes: draft.notes,
-        targetBand: band,
-      });
+      const built = await api.build(
+        {
+          part: target.part,
+          question: target.question,
+          bullets: target.bullets,
+          frame: frame.name,
+          ideas: frame.slots.map((s) => ({ slot: s.label, text: ideaFor(s.label) })),
+          notes: draft.notes,
+          targetBand: band,
+        },
+        controller.signal,
+      );
+      if (controller.signal.aborted) return;
       setDraft((d) => ({ ...d, built }));
       setText(built.answer);
     } catch (err) {
+      if (isAbortError(err) || controller.signal.aborted) return;
       setError(errorText(err));
     } finally {
-      setBusy(false);
+      if (buildAbortRef.current === controller) {
+        buildAbortRef.current = null;
+        setBusy(false);
+      }
     }
   };
 
@@ -463,6 +478,16 @@ function Builder({ target, saved, band, api, store, drop, onBack, onPractice }: 
           {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Sparkles className="h-4 w-4" aria-hidden />}
           {draft.built ? 'AI viết lại từ ý của tôi' : 'AI giúp tôi viết câu trả lời'}
         </button>
+        {busy && (
+          <AiProgress
+            compact
+            tone="periwinkle"
+            label="AI đang ghép ý của bạn thành câu trả lời band mục tiêu…"
+            stages={['Sắp xếp ý', 'Diễn đạt tự nhiên']}
+            estimatedMs={10_000}
+            onCancel={() => buildAbortRef.current?.abort()}
+          />
+        )}
         {!ready && <p className="text-caption text-slate-500 dark:text-slate-400">Điền ít nhất một ô để AI có ý của bạn.</p>}
         {error && (
           <p role="alert" className="text-sm text-tone-blush-fg">
@@ -613,6 +638,7 @@ function Practice({ userId, keys, saved, store, api, onExit }: PracticeProps) {
   const [error, setError] = useState('');
   const [peek, setPeek] = useState(false);
   const live = useRef(true);
+  const transcribeAbortRef = useRef<AbortController | null>(null);
   const profile = useGameProfile(userId);
   /** XP from the card just rated, shown on the next one. */
   const [lastXp, setLastXp] = useState<{ paid: number; why: 'paid' | 'early' | 'silent' | 'repeat' } | null>(null);
@@ -624,11 +650,13 @@ function Practice({ userId, keys, saved, store, api, onExit }: PracticeProps) {
     live.current = true;
     return () => {
       live.current = false;
+      transcribeAbortRef.current?.abort();
       cancelRecording();
     };
   }, []);
   useEffect(() => {
     // A new card: a recording still running belongs to the last one.
+    transcribeAbortRef.current?.abort();
     cancelRecording();
     setRecording(false);
     setBusy(false);
@@ -667,15 +695,23 @@ function Practice({ userId, keys, saved, store, api, onExit }: PracticeProps) {
       return;
     }
     setRecording(false);
+    transcribeAbortRef.current?.abort();
+    const controller = new AbortController();
+    transcribeAbortRef.current = controller;
     setBusy(true);
     try {
       const { blob, durationSeconds, mimeType } = await stopRecording();
-      const transcript = await api.transcribe(await blobToBase64(blob), mimeType);
-      if (live.current) setTake({ transcript, seconds: durationSeconds });
+      if (controller.signal.aborted) return;
+      const transcript = await api.transcribe(await blobToBase64(blob), mimeType, controller.signal);
+      if (live.current && !controller.signal.aborted) setTake({ transcript, seconds: durationSeconds });
     } catch (err) {
+      if (isAbortError(err) || controller.signal.aborted) return;
       if (live.current) setError(aiErrorMessage(err));
     } finally {
-      if (live.current) setBusy(false);
+      if (transcribeAbortRef.current === controller) {
+        transcribeAbortRef.current = null;
+        if (live.current) setBusy(false);
+      }
     }
   };
 
@@ -783,6 +819,15 @@ function Practice({ userId, keys, saved, store, api, onExit }: PracticeProps) {
           </button>
         ) : (
           <p className="text-sm text-slate-600 dark:text-slate-400">Trình duyệt này không ghi âm được. Bạn nói to rồi tự đánh giá bên dưới.</p>
+        )}
+        {busy && (
+          <AiProgress
+            compact
+            tone="aqua"
+            label="AI đang chép lời bạn vừa nói…"
+            estimatedMs={7_000}
+            onCancel={() => transcribeAbortRef.current?.abort()}
+          />
         )}
         {error && (
           <p role="alert" className="text-sm text-tone-blush-fg">

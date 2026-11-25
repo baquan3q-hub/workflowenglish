@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Play, Pause, Languages, Highlighter, ArrowRight, Loader2, Settings2, Volume2, SkipBack, SkipForward, Download, X, AlertCircle } from 'lucide-react';
+import { Play, Pause, Languages, Highlighter, ArrowRight, Settings2, Volume2, SkipBack, SkipForward, Download, X, AlertCircle } from 'lucide-react';
 import { StoryData, FlashcardData } from '../types';
 import { Button } from '../components/Common';
 import { generateTTS, createAudioBufferFromBase64, AudioPlayerController } from '../services/geminiService';
-import { aiErrorMessage } from '../services/aiClient';
+import { aiErrorMessage, isAbortError } from '../services/aiClient';
+import AiProgress from '../components/ui/AiProgress';
 import { buildWordFormIndex, formatIpa } from '../services/reviewLogic';
 import { speakText } from '../services/browserSpeech';
 
@@ -133,9 +134,15 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
     }
   }, []);
 
-  // Generate audio (single API call)
+  const audioAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => audioAbortRef.current?.abort(), []);
+
   // Generate audio (single API call)
   const handleGenerateAudio = async () => {
+    audioAbortRef.current?.abort();
+    const controller = new AbortController();
+    audioAbortRef.current = controller;
     // Destroy old player
     playerRef.current?.destroy();
     playerRef.current = null;
@@ -152,11 +159,12 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
       } else {
         // Generate new audio
         console.log("Generating new audio via API...");
-        const result = await generateTTS(story.content);
+        const result = await generateTTS(story.content, controller.signal);
         buffer = result.buffer;
         // Notify parent to save the base64
         onAudioGenerated?.(result.base64);
       }
+      if (controller.signal.aborted) return;
 
       const player = new AudioPlayerController(buffer, playbackSpeed);
 
@@ -173,9 +181,15 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
       buildWordTimings(buffer.duration);
       setAudioState('ready');
     } catch (err) {
+      if (isAbortError(err) || controller.signal.aborted) {
+        setAudioState('idle');
+        return;
+      }
       console.error('Generate audio error:', err);
       setAudioError(`Không tạo được âm thanh. ${aiErrorMessage(err)}`);
       setAudioState('idle');
+    } finally {
+      if (audioAbortRef.current === controller) audioAbortRef.current = null;
     }
   };
 
@@ -308,10 +322,13 @@ const StoryMode: React.FC<StoryModeProps> = ({ story, vocabList, onNextPhase, on
                 )}
 
                 {audioState === 'loading' && (
-                  <button disabled className="flex items-center gap-2 px-4 py-2 rounded-full bg-tone-sky-soft text-tone-sky-fg cursor-wait">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span className="text-sm font-medium">Đang tạo…</span>
-                  </button>
+                  <AiProgress
+                    compact
+                    tone="sky"
+                    label="AI đang tạo giọng đọc cho câu chuyện…"
+                    estimatedMs={12_000}
+                    onCancel={() => audioAbortRef.current?.abort()}
+                  />
                 )}
 
                 {audioState === 'ready' && (

@@ -111,9 +111,11 @@ const newId = () =>
       });
 
 /** Asks the op for a part, checks it, saves it and makes it openable. Throws AiError or GeneratedCheckError. */
-export async function generateListening(userId: string, req: GenerateRequest): Promise<GeneratedListening> {
+export async function generateListening(userId: string, req: GenerateRequest, signal?: AbortSignal): Promise<GeneratedListening> {
   const topic = req.topic.trim().slice(0, 100);
-  const raw = await invokeAi<unknown>('generateListeningSection', { part: req.part, topic, difficulty: req.difficulty });
+  const raw = signal
+    ? await invokeAi<unknown>('generateListeningSection', { part: req.part, topic, difficulty: req.difficulty }, { signal })
+    : await invokeAi<unknown>('generateListeningSection', { part: req.part, topic, difficulty: req.difficulty });
   const problems = generatedProblems(raw, req.part);
   if (problems.length) {
     console.warn('[Listening] generated part failed checks:', problems);

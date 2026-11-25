@@ -37,11 +37,11 @@ const newId = () =>
         return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
       });
 
-async function ask(req: GenerateWritingRequest): Promise<GeneratedWriting> {
+async function ask(req: GenerateWritingRequest, signal?: AbortSignal): Promise<GeneratedWriting> {
   const raw = await invokeAi<unknown>(
     'generateWritingPrompt',
     { task: req.task, questionType: req.questionType, topic: req.topic.trim().slice(0, 100), difficulty: req.difficulty },
-    { timeoutMs: GENERATE_TIMEOUT_MS },
+    { timeoutMs: GENERATE_TIMEOUT_MS, ...(signal ? { signal } : {}) },
   );
   const problems = generatedWritingResultProblems(raw, req);
   if (problems.length) {
@@ -52,8 +52,8 @@ async function ask(req: GenerateWritingRequest): Promise<GeneratedWriting> {
 }
 
 /** Asks the op for a prompt, checks it, saves it and makes it available. Throws AiError or WritingCheckError. */
-export async function generateWriting(userId: string, req: GenerateWritingRequest): Promise<GeneratedWritingItem> {
-  const g = await ask(req);
+export async function generateWriting(userId: string, req: GenerateWritingRequest, signal?: AbortSignal): Promise<GeneratedWritingItem> {
+  const g = await ask(req, signal);
   const id = newId();
   const topic = req.topic.trim().slice(0, 100);
   const item = toGeneratedWritingItem(id, g, { topic, createdAt: new Date().toISOString(), saved: !!userId });

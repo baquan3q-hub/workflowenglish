@@ -140,8 +140,8 @@ export async function saveProgress(userId: string, exerciseId: string, progress:
 }
 
 /** The sentences of a YouTube clip, written down by the AI. Throws AiError. */
-export async function transcribeVideo(videoId: string, start: number, end: number): Promise<MediaSentence[]> {
-  const raw = await invokeAi<unknown>('transcribeYouTube', { videoId, start, end }, { timeoutMs: 170_000 });
+export async function transcribeVideo(videoId: string, start: number, end: number, signal?: AbortSignal): Promise<MediaSentence[]> {
+  const raw = await invokeAi<unknown>('transcribeYouTube', { videoId, start, end }, { timeoutMs: 170_000, ...(signal ? { signal } : {}) });
   return tidyTranscript(raw, start, end).map((s, i) => ({ id: `s${i + 1}`, text: s.text, start: s.start, end: s.end }));
 }
 

@@ -2,28 +2,29 @@
  * Which Gemini models the proxy uses, and the per-model differences in how
  * they are called. Pure TypeScript with no Deno APIs, so vitest can test it.
  *
- * Google retired gemini-2.0-flash (June 2026) and limits gemini-2.5-* to
- * projects that already used them, so a new API key gets 404 for both.
- * The lists below start with current models and keep 2.5 last for older keys.
+ * Google retired gemini-2.0-flash (June 2026), deprecated gemini-3.5-flash
+ * (routes to gemini-3.6-flash), and limits gemini-2.5-* to projects that
+ * already used them. Put fast, broadly available models first so fallback
+ * never stalls on an overloaded or retired endpoint.
  * The GEMINI_TEXT_MODELS / GEMINI_TTS_MODELS secrets (comma separated)
  * replace them without a code change when Google moves on again.
  */
 import type { GeminiRequest } from './lib.ts';
 
 /** Everyday text and JSON: grading, generation, chat. */
-export const TEXT_MODELS = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-flash-latest'] as const;
+export const TEXT_MODELS = ['gemini-3.5-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.6-flash', 'gemini-3.8-flash'] as const;
 
-/** Longer, harder generations (lessons): stable and fast flash models first. */
-export const STRONG_TEXT_MODELS = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.8-flash'] as const;
+/** Longer, harder generations (lessons): fast reliable flash-lite pools first, then 3.6/3.8 fallback. */
+export const STRONG_TEXT_MODELS = ['gemini-3.5-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.6-flash', 'gemini-3.8-flash'] as const;
 
 /** Fast, lightweight text & micro-evaluations (sentence grading, word suggestions): low latency, minimal token consumption. */
-export const LIGHT_TEXT_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-3.5-flash'] as const;
+export const LIGHT_TEXT_MODELS = ['gemini-3.5-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.6-flash'] as const;
 
 /**
- * Speech. 2.5 preview TTS still speaks through generateContent until its
- * shutdown (17 Nov 2026); 3.8 TTS only through the Interactions API.
+ * Speech. 3.8 TTS runs through the Interactions API; 2.5 preview TTS is kept
+ * last as a legacy fallback only.
  */
-export const TTS_MODELS = ['gemini-2.5-flash-preview-tts', 'gemini-3.8-flash-lite-tts', 'gemini-3.8-flash-tts'] as const;
+export const TTS_MODELS = ['gemini-3.8-flash-lite-tts', 'gemini-3.8-flash-tts', 'gemini-2.5-flash-preview-tts'] as const;
 
 /** A model list from a secret, or the default when the secret is unset or empty. */
 export function modelsFromEnv(value: string | undefined, fallback: readonly string[]): readonly string[] {
@@ -57,7 +58,9 @@ export const usesInteractions = (model: string) => isTtsModel(model) && /^gemini
 export function thinkingConfig(model: string, effort: 'minimal' | 'low' = 'minimal'): Record<string, unknown> | null {
   if (isTtsModel(model)) return null;
   if (/^gemini-2\.5-/.test(model)) return { thinkingBudget: effort === 'low' ? 1024 : 0 };
-  if (/^gemini-3\.8-flash/.test(model)) return { thinkingLevel: 'low' };
+  if (/^gemini-4/.test(model)) return { thinkingLevel: 'low' };
+  if (/^gemini-3\.[78]-flash/.test(model)) return { thinkingLevel: 'low' };
+  if (model === 'gemini-flash-lite-latest') return { thinkingLevel: effort };
   if (/^gemini-3/.test(model)) return { thinkingLevel: effort };
   return null;
 }
@@ -70,10 +73,48 @@ export function generateBody(model: string, req: GeminiRequest): Record<string, 
   return { ...rest, generationConfig };
 }
 
+/** Splits "Name: line" dialogue text into per-turn items for multi-speaker Interactions TTS. */
+function dialogueTurns(text: string, speakers: readonly { speaker?: string; voice: string }[], style?: string) {
+  const names = new Set(speakers.map((s) => s.speaker).filter((n): n is string => Boolean(n)));
+  const fallback = speakers[0]?.speaker;
+  const turns: { speaker: string; text: string }[] = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const m = /^([A-Za-z][A-Za-z0-9_-]*)\s*:\s*(.+)$/.exec(line);
+    if (m && (!names.size || names.has(m[1]))) {
+      turns.push({ speaker: m[1], text: m[2].trim() });
+    } else if (turns.length) {
+      turns[turns.length - 1].text += ` ${line}`;
+    } else if (fallback) {
+      turns.push({ speaker: fallback, text: line });
+    }
+  }
+  if (!turns.length && fallback) turns.push({ speaker: fallback, text });
+  return turns.map((t) => ({
+    type: 'text',
+    text: t.text,
+    annotations: [{ type: 'speech_metadata', speaker: t.speaker, ...(style ? { style } : {}) }],
+  }));
+}
+
 /** The Interactions API body for a 3.x TTS model. Needs the op's `speech` description. */
 export function interactionsBody(model: string, req: GeminiRequest): Record<string, unknown> {
   const speech = req.speech;
   if (!speech) throw new Error(`${model}: op has no speech description`);
+  const multi = speech.speakers.length > 1 || speech.speakers.some((s) => Boolean(s.speaker));
+  if (multi) {
+    return {
+      model,
+      input: [{ type: 'user_input', content: dialogueTurns(speech.text, speech.speakers, speech.style) }],
+      response_format: { type: 'audio' },
+      generation_config: {
+        speech_config: {
+          speakers: speech.speakers.map((s) => ({ speaker: s.speaker, voice: s.voice })),
+        },
+      },
+    };
+  }
   const annotation: Record<string, string> = { type: 'speech_metadata' };
   if (speech.style) annotation.style = speech.style;
   return {
@@ -81,7 +122,7 @@ export function interactionsBody(model: string, req: GeminiRequest): Record<stri
     input: [{ type: 'user_input', content: [{ type: 'text', text: speech.text, annotations: [annotation] }] }],
     response_format: { type: 'audio' },
     generation_config: {
-      speech_config: speech.speakers.map((s) => (s.speaker ? { speaker: s.speaker, voice: s.voice } : { voice: s.voice })),
+      speech_config: [{ voice: speech.speakers[0]?.voice ?? 'Kore' }],
     },
   };
 }

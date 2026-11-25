@@ -43,6 +43,13 @@ export interface SpeechRequest {
 
 export type OpKind = 'json' | 'text' | 'audio' | 'stream';
 
+export interface OpFallbackContext {
+  payload: unknown;
+  error: unknown;
+  /** Calls a secondary OpSpec (e.g. without paid grounding tools) using the server's key. */
+  run(spec: OpSpec, payload: unknown): Promise<{ model: string; data: unknown; raw: unknown }>;
+}
+
 export interface OpSpec {
   /** Calls allowed per user per hour. */
   hourlyLimit: number;
@@ -75,6 +82,11 @@ export interface OpSpec {
    * checks. Its result is what the app (or the storage file) receives.
    */
   after?(data: unknown, raw: unknown, payload: unknown): Promise<unknown>;
+  /**
+   * Optional recovery path when the primary Gemini call fails for a recoverable
+   * upstream reason (e.g. Search Grounding quota 429 on free tier).
+   */
+  fallback?(ctx: OpFallbackContext): Promise<{ data: unknown; model: string | null }>;
 }
 
 export interface StorageSpec {

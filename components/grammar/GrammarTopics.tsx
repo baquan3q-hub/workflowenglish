@@ -104,7 +104,7 @@ export default function GrammarTopics({ snap, hub, setHub, onOpenLesson }: Props
       <label className="relative block">
         <span className="sr-only">Tìm chuyên đề</span>
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-        <input className={field + ' pl-9'} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tìm: bị động, which, câu điều kiện…" />
+        <input className={field + ' pl-9'} enterKeyHint="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Tìm: bị động, which, câu điều kiện…" />
       </label>
       {query.trim() ? (
         results.length ? (

@@ -57,6 +57,7 @@ const clock = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.
 
 /** The line to show the learner. Non-AI errors get the generic server line. */
 export function aiErrorMessage(err: unknown): string {
+  if (isAbortError(err)) return 'Đã hủy yêu cầu.';
   const kind = err instanceof AiError ? err.kind : 'server';
   switch (kind) {
     case 'rate_limit': {
@@ -107,8 +108,43 @@ async function accessToken(): Promise<string> {
   return token;
 }
 
+function createAbortError(): Error {
+  return typeof DOMException !== 'undefined'
+    ? new DOMException('Aborted', 'AbortError')
+    : Object.assign(new Error('Aborted'), { name: 'AbortError' });
+}
+
+/** True when an operation was aborted by caller/learner (distinct from server/client AI timeouts). */
+export function isAbortError(err: unknown): boolean {
+  if (err instanceof AiError) return false;
+  if (typeof DOMException !== 'undefined' && err instanceof DOMException && err.name === 'AbortError') return true;
+  return typeof err === 'object' && err !== null && (err as { name?: unknown }).name === 'AbortError';
+}
+
+/** Reject this caller immediately on `signal` abort without cancelling a shared/cached promise for other listeners. */
+export function withAbortSignal<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return promise;
+  if (signal.aborted) return Promise.reject(createAbortError());
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(createAbortError());
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(value);
+      },
+      (err) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(err);
+      },
+    );
+  });
+}
+
 async function post(op: string, payload: unknown, opts: InvokeOptions): Promise<Response> {
+  if (opts.signal?.aborted) throw createAbortError();
   const token = await accessToken();
+  if (opts.signal?.aborted) throw createAbortError();
   const controller = new AbortController();
   let timedOut = false;
   const timer = setTimeout(() => {
@@ -137,7 +173,7 @@ async function post(op: string, payload: unknown, opts: InvokeOptions): Promise<
   } catch (err) {
     if (err instanceof AiError) throw err;
     if (timedOut) throw new AiError('timeout', `${op} timed out`);
-    if (opts.signal?.aborted) throw err;
+    if (opts.signal?.aborted) throw isAbortError(err) ? err : createAbortError();
     if (process.env.NODE_ENV !== 'production') {
       console.error(
         `[AI] Could not reach ${FUNCTION_URL}. A CORS or 404 error here usually means the ai-proxy function is not deployed: see supabase/functions/ai-proxy/README.md.`,
@@ -154,6 +190,7 @@ async function post(op: string, payload: unknown, opts: InvokeOptions): Promise<
 export async function invokeAi<T>(op: string, payload: unknown, opts: InvokeOptions = {}): Promise<T> {
   const res = await post(op, payload, opts);
   const body = (await res.json()) as { data: T };
+  if (opts.signal?.aborted) throw createAbortError();
   return body.data;
 }
 

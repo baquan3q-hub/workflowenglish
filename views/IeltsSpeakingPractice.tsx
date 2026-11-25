@@ -13,6 +13,7 @@ import RecordControls from '../components/ielts/speaking/RecordControls';
 import CuePrep from '../components/ielts/speaking/CuePrep';
 import { FluencyChips } from '../components/ielts/speaking/FluencyPanel';
 import { errorText, ghostBtn, label, muted, panel, primaryBtn } from '../components/ielts/speaking/styles';
+import AiProgress from '../components/ui/AiProgress';
 
 export interface SpeakingSubmission {
   transcript: string;
@@ -27,6 +28,7 @@ interface Props {
   onSubmit: (submission: SpeakingSubmission) => void;
   onBack: () => void;
   isGrading: boolean;
+  onCancelGrading?: () => void;
   /** Swapped out in previews without the AI server. */
   transcribe?: Transcribe;
 }
@@ -44,7 +46,7 @@ type Analysis = { status: 'idle' } | { status: 'working' } | ({ status: 'done' }
 
 const PART_LABEL: Record<IeltsSpeakingPart, string> = { part_1: 'Part 1', part_2: 'Part 2', part_3: 'Part 3' };
 
-export default function IeltsSpeakingPractice({ question, onSubmit, onBack, isGrading, transcribe = transcribeAudioWithGemini }: Props) {
+export default function IeltsSpeakingPractice({ question, onSubmit, onBack, isGrading, onCancelGrading, transcribe = transcribeAudioWithGemini }: Props) {
   const part = question.taskOrPart as IeltsSpeakingPart;
   const guide = PART_GUIDES[part] ?? PART_GUIDES.part_1;
   const questions = useMemo(() => practiceQuestions(question), [question]);
@@ -59,14 +61,20 @@ export default function IeltsSpeakingPractice({ question, onSubmit, onBack, isGr
   const [transcript, setTranscript] = useState('');
   const [error, setError] = useState<string | null>(null);
   const run = useRef(0);
+  const transcribeAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => transcribeAbortRef.current?.abort(), []);
 
   const handleTake = (take: RecordedTake) => {
     const id = ++run.current;
+    transcribeAbortRef.current?.abort();
+    const controller = new AbortController();
+    transcribeAbortRef.current = controller;
     setAnalysis({ status: 'working' });
     setTranscript('');
     setError(null);
-    void analyzeTake(take, transcribe).then((r) => {
-      if (id !== run.current) return;
+    void analyzeTake(take, transcribe, controller.signal).then((r) => {
+      if (id !== run.current || r.aborted || controller.signal.aborted) return;
       setAnalysis({ status: 'done', ...r });
       setTranscript(r.transcript ?? '');
     });
@@ -81,6 +89,7 @@ export default function IeltsSpeakingPractice({ question, onSubmit, onBack, isGr
   useEffect(() => {
     if (rec.recording) {
       run.current++;
+      transcribeAbortRef.current?.abort();
       setAnalysis({ status: 'idle' });
     }
   }, [rec.recording]);
@@ -100,6 +109,7 @@ export default function IeltsSpeakingPractice({ question, onSubmit, onBack, isGr
 
   const resetTake = () => {
     run.current++;
+    transcribeAbortRef.current?.abort();
     rec.clear();
     setAnalysis({ status: 'idle' });
     setTranscript('');
@@ -226,13 +236,36 @@ export default function IeltsSpeakingPractice({ question, onSubmit, onBack, isGr
               <div className="space-y-3 border-t border-slate-100 pt-4 dark:border-slate-800">
                 <audio src={take.url} controls className="h-10 w-full" />
                 {analysis.status === 'working' && (
-                  <p className={`${muted} flex items-center gap-2`}>
-                    <Loader2 className="h-4 w-4 animate-spin" /> Đang chuyển giọng nói thành chữ…
-                  </p>
+                  <AiProgress
+                    compact
+                    tone="aqua"
+                    label="AI đang chuyển giọng nói thành chữ…"
+                    estimatedMs={8_000}
+                    onCancel={() => {
+                      run.current++;
+                      transcribeAbortRef.current?.abort();
+                      setAnalysis({
+                        status: 'done',
+                        base64: '',
+                        transcript: null,
+                        error: 'Đã hủy chép lời tự động. Bạn có thể tự gõ câu trả lời bên dưới.',
+                        rms: null,
+                      });
+                    }}
+                  />
                 )}
                 {done && (
                   <>
-                    {done.error && <p className={errorText}>{done.error} Bạn cũng có thể tự gõ câu trả lời bên dưới.</p>}
+                    {done.error && (
+                      <p className={errorText}>
+                        {done.error}{' '}
+                        {!done.transcript && (
+                          <button type="button" onClick={() => handleTake(take)} className="font-semibold underline underline-offset-2">
+                            Thử chép lại
+                          </button>
+                        )}
+                      </p>
+                    )}
                     {metrics && done.transcript && <FluencyChips metrics={metrics} />}
                     <label className="block space-y-1">
                       <span className="text-caption font-semibold text-slate-600 dark:text-slate-300">
@@ -261,6 +294,15 @@ export default function IeltsSpeakingPractice({ question, onSubmit, onBack, isGr
                         </>
                       )}
                     </button>
+                    {isGrading && (
+                      <AiProgress
+                        tone="periwinkle"
+                        label="AI đang chấm bài Speaking IELTS…"
+                        stages={['Phân tích độ trôi chảy', 'Đánh giá từ vựng & phát âm', 'Tổng hợp band điểm']}
+                        estimatedMs={16_000}
+                        onCancel={onCancelGrading}
+                      />
+                    )}
                   </>
                 )}
               </div>
