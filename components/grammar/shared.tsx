@@ -144,11 +144,15 @@ export function StepDots({ step, onPick }: { step: number; onPick?: (step: numbe
             onClick={() => onPick?.(i)}
             aria-label={name}
             aria-current={i === step ? 'step' : undefined}
-            className={
-              'block h-1.5 w-full rounded-full transition-colors ' +
-              (i < step ? 'bg-tone-periwinkle-accent' : i === step ? 'bg-tone-periwinkle-fg' : 'bg-slate-200 dark:bg-slate-700')
-            }
-          />
+            className="block w-full py-2.5 disabled:cursor-default"
+          >
+            <span
+              className={
+                'block h-1.5 w-full rounded-full transition-colors ' +
+                (i < step ? 'bg-tone-periwinkle-accent' : i === step ? 'bg-tone-periwinkle-fg' : 'bg-slate-200 dark:bg-slate-700')
+              }
+            />
+          </button>
         </li>
       ))}
     </ol>
@@ -156,6 +160,68 @@ export function StepDots({ step, onPick }: { step: number; onPick?: (step: numbe
 }
 
 export const card = 'rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900';
+
+const PRESET_COUNTS = [4, 6, 8, 10] as const;
+
+export function QuestionCountPicker({
+  count,
+  onChange,
+  disabled,
+}: {
+  count: number;
+  onChange: (next: number) => void;
+  disabled?: boolean;
+}) {
+  const safe = Math.min(10, Math.max(2, Math.round(count)));
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2 dark:border-slate-800 dark:bg-slate-950/60">
+      <div className="min-w-0">
+        <span className="block text-sm font-semibold text-slate-800 dark:text-slate-100">Số câu luyện tập</span>
+        <span className="block text-xs text-slate-500 dark:text-slate-400">Chọn theo thời gian của bạn · tối đa 10 câu</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Chọn số câu luyện tập">
+        {PRESET_COUNTS.map((n) => (
+          <button
+            key={n}
+            type="button"
+            disabled={disabled}
+            aria-pressed={safe === n}
+            onClick={() => onChange(n)}
+            className={
+              'press inline-flex min-h-touch min-w-[2.5rem] items-center justify-center rounded-lg border px-2.5 text-sm font-semibold transition-colors disabled:opacity-50 ' +
+              (safe === n
+                ? 'border-tone-periwinkle-fg bg-tone-periwinkle-soft text-tone-periwinkle-fg'
+                : 'border-slate-200 bg-white text-slate-700 hover:border-tone-periwinkle-border dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200')
+            }
+          >
+            {n}
+          </button>
+        ))}
+        <div className="ml-1 inline-flex items-center rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+          <button
+            type="button"
+            disabled={disabled || safe <= 2}
+            aria-label="Giảm 1 câu"
+            onClick={() => onChange(Math.max(2, safe - 1))}
+            className="press inline-flex min-h-touch w-8 items-center justify-center text-sm font-bold text-slate-600 disabled:opacity-40 dark:text-slate-300"
+          >
+            −
+          </button>
+          <span className="w-6 text-center text-sm font-bold tabular-nums text-slate-900 dark:text-white">{safe}</span>
+          <button
+            type="button"
+            disabled={disabled || safe >= 10}
+            aria-label="Tăng 1 câu"
+            onClick={() => onChange(Math.min(10, safe + 1))}
+            className="press inline-flex min-h-touch w-8 items-center justify-center text-sm font-bold text-slate-600 disabled:opacity-40 dark:text-slate-300"
+          >
+            +
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 export const eyebrow = 'text-xs font-bold uppercase tracking-wide';
 export const h2 = 'text-lg font-bold text-slate-900 dark:text-white';
 export const muted = 'text-sm text-slate-600 dark:text-slate-300';

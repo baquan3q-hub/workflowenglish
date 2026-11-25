@@ -1,10 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, Check, ChevronDown, CircleAlert, CircleCheck, CircleX, PenLine, RotateCcw, Sparkles, X } from 'lucide-react';
 import type { SentenceGrade, SentenceItem, StepResult } from '../types';
 import { gradeSentence, recordSentenceAttempt } from '../services/sentenceService';
 import { groupErrors, sentenceStepResult, splitBold, stripBold, VERDICT_LABELS } from '../services/sentenceLogic';
-import { aiErrorMessage } from '../services/aiClient';
-import { Skeleton, SkeletonText } from '../components/ui/States';
+import { aiErrorMessage, isAbortError } from '../services/aiClient';
+import AiProgress from '../components/ui/AiProgress';
 import { ghostBtn, panel, primaryBtn, secondaryBtn } from '../components/ui/styles';
 
 interface SentencePracticeProps {
@@ -17,6 +17,7 @@ interface SentencePracticeProps {
   generating?: boolean;
   /** Older lessons: make sentences now. Omitted outside a lesson. */
   onGenerate?: () => void;
+  onCancelGenerate?: () => void;
   onComplete: (result: StepResult) => void;
   completeLabel: string;
   title?: string;
@@ -56,10 +57,11 @@ interface CardProps {
   error?: string;
   onAnswer: (value: string) => void;
   onSubmit: () => void;
+  onCancel?: () => void;
   onRetry: () => void;
 }
 
-const SentenceCard: React.FC<CardProps> = ({ index, item, level, answer, grade, pending, error, onAnswer, onSubmit, onRetry }) => {
+const SentenceCard: React.FC<CardProps> = ({ index, item, level, answer, grade, pending, error, onAnswer, onSubmit, onCancel, onRetry }) => {
   const [showModel, setShowModel] = useState(false);
   const inputId = `sentence-${item.id}`;
   const locked = pending || !!grade;
@@ -119,11 +121,13 @@ const SentenceCard: React.FC<CardProps> = ({ index, item, level, answer, grade, 
           </form>
 
           {pending && (
-            <div role="status" aria-live="polite" className="space-y-2">
-              <span className="sr-only">Đang chấm…</span>
-              <Skeleton className="h-6 w-28" />
-              <SkeletonText lines={2} />
-            </div>
+            <AiProgress
+              compact
+              tone="sky"
+              label="AI đang chấm câu viết…"
+              estimatedMs={6_000}
+              onCancel={onCancel}
+            />
           )}
 
           {error && !pending && (
@@ -207,6 +211,7 @@ const SentencePractice: React.FC<SentencePracticeProps> = ({
   lessonRecordId,
   generating = false,
   onGenerate,
+  onCancelGenerate,
   onComplete,
   completeLabel,
   title = 'Luyện câu',
@@ -218,6 +223,11 @@ const SentencePractice: React.FC<SentencePracticeProps> = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   // "Luyện lại câu sai" narrows the list to the sentences still marked Cần sửa.
   const [onlyIds, setOnlyIds] = useState<string[] | null>(null);
+  const abortRefs = useRef<Record<string, AbortController>>({});
+
+  useEffect(() => () => {
+    Object.values(abortRefs.current).forEach((c) => c.abort());
+  }, []);
 
   const visible = useMemo(
     () => (items ?? []).filter((it) => !onlyIds || onlyIds.includes(it.id)),
@@ -231,18 +241,28 @@ const SentencePractice: React.FC<SentencePracticeProps> = ({
   const submit = async (item: SentenceItem) => {
     const answer = (answers[item.id] ?? '').trim();
     if (!answer || pending[item.id]) return;
+    abortRefs.current[item.id]?.abort();
+    const controller = new AbortController();
+    abortRefs.current[item.id] = controller;
     setPending((p) => ({ ...p, [item.id]: true }));
     setErrors(({ [item.id]: _, ...rest }) => rest);
     try {
-      const grade = await gradeSentence(item, answer, level);
+      const grade = await gradeSentence(item, answer, level, controller.signal);
+      if (controller.signal.aborted) return;
       setGrades((g) => ({ ...g, [item.id]: grade }));
       recordSentenceAttempt({ userId, lessonRecordId, item, answer, grade });
     } catch (err) {
+      if (isAbortError(err) || controller.signal.aborted) return;
       console.error('[Sentence] grading failed:', err);
       setErrors((e) => ({ ...e, [item.id]: aiErrorMessage(err) }));
     } finally {
+      if (abortRefs.current[item.id] === controller) delete abortRefs.current[item.id];
       setPending(({ [item.id]: _, ...rest }) => rest);
     }
+  };
+
+  const cancelItem = (id: string) => {
+    abortRefs.current[id]?.abort();
   };
 
   const clear = (ids: string[]) => {
@@ -265,14 +285,16 @@ const SentencePractice: React.FC<SentencePracticeProps> = ({
       <div className="mx-auto max-w-2xl space-y-6 animate-fade-in">
         {header}
         {generating ? (
-          <div role="status" aria-live="polite" className={`${panel} space-y-3 p-5`}>
-            <span className="sr-only">Đang soạn câu luyện…</span>
-            <p className="text-sm text-slate-500 dark:text-slate-400">Đang soạn câu luyện…</p>
-            <Skeleton className="h-5 w-3/4" />
-            <Skeleton className="h-11 w-full" />
-            <Skeleton className="h-5 w-2/3" />
-            <Skeleton className="h-11 w-full" />
-            <div className="flex justify-end pt-1">
+          <div className={`${panel} space-y-3 p-5`}>
+            <AiProgress
+              tone="mint"
+              label="AI đang soạn câu luyện từ vựng…"
+              detail="Đang tạo câu tiếng Việt dùng các từ vừa học để bạn luyện dịch."
+              stages={['Chọn ngữ cảnh từ vựng', 'Soạn câu song ngữ']}
+              estimatedMs={10_000}
+              onCancel={onCancelGenerate}
+            />
+            <div className="flex justify-end">
               <button type="button" onClick={finish} className={ghostBtn}>
                 Bỏ qua
               </button>
@@ -324,6 +346,7 @@ const SentencePractice: React.FC<SentencePracticeProps> = ({
             error={errors[item.id]}
             onAnswer={(value) => setAnswers((a) => ({ ...a, [item.id]: value }))}
             onSubmit={() => void submit(item)}
+            onCancel={() => cancelItem(item.id)}
             onRetry={() => clear([item.id])}
           />
         ))}

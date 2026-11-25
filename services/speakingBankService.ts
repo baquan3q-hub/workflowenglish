@@ -94,7 +94,7 @@ export interface BuildRequest {
 }
 
 /** The answer built from the learner's ideas. Throws AiError or SpeakingAnswerError. */
-export async function buildAnswer(req: BuildRequest): Promise<BuiltSpeakingAnswer> {
+export async function buildAnswer(req: BuildRequest, signal?: AbortSignal): Promise<BuiltSpeakingAnswer> {
   const built = await invokeAi<BuiltSpeakingAnswer>(
     'buildSpeakingAnswer',
     {
@@ -106,7 +106,7 @@ export async function buildAnswer(req: BuildRequest): Promise<BuiltSpeakingAnswe
       notes: req.notes,
       targetBand: req.targetBand,
     },
-    { timeoutMs: 45_000 },
+    { timeoutMs: 45_000, ...(signal ? { signal } : {}) },
   );
   const problems = builtAnswerProblems(built, req.part);
   if (problems.length) {

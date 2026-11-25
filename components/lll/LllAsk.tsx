@@ -1,11 +1,12 @@
-import React, { useMemo, useState } from 'react';
-import { Globe2, Loader2, Search, Sparkles } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Globe2, Search, Sparkles } from 'lucide-react';
 import { field, panel, primaryBtn, secondaryBtn } from '../ui/styles';
-import { aiErrorMessage } from '../../services/aiClient';
+import { aiErrorMessage, isAbortError } from '../../services/aiClient';
 import { discoverLll, discoverToLink, type DiscoverResult } from '../../services/lllAi';
 import { searchLllCatalog, type LllLevel } from '../../services/lllLogic';
 import type { ProfileInterest } from '../../services/learningProfileLogic';
 import { LLL_CATALOG } from '../../data/lllCatalog';
+import AiProgress from '../ui/AiProgress';
 import LllCard from './LllCard';
 import type { LllOpen } from './shared';
 
@@ -58,15 +59,33 @@ export default function LllAsk({ interests, level, minutes, known, onOpen }: Pro
   }, [interests]);
   const fromCatalog = useMemo(() => (asked ? searchLllCatalog(LLL_CATALOG, asked, 6) : []), [asked]);
 
+  const discoverAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => discoverAbortRef.current?.abort(), []);
+
   const fromCatalogFor = (text: string) => searchLllCatalog(LLL_CATALOG, text, 6);
   const askAi = async (text: string, wantPerspectives = perspectives) => {
+    discoverAbortRef.current?.abort();
+    const controller = new AbortController();
+    discoverAbortRef.current = controller;
     setAi({ kind: 'loading' });
     try {
       const exclude = [...new Set([...known, ...fromCatalogFor(text).map((i) => i.url)])];
-      const result = await discoverLll({ query: text, level, minutes: Math.max(minutes, 10), perspectives: wantPerspectives, exclude });
+      const result = await discoverLll(
+        { query: text, level, minutes: Math.max(minutes, 10), perspectives: wantPerspectives, exclude },
+        undefined,
+        controller.signal,
+      );
+      if (controller.signal.aborted) return;
       setAi({ kind: 'done', result });
     } catch (err) {
+      if (isAbortError(err) || controller.signal.aborted) {
+        setAi({ kind: 'idle' });
+        return;
+      }
       setAi({ kind: 'error', message: aiErrorMessage(err) });
+    } finally {
+      if (discoverAbortRef.current === controller) discoverAbortRef.current = null;
     }
   };
 
@@ -120,9 +139,14 @@ export default function LllAsk({ interests, level, minutes, known, onOpen }: Pro
         </button>
       )}
       {ai.kind === 'loading' && (
-        <p role="status" className={`${panel} flex items-center gap-2 p-4 text-sm`}>
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> AI đang tìm và mở thử từng bài tiếng Anh, khoảng 20–40 giây…
-        </p>
+        <AiProgress
+          tone="mint"
+          label="AI đang tìm bài đọc tiếng Anh phù hợp…"
+          detail="Đang rà nguồn mở, mở thử link thật và chọn bài khớp trình độ."
+          stages={['Tìm nguồn mở', 'Mở thử từng bài', 'Chọn lọc bài hay']}
+          estimatedMs={14_000}
+          onCancel={() => discoverAbortRef.current?.abort()}
+        />
       )}
       {ai.kind === 'error' && (
         <p role="alert" className="rounded-xl bg-tone-blush p-3 text-sm text-tone-blush-fg">

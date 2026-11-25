@@ -1,19 +1,23 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, BookMarked, LayoutGrid, Route, Sun } from 'lucide-react';
+import { ArrowLeft, BookMarked, LayoutGrid, Route, Sun, X } from 'lucide-react';
 import { getMeta, lessons as allLessons, loadLessons, stageLessons } from '../data/grammar/meta';
-import type { HubId, Lesson, OpenItem, StageId } from '../data/grammar/types';
+import type { HubId, Item, Lesson, OpenItem, StageId } from '../data/grammar/types';
 import {
   isDone,
   nextInPath,
   recommend,
   snapshot,
   summary as progressSummary,
+  topErrorTags,
   type Attempt,
 } from '../services/grammar/progress';
 import {
+  DEFAULT_QUESTION_COUNT,
   PLACEMENT,
   advance,
+  aiDrillSession,
   checkpointSession,
+  clampQuestionCount,
   errorSession,
   learnSession,
   placementSession,
@@ -22,19 +26,24 @@ import {
 } from '../services/grammar/session';
 import {
   dropOldDraft,
+  getAiItems,
   getAttempts,
   getDraft,
   getOldLibrary,
   getState,
   record,
+  recordAiItemOutcome,
+  saveAiItems,
   saveDraft,
   saveState,
   syncGrammar,
   type ModuleState,
 } from '../services/grammar/store';
 import { isOpen } from '../services/grammar/grade';
-import { gradeOpen, isRight, openTask } from '../services/grammar/ai';
-import { aiErrorMessage } from '../services/aiClient';
+import { generateDrills, gradeOpen, isRight, openTask } from '../services/grammar/ai';
+import type { GrammarErrorTag } from '../supabase/functions/ai-proxy/ops/grammar';
+import { aiErrorMessage, isAbortError } from '../services/aiClient';
+import AiProgress from '../components/ui/AiProgress';
 import { getMasteredWordsList } from '../services/recommendationService';
 import { getLearningProfile } from '../services/learningProfileService';
 import { EMPTY_PROFILE, GOAL_LABELS, INTEREST_LABELS } from '../services/learningProfileLogic';
@@ -68,6 +77,7 @@ const TABS: { id: Tab; label: string; Icon: typeof Sun }[] = [
 
 export default function Grammar({ user, initialLesson, onExit, onFocus }: Props) {
   const [attempts, setAttempts] = useState(() => getAttempts(user));
+  const [savedAiItems, setSavedAiItems] = useState(() => getAiItems(user));
   const [state, setState] = useState<ModuleState>(() => getState(user));
   const [draft, setDraft] = useState<Session | null>(() => getDraft(user));
   const [cache, setCache] = useState<Map<string, Lesson>>(() => new Map());
@@ -81,6 +91,10 @@ export default function Grammar({ user, initialLesson, onExit, onFocus }: Props)
   const [profile, setProfile] = useState({ ...EMPTY_PROFILE });
   const [knownWords, setKnownWords] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiLabel, setAiLabel] = useState('');
+  const aiAbortRef = useRef<AbortController | null>(null);
+  const [bookTag, setBookTag] = useState<GrammarErrorTag | null>(null);
   const [message, setMessage] = useState('');
   const [syncMessage, setSyncMessage] = useState('');
   const [syncTick, setSyncTick] = useState(0);
@@ -104,12 +118,16 @@ export default function Grammar({ user, initialLesson, onExit, onFocus }: Props)
       setSyncTick((n) => n + 1);
     };
     const storage = () => {
-      if (alive.current) setAttempts(getAttempts(user));
+      if (alive.current) {
+        setAttempts(getAttempts(user));
+        setSavedAiItems(getAiItems(user));
+      }
     };
     window.addEventListener('online', refresh);
     window.addEventListener('storage', storage);
     return () => {
       alive.current = false;
+      aiAbortRef.current?.abort();
       window.removeEventListener('online', refresh);
       window.removeEventListener('storage', storage);
     };
@@ -129,6 +147,7 @@ export default function Grammar({ user, initialLesson, onExit, onFocus }: Props)
         await syncGrammar(user, pull);
         if (alive.current) {
           setAttempts(getAttempts(user));
+          setSavedAiItems(getAiItems(user));
           setSyncMessage('');
         }
       } catch {
@@ -169,6 +188,9 @@ export default function Grammar({ user, initialLesson, onExit, onFocus }: Props)
   const now = Date.now();
   const dueCount = [...snap.stats.values()].filter((s) => s.due <= now).length;
   const errorCount = [...snap.stats.values()].reduce((n, s) => n + s.openErrors.length, 0);
+  const topErrors = useMemo(() => topErrorTags(snap), [snap]);
+  const aiItemMap = useMemo(() => new Map<string, Item>(savedAiItems.map((x) => [x.id, x.item])), [savedAiItems]);
+  const questionCount = clampQuestionCount(state.questionCount, DEFAULT_QUESTION_COUNT);
   const pending = attempts.filter((a) => a.result === 'pending');
   const firstVisit = !attempts.length && !current && !state.zeroStart && !oldQuiz.size && !draft;
 
@@ -189,12 +211,17 @@ export default function Grammar({ user, initialLesson, onExit, onFocus }: Props)
     saveState(user, s);
     setState(s);
   };
+  const setQuestionCount = (n: number) => remember({ ...state, questionCount: clampQuestionCount(n) });
   const update = (s: Session | null) => {
     saveDraft(user, s);
     setDraft(s);
   };
   const persist = (a: Attempt) => {
     record(user, a);
+    if (a.result === 'correct' || a.result === 'incorrect' || a.result === 'pending') {
+      recordAiItemOutcome(user, a.itemId, a.result, a.at);
+      setSavedAiItems(getAiItems(user));
+    }
     setAttempts(getAttempts(user));
     setSyncTick((n) => n + 1);
   };
@@ -264,12 +291,21 @@ export default function Grammar({ user, initialLesson, onExit, onFocus }: Props)
   const practise = (id: string, mode: 'learn' | 'review') =>
     start([id], (m) =>
       mode === 'learn'
-        ? learnSession(m.get(id)!, attempts, minutes, snap.stats.get(id))
-        : reviewSession(m.get(id)!, attempts, snap.stats.get(id)!)
+        ? learnSession(m.get(id)!, attempts, minutes, snap.stats.get(id), questionCount)
+        : reviewSession(
+            m.get(id)!,
+            attempts,
+            snap.stats.get(id)!,
+            Date.now(),
+            questionCount,
+            savedAiItems.filter((x) => x.lessonId === id).map((x) => x.item)
+          )
     );
   const practiseErrors = (focus?: string) => {
     const errors = [...snap.stats.values()].flatMap((s) => s.openErrors).filter((a) => !focus || a.lesson === focus);
-    return start([...errors.map((a) => a.lesson), ...(focus ? [focus] : [])], (m) => errorSession(m, errors, attempts, focus));
+    return start([...errors.map((a) => a.lesson), ...(focus ? [focus] : [])], (m) =>
+      errorSession(m, errors, attempts, focus, questionCount, aiItemMap)
+    );
   };
   const checkpoint = (stage: StageId) =>
     start(
@@ -283,13 +319,13 @@ export default function Grammar({ user, initialLesson, onExit, onFocus }: Props)
     // Read from storage: in the placement test the answer was recorded a moment ago in the same tick.
     const all = getAttempts(user);
     setAttempts(all);
-    const s = advance(draft, all, cacheRef.current);
+    const s = advance(draft, all, cacheRef.current, aiItemMap);
     if (s) {
       update(s);
       return;
     }
     const first = draft.tasks[0];
-    const item = cacheRef.current.get(first.lesson)?.items.find((i) => i.id === first.itemId);
+    const item = draft.extraItems?.[first.itemId] ?? aiItemMap.get(first.itemId) ?? cacheRef.current.get(first.lesson)?.items.find((i) => i.id === first.itemId);
     persist({
       version: 2,
       id: crypto.randomUUID(),
@@ -314,20 +350,119 @@ export default function Grammar({ user, initialLesson, onExit, onFocus }: Props)
     } else setScreen('result');
   }
 
+  async function gradeAttempt(a: Attempt, signal?: AbortSignal) {
+    const map = await ensure([a.lesson]);
+    const lesson = map.get(a.lesson)!;
+    const item = aiItemMap.get(a.itemId) ?? lesson.items.find((i) => i.id === a.itemId);
+    const task =
+      item && isOpen(item)
+        ? openTask(item as OpenItem)
+        : (a.prompt || 'Viết câu dùng cấu trúc của bài ' + lesson.title) + (a.expected ? ' (Câu mẫu tham khảo: ' + a.expected + ')' : '');
+    const feedback = await gradeOpen(lesson, task, a.answer, theme, signal);
+    if (alive.current && !signal?.aborted) persist({ ...a, feedback, result: isRight(feedback) ? 'correct' : 'incorrect' });
+  }
+
   async function regrade(a: Attempt) {
+    aiAbortRef.current?.abort();
+    const controller = new AbortController();
+    aiAbortRef.current = controller;
     setBusy(true);
+    setAiLabel('AI đang chấm lại câu viết…');
     setMessage('');
     try {
-      const map = await ensure([a.lesson]);
-      const lesson = map.get(a.lesson)!;
-      const item = lesson.items.find((i) => i.id === a.itemId);
-      const task = item && isOpen(item) ? openTask(item as OpenItem) : a.prompt || 'Viết câu dùng cấu trúc của bài ' + lesson.title;
-      const feedback = await gradeOpen(lesson, task, a.answer, theme);
-      if (alive.current) persist({ ...a, feedback, result: isRight(feedback) ? 'correct' : 'incorrect' });
+      await gradeAttempt(a, controller.signal);
     } catch (err) {
+      if (isAbortError(err) || controller.signal.aborted) return;
       if (alive.current) setMessage(aiErrorMessage(err));
     } finally {
+      if (aiAbortRef.current === controller) {
+        aiAbortRef.current = null;
+        if (alive.current) setAiLabel('');
+      }
       if (alive.current) setBusy(false);
+    }
+  }
+
+  async function regradeAll() {
+    if (!pending.length) return;
+    aiAbortRef.current?.abort();
+    const controller = new AbortController();
+    aiAbortRef.current = controller;
+    setBusy(true);
+    setMessage('');
+    let done = 0;
+    try {
+      for (const a of pending) {
+        if (!alive.current || controller.signal.aborted) return;
+        setAiLabel(`AI đang chấm lại câu viết (${done + 1}/${pending.length})…`);
+        await gradeAttempt(a, controller.signal);
+        done++;
+      }
+    } catch (err) {
+      if (isAbortError(err) || controller.signal.aborted) return;
+      if (alive.current) {
+        const prefix = done > 0 ? `Đã nhận xét ${done}/${pending.length} câu. ` : '';
+        setMessage(prefix + aiErrorMessage(err));
+      }
+    } finally {
+      if (aiAbortRef.current === controller) {
+        aiAbortRef.current = null;
+        if (alive.current) setAiLabel('');
+      }
+      if (alive.current) setBusy(false);
+    }
+  }
+
+  async function startAiDrills(id: string, focusTag?: GrammarErrorTag, mode: 'learn' | 'errors' = 'learn') {
+    aiAbortRef.current?.abort();
+    const controller = new AbortController();
+    aiAbortRef.current = controller;
+    setAiBusy(true);
+    setAiLabel(`AI đang tạo ${questionCount} câu luyện cá nhân hóa…`);
+    setMessage('');
+    try {
+      const map = await ensure([id]);
+      const l = map.get(id);
+      if (!l || !alive.current || controller.signal.aborted) return;
+      const lessonAi = savedAiItems.filter((x) => x.lessonId === id);
+      const lessonErrors = snap.stats.get(id)?.openErrors ?? [];
+      const weakTags = [
+        ...(focusTag ? [focusTag] : []),
+        ...lessonErrors.map((e) => e.feedback?.errorTag).filter((t): t is GrammarErrorTag => !!t && t !== 'other'),
+        ...topErrors.map((t) => t.tag),
+      ];
+      const recentMistakes = lessonErrors
+        .slice(-3)
+        .map((e) => `${e.answer} -> ${e.feedback?.corrected || e.expected || ''}`.trim())
+        .filter(Boolean);
+      const items = await generateDrills(l, {
+        count: questionCount,
+        theme,
+        focusTag,
+        weakTags: [...new Set(weakTags)].slice(0, 4),
+        recentMistakes,
+        savedAiItems: lessonAi,
+        signal: controller.signal,
+      });
+      if (!alive.current || controller.signal.aborted) return;
+      saveAiItems(user, items, { lessonId: id, focusTag, theme, sourceMode: mode });
+      setSavedAiItems(getAiItems(user));
+      setSyncTick((n) => n + 1);
+      const s = aiDrillSession(l, items, mode, questionCount);
+      if (draft && draft.id !== s.id) {
+        setReplace(s);
+        return;
+      }
+      begin(s);
+    } catch (err) {
+      if (isAbortError(err) || controller.signal.aborted) return;
+      if (alive.current) setMessage(aiErrorMessage(err));
+    } finally {
+      if (aiAbortRef.current === controller) {
+        aiAbortRef.current = null;
+        if (alive.current) setAiLabel('');
+      }
+      if (alive.current) setAiBusy(false);
     }
   }
 
@@ -357,6 +492,7 @@ export default function Grammar({ user, initialLesson, onExit, onFocus }: Props)
       session={s}
       attempts={attempts}
       lessons={cache}
+      aiItems={aiItemMap}
       snap={snap}
       next={s.mode === 'learn' ? after(s.lesson) : s.mode === 'diagnostic' ? undefined : recommend(snap, current).lesson}
       onOpenLesson={(id) => void openLesson(id)}
@@ -371,6 +507,7 @@ export default function Grammar({ user, initialLesson, onExit, onFocus }: Props)
         key={draft.id + '-' + draft.index}
         session={draft}
         lessons={cache}
+        aiItems={aiItemMap}
         attempts={attempts}
         theme={theme}
         update={update}
@@ -381,10 +518,10 @@ export default function Grammar({ user, initialLesson, onExit, onFocus }: Props)
     );
 
   return (
-    <main className="mx-auto w-full max-w-xl pb-24" aria-label="Học ngữ pháp">
+    <div className="mx-auto w-full max-w-3xl pb-4 md:pb-6" aria-label="Học ngữ pháp">
       {screen === 'tabs' && (
         <>
-          <div className="flex items-center justify-between gap-2 px-4 pt-3">
+          <div className="flex items-center justify-between gap-2 pt-1">
             <button type="button" className="press -ml-2 flex min-h-touch items-center gap-1 rounded-xl px-2 text-sm font-semibold text-slate-600 dark:text-slate-300" onClick={onExit}>
               <ArrowLeft className="h-4 w-4" aria-hidden="true" /> {initialLesson ? 'Nhận xét Writing' : 'Trang học'}
             </button>
@@ -392,10 +529,10 @@ export default function Grammar({ user, initialLesson, onExit, onFocus }: Props)
               {syncMessage}
             </span>
           </div>
-          <h1 className="px-4 text-2xl font-bold text-slate-900 dark:text-white">Ngữ pháp</h1>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Ngữ pháp</h1>
           <nav
             aria-label="Mục ngữ pháp"
-            className="sticky top-0 z-10 mt-2 border-b border-slate-200 bg-white/95 px-2 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95"
+            className="sticky top-14 z-20 -mx-4 mt-2 border-b border-slate-200 bg-white/95 px-2 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 sm:top-16 sm:mx-0 sm:rounded-2xl sm:border sm:px-2"
           >
             <ul className="grid grid-cols-4">
               {TABS.map(({ id, label, Icon }) => (
@@ -405,14 +542,14 @@ export default function Grammar({ user, initialLesson, onExit, onFocus }: Props)
                     aria-current={tab === id ? 'page' : undefined}
                     onClick={() => goTab(id)}
                     className={
-                      'press relative flex min-h-touch w-full flex-col items-center justify-center gap-0.5 py-2 text-xs font-semibold ' +
-                      (tab === id ? 'text-tone-periwinkle-fg' : 'text-slate-500 dark:text-slate-400')
+                      'press relative flex min-h-touch w-full flex-col items-center justify-center gap-0.5 py-2 text-xs font-semibold sm:flex-row sm:gap-2 sm:py-2.5 sm:text-sm ' +
+                      (tab === id ? 'text-tone-periwinkle-fg' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200')
                     }
                   >
-                    <Icon className="h-5 w-5" aria-hidden="true" />
+                    <Icon className="h-5 w-5 sm:h-4 sm:w-4" aria-hidden="true" />
                     {label}
                     {id === 'book' && errorCount + pending.length > 0 && (
-                      <span className="absolute right-3 top-1 min-w-[1.1rem] rounded-full bg-tone-blush-accent px-1 text-[10px] leading-4 text-white">
+                      <span className="absolute right-3 top-1 min-w-[1.1rem] rounded-full bg-tone-blush-accent px-1 text-[10px] leading-4 text-white sm:static">
                         {errorCount + pending.length}
                       </span>
                     )}
@@ -426,17 +563,35 @@ export default function Grammar({ user, initialLesson, onExit, onFocus }: Props)
       )}
 
       {message && (
-        <p role="alert" className="mx-4 mt-3 rounded-xl border border-tone-butter-border bg-tone-butter px-3 py-2 text-sm text-tone-butter-fg">
-          {message}
-        </p>
+        <div role="alert" className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-tone-butter-border bg-tone-butter px-3 py-2 text-sm text-tone-butter-fg">
+          <span>{message}</span>
+          <button
+            type="button"
+            onClick={() => setMessage('')}
+            aria-label="Đóng thông báo"
+            className="inline-flex min-h-touch min-w-touch shrink-0 items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
       )}
-      {busy && (
+      {(busy || aiBusy) && aiLabel && screen !== 'lesson' && !(screen === 'tabs' && tab === 'book') ? (
+        <div className="pt-3">
+          <AiProgress
+            compact
+            tone="periwinkle"
+            label={aiLabel}
+            estimatedMs={12_000}
+            onCancel={() => aiAbortRef.current?.abort()}
+          />
+        </div>
+      ) : busy ? (
         <p role="status" className="sr-only">
           Đang tải…
         </p>
-      )}
+      ) : null}
 
-      <div className="px-4 pt-4">
+      <div className="pt-4">
         {screen === 'tabs' && tab === 'today' && (
           <GrammarToday
             snap={snap}
@@ -449,14 +604,22 @@ export default function Grammar({ user, initialLesson, onExit, onFocus }: Props)
             dueCount={dueCount}
             errorCount={errorCount}
             pendingCount={pending.length}
+            topErrors={topErrors}
             goalLabel={profile.goal ? GOAL_LABELS[profile.goal] : undefined}
-            busy={busy}
+            busy={busy || aiBusy}
             onOpenLesson={(id) => void openLesson(id)}
             onPlacement={() => void placement()}
             onZero={zero}
             onRecommended={() => void recommended()}
             onResume={() => void resume()}
-            onBook={() => goTab('book')}
+            onBook={() => {
+              setBookTag(null);
+              goTab('book');
+            }}
+            onErrorTag={(t) => {
+              setBookTag(t);
+              goTab('book');
+            }}
             onHub={(h) => {
               setHub(h);
               goTab('topics');
@@ -472,11 +635,21 @@ export default function Grammar({ user, initialLesson, onExit, onFocus }: Props)
             snap={snap}
             pending={pending}
             lessons={cache}
+            aiItems={aiItemMap}
             ensure={ensureQuiet}
             busy={busy}
+            aiBusy={aiBusy}
+            aiLabel={aiLabel}
+            onCancelAi={() => aiAbortRef.current?.abort()}
+            questionCount={questionCount}
+            onChangeCount={setQuestionCount}
+            tag={bookTag}
+            setTag={setBookTag}
             onPractice={(id) => void practiseErrors(id)}
+            onGenerateDrills={(id, focusTag) => void startAiDrills(id, focusTag, 'errors')}
             onOpenLesson={(id) => void openLesson(id)}
             onRegrade={(a) => void regrade(a)}
+            onRegradeAll={() => void regradeAll()}
           />
         )}
 
@@ -492,9 +665,16 @@ export default function Grammar({ user, initialLesson, onExit, onFocus }: Props)
             theme={theme}
             ieltsGoal={profile.goal === 'ielts'}
             busy={busy}
+            aiBusy={aiBusy}
+            aiLabel={aiLabel}
+            onCancelAi={() => aiAbortRef.current?.abort()}
+            questionCount={questionCount}
+            onChangeCount={setQuestionCount}
+            savedAiCount={savedAiItems.filter((x) => x.lessonId === lesson.id).length}
             backLabel={TABS.find((t) => t.id === tab)!.label}
             onBack={() => goTab(tab)}
             onPractice={(mode) => void practise(lesson.id, mode)}
+            onGenerateDrills={() => void startAiDrills(lesson.id)}
             onOpenLesson={(id) => void openLesson(id)}
             summary={
               finished && finished.lesson === lesson.id && finished.mode === 'learn' ? (
@@ -535,6 +715,6 @@ export default function Grammar({ user, initialLesson, onExit, onFocus }: Props)
           nộp vẫn được lưu; phiên mới sẽ thay chỗ làm dở.
         </p>
       </Sheet>
-    </main>
+    </div>
   );
 }

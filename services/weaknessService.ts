@@ -307,21 +307,26 @@ function assertLesson(lesson: GeneratedLesson | null): GeneratedLesson {
 export async function generateTargetedLesson(
   weakness: WeaknessPattern,
   level: string,
+  signal?: AbortSignal,
 ): Promise<GeneratedLesson> {
-  const lesson = await invokeAi<GeneratedLesson>('generateRemedialLesson', {
-    mode: 'weakness',
-    level,
-    weakness: {
-      category: weakness.category,
-      categoryVi: weakness.categoryVi,
-      examples: weakness.examples.slice(0, 5).map((ex) => ({
-        word: ex.word,
-        question: ex.question,
-        userAnswer: ex.userAnswer,
-        correctAnswer: ex.correctAnswer,
-      })),
+  const lesson = await invokeAi<GeneratedLesson>(
+    'generateRemedialLesson',
+    {
+      mode: 'weakness',
+      level,
+      weakness: {
+        category: weakness.category,
+        categoryVi: weakness.categoryVi,
+        examples: weakness.examples.slice(0, 5).map((ex) => ({
+          word: ex.word,
+          question: ex.question,
+          userAnswer: ex.userAnswer,
+          correctAnswer: ex.correctAnswer,
+        })),
+      },
     },
-  });
+    signal ? { signal } : undefined,
+  );
   return assertLesson(lesson);
 }
 
@@ -332,19 +337,24 @@ export async function generateTargetedLesson(
 export async function generateHardestWordsLesson(
   words: any[],
   level: string,
+  signal?: AbortSignal,
 ): Promise<GeneratedLesson> {
   if (!words || words.length === 0) {
     throw new Error('No words provided to generate lesson');
   }
-  const lesson = await invokeAi<GeneratedLesson>('generateRemedialLesson', {
-    mode: 'words',
-    level,
-    words: words.slice(0, 10).map((w) => ({
-      word: String(w.word ?? ''),
-      meaning: String(w.meaning_vi ?? ''),
-      partOfSpeech: String(w.part_of_speech ?? ''),
-    })),
-  });
+  const lesson = await invokeAi<GeneratedLesson>(
+    'generateRemedialLesson',
+    {
+      mode: 'words',
+      level,
+      words: words.slice(0, 10).map((w) => ({
+        word: String(w.word ?? ''),
+        meaning: String(w.meaning_vi ?? ''),
+        partOfSpeech: String(w.part_of_speech ?? ''),
+      })),
+    },
+    signal ? { signal } : undefined,
+  );
   return assertLesson(lesson);
 }
 

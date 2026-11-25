@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, MessageCircleQuestion, Target } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Loader2, MessageCircleQuestion, Sparkles, Target } from 'lucide-react';
 import type { Lesson } from '../../data/grammar/types';
 import { getMeta, stages } from '../../data/grammar/meta';
 import { type LessonStats, type Snapshot, isDone } from '../../services/grammar/progress';
 import WordPicker from '../ielts/WordPicker';
 import { ghostBtn, primaryBtn, secondaryBtn } from '../ui/styles';
+import AiProgress from '../ui/AiProgress';
 import AiTutor from './AiTutor';
-import { LESSON_STEPS, LEVEL_LABEL, Listen, Marked, StatusPill, StepDots, card, plain, stageTone } from './shared';
+import { LESSON_STEPS, LEVEL_LABEL, Listen, Marked, QuestionCountPicker, StatusPill, StepDots, card, plain, stageTone } from './shared';
 import { statusOf } from './GrammarPath';
 
 interface Props {
@@ -19,9 +20,16 @@ interface Props {
   theme: string;
   ieltsGoal: boolean;
   busy: boolean;
+  aiBusy?: boolean;
+  aiLabel?: string;
+  onCancelAi?: () => void;
+  questionCount: number;
+  onChangeCount: (n: number) => void;
+  savedAiCount?: number;
   backLabel: string;
   onBack: () => void;
   onPractice: (mode: 'learn' | 'review') => void;
+  onGenerateDrills?: () => void;
   onOpenLesson: (id: string) => void;
   /** Step 6: the result of the latest practice in this lesson. */
   summary: React.ReactNode;
@@ -36,7 +44,7 @@ export default function LessonView(props: Props) {
     top.current?.scrollIntoView({ block: 'start' });
   }, [step]);
   return (
-    <div ref={top} className="mx-auto flex w-full max-w-xl scroll-mt-4 flex-col gap-4 px-4 pb-10 pt-3">
+    <div ref={top} className="mx-auto flex w-full max-w-3xl scroll-mt-20 flex-col gap-4 pb-6 pt-1 sm:pb-8">
       <header className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2">
           <button type="button" className={ghostBtn + ' -ml-3'} onClick={onBack}>
@@ -132,7 +140,7 @@ function WhenWhy({ lesson, snap, onOpenLesson }: Props) {
 
 function Forms({ lesson }: { lesson: Lesson }) {
   return (
-    <section className="flex flex-col gap-3">
+    <section className="grid gap-3 md:grid-cols-2">
       {lesson.forms.map((f) => (
         <article key={f.label} className={card}>
           <p className="text-xs font-bold uppercase tracking-wide text-tone-periwinkle-fg">{f.label}</p>
@@ -239,7 +247,7 @@ function Contrast({ lesson, ieltsGoal, onOpenLesson }: Props) {
   );
 }
 
-function Practice({ lesson, stats, busy, onPractice }: Props) {
+function Practice({ lesson, stats, busy, aiBusy, aiLabel, onCancelAi, questionCount, onChangeCount, savedAiCount, onPractice, onGenerateDrills }: Props) {
   const counts = ([1, 2, 3, 4, 5] as const).map((lv) => ({ lv, n: lesson.items.filter((i) => i.level === lv && !i.review).length }));
   return (
     <section className={card + ' flex flex-col gap-4'}>
@@ -258,13 +266,36 @@ function Practice({ lesson, stats, busy, onPractice }: Props) {
           </li>
         ))}
       </ol>
-      <button type="button" className={primaryBtn} disabled={busy} onClick={() => onPractice('learn')}>
-        {stats.studied ? 'Luyện thêm với câu mới' : 'Bắt đầu luyện tập'}
-      </button>
-      {stats.studied && (
-        <button type="button" className={secondaryBtn} disabled={busy} onClick={() => onPractice('review')}>
-          Ôn nhanh câu đã sai và câu ôn trễ
+      <QuestionCountPicker count={questionCount} onChange={onChangeCount} disabled={busy || aiBusy} />
+      <div className="flex flex-col gap-2">
+        <button type="button" className={primaryBtn} disabled={busy || aiBusy} onClick={() => onPractice('learn')}>
+          {stats.studied ? `Luyện thêm câu mới (${questionCount} câu)` : `Bắt đầu luyện tập (${questionCount} câu)`}
         </button>
+        {stats.studied && (
+          <button type="button" className={secondaryBtn} disabled={busy || aiBusy} onClick={() => onPractice('review')}>
+            Ôn nhanh câu đã sai và câu ôn trễ ({questionCount} câu)
+          </button>
+        )}
+        {onGenerateDrills && (
+          <button type="button" className={secondaryBtn} disabled={busy || aiBusy} onClick={onGenerateDrills}>
+            {aiBusy ? <Loader2 className="h-4 w-4 animate-spin text-tone-periwinkle-fg" aria-hidden="true" /> : <Sparkles className="h-4 w-4 text-tone-periwinkle-fg" aria-hidden="true" />}
+            {aiBusy ? `AI đang tạo ${questionCount} câu luyện…` : `AI tạo ${questionCount} câu theo sở thích & lỗi sai`}
+          </button>
+        )}
+      </div>
+      {aiBusy && (
+        <AiProgress
+          tone="periwinkle"
+          label={aiLabel || `AI đang tạo ${questionCount} câu luyện cá nhân hóa…`}
+          stages={['Phân tích lỗi sai', 'Tránh lặp câu đã làm', 'Soạn bài mới']}
+          estimatedMs={12_000}
+          onCancel={onCancelAi}
+        />
+      )}
+      {!!savedAiCount && (
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Đã lưu {savedAiCount} câu AI riêng cho bạn ở bài này — bộ câu mới sẽ tránh lặp lại và bám sát lỗi sai.
+        </p>
       )}
     </section>
   );

@@ -17,4 +17,4 @@ export const panel = 'rounded-2xl border border-slate-200 bg-white dark:border-s
 export const tag =
   'inline-flex items-center gap-1 rounded-md bg-tone-periwinkle-soft px-1.5 py-0.5 text-caption font-medium text-tone-periwinkle-fg';
 export const field =
-  'min-h-touch w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 transition-colors hover:border-tone-periwinkle-border focus:border-tone-periwinkle-fg focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white';
+  'min-h-touch w-full rounded-xl border border-slate-200 bg-white px-3 text-base sm:text-sm text-slate-900 transition-colors hover:border-tone-periwinkle-border focus:border-tone-periwinkle-fg focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white';

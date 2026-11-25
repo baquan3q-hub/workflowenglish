@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   generateBody,
   interactionAudio,
@@ -14,6 +14,8 @@ import {
   usesInteractions,
   wavToPcm,
 } from '../../supabase/functions/ai-proxy/models.ts';
+import { callWithFallback, UpstreamError } from '../../supabase/functions/ai-proxy/gemini.ts';
+import type { OpSpec } from '../../supabase/functions/ai-proxy/lib.ts';
 import { FLASH_MODELS } from '../../supabase/functions/ai-proxy/lib.ts';
 import { OPS } from '../../supabase/functions/ai-proxy/ops/index.ts';
 import { pcmToWav } from '../../supabase/functions/ai-proxy/ops/listening.ts';
@@ -25,10 +27,12 @@ describe('model lists', () => {
     for (const [name, spec] of Object.entries(OPS)) {
       expect(spec.models, name).not.toContain('gemini-2.0-flash');
       expect(spec.models, name).not.toContain('gemini-3-flash-preview');
+      expect(spec.models, name).not.toContain('gemini-3.5-flash');
       // A current model comes before the access-limited 2.5 family.
       expect(spec.models[0], name).toMatch(/^gemini-(3\.|2\.5-flash-preview-tts)/);
     }
     expect(FLASH_MODELS).toBe(TEXT_MODELS);
+    expect(STRONG_TEXT_MODELS).toContain('gemini-3.5-flash-lite');
   });
 
   it('every speech op can also run on 3.x TTS', () => {
@@ -74,7 +78,11 @@ describe('per-model calls', () => {
     expect(thinkingConfig('gemini-2.5-flash')).toEqual({ thinkingBudget: 0 });
     expect(thinkingConfig('gemini-3.6-flash')).toEqual({ thinkingLevel: 'minimal' });
     expect(thinkingConfig('gemini-3.5-flash-lite')).toEqual({ thinkingLevel: 'minimal' });
+    expect(thinkingConfig('gemini-flash-lite-latest')).toEqual({ thinkingLevel: 'minimal' });
+    expect(thinkingConfig('gemini-3.7-flash')).toEqual({ thinkingLevel: 'low' });
     expect(thinkingConfig('gemini-3.8-flash')).toEqual({ thinkingLevel: 'low' });
+    expect(thinkingConfig('gemini-flash-latest')).toBeNull();
+    expect(thinkingConfig('gemini-4-hydrogen')).toEqual({ thinkingLevel: 'low' });
     expect(thinkingConfig('gemini-2.5-flash-preview-tts')).toBeNull();
     expect(thinkingConfig('gemini-3.8-flash-tts')).toBeNull();
     expect(thinkingConfig('gemini-2.0-flash')).toBeNull();
@@ -90,7 +98,7 @@ describe('per-model calls', () => {
     expect(body.generationConfig).toEqual({ temperature: 0.2, thinkingConfig: { thinkingLevel: 'high' } });
   });
 
-  it('builds an Interactions request for 3.x TTS and reads its audio back as PCM', () => {
+  it('builds an Interactions request for single & multi-speaker 3.x TTS and reads its audio back as PCM', () => {
     expect(usesInteractions('gemini-3.8-flash-tts')).toBe(true);
     expect(usesInteractions('gemini-2.5-flash-preview-tts')).toBe(false);
     expect(usesInteractions('gemini-3.6-flash')).toBe(false);
@@ -102,6 +110,31 @@ describe('per-model calls', () => {
     expect(body.model).toBe('gemini-3.8-flash-tts');
     expect(body.input[0].content[0]).toEqual({ type: 'text', text: 'Hi.', annotations: [{ type: 'speech_metadata', style: 'calm' }] });
     expect(body.generation_config).toEqual({ speech_config: [{ voice: 'Kore' }] });
+
+    const multi = interactionsBody('gemini-3.8-flash-lite-tts', {
+      contents: [],
+      generationConfig: {},
+      speech: {
+        text: 'Anna: Hi.\nTom: Hello.',
+        style: 'us',
+        speakers: [
+          { speaker: 'Anna', voice: 'Kore' },
+          { speaker: 'Tom', voice: 'Puck' },
+        ],
+      },
+    }) as { input: { content: { text: string; annotations: unknown[] }[] }[]; generation_config: unknown };
+    expect(multi.input[0].content).toEqual([
+      { type: 'text', text: 'Hi.', annotations: [{ type: 'speech_metadata', speaker: 'Anna', style: 'us' }] },
+      { type: 'text', text: 'Hello.', annotations: [{ type: 'speech_metadata', speaker: 'Tom', style: 'us' }] },
+    ]);
+    expect(multi.generation_config).toEqual({
+      speech_config: {
+        speakers: [
+          { speaker: 'Anna', voice: 'Kore' },
+          { speaker: 'Tom', voice: 'Puck' },
+        ],
+      },
+    });
     expect(() => interactionsBody('gemini-3.8-flash-tts', { contents: [], generationConfig: {} })).toThrow();
 
     expect(
@@ -178,5 +211,81 @@ describe('healthItems', () => {
     expect(items[0].level).toBe('error');
     expect(items[0].fix).toContain('GEMINI_API_KEY');
     expect(items.find((i) => i.title.includes('gemini-2.5-flash'))?.level).toBe('warn');
+  });
+});
+
+describe('callWithFallback resilience', () => {
+  const spec: OpSpec = {
+    hourlyLimit: 10,
+    models: ['gemini-3.5-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.6-flash'],
+    timeoutMs: 20_000,
+    kind: 'json',
+    build: () => ({ contents: [{ role: 'user', parts: [{ text: 'hi' }] }], generationConfig: {} }),
+  };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const okJson = (payload: unknown) =>
+    new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(payload) }] } }] }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+  it('moves straight to the next model on 503 and recovers on Pass 2 when all pools burst', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const model = String(url).match(/models\/([^:]+):/)?.[1] ?? '';
+        calls.push(model);
+        if (calls.length <= 3) return new Response('busy', { status: 503 });
+        return okJson({ ok: true });
+      }),
+    );
+
+    const res = await callWithFallback('k', spec, spec.build({}));
+    expect(res.model).toBe('gemini-3.5-flash-lite');
+    expect(res.data).toEqual({ ok: true });
+    expect(calls).toEqual(['gemini-3.5-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.6-flash', 'gemini-3.5-flash-lite']);
+  });
+
+  it('prefers 503 busy over a secondary backup timeout and aborts immediately on 403', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const model = String(url).match(/models\/([^:]+):/)?.[1] ?? '';
+        if (model === 'gemini-3.6-flash') {
+          throw new DOMException('timed out', 'TimeoutError');
+        }
+        return new Response('busy', { status: 503 });
+      }),
+    );
+
+    await expect(callWithFallback('k', spec, spec.build({}))).rejects.toMatchObject({ status: 503 });
+
+    const seen: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        seen.push(String(url));
+        return new Response('PERMISSION_DENIED', { status: 403 });
+      }),
+    );
+    await expect(callWithFallback('k', spec, spec.build({}))).rejects.toBeInstanceOf(UpstreamError);
+    expect(seen).toHaveLength(1);
+  });
+
+  it('throws timeout (504) only when all attempts actually time out', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new DOMException('timed out', 'TimeoutError');
+      }),
+    );
+    await expect(callWithFallback('k', { ...spec, models: ['gemini-3.5-flash-lite', 'gemini-3.6-flash'] }, spec.build({}))).rejects.toMatchObject({
+      status: 'timeout',
+    });
   });
 });

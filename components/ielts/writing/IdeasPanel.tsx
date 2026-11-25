@@ -2,25 +2,38 @@
  * "Lập dàn ý" for Task 2: asks the ieltsIdeas op for ideas on each side,
  * useful phrases and a paragraph plan. It never writes the essay.
  */
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Lightbulb, Loader2, RotateCcw } from 'lucide-react';
 import type { IeltsQuestion, IeltsWritingIdeas } from '../../../types';
 import { getWritingIdeas } from '../../../services/ieltsWritingService';
-import { aiErrorMessage } from '../../../services/aiClient';
+import { aiErrorMessage, isAbortError } from '../../../services/aiClient';
 import { secondaryBtn } from '../../ui/styles';
+import AiProgress from '../../ui/AiProgress';
 
 type State = { status: 'idle' } | { status: 'loading' } | { status: 'error'; message: string } | { status: 'done'; ideas: IeltsWritingIdeas };
 
 
 export default function IdeasPanel({ question }: { question: IeltsQuestion }) {
   const [state, setState] = useState<State>({ status: 'idle' });
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const load = async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setState({ status: 'loading' });
     try {
-      setState({ status: 'done', ideas: await getWritingIdeas(question.prompt, question.questionType) });
+      setState({ status: 'done', ideas: await getWritingIdeas(question.prompt, question.questionType, controller.signal) });
     } catch (err) {
+      if (isAbortError(err) || controller.signal.aborted) {
+        setState({ status: 'idle' });
+        return;
+      }
       setState({ status: 'error', message: aiErrorMessage(err) });
+    } finally {
+      if (abortRef.current === controller) abortRef.current = null;
     }
   };
 
@@ -42,6 +55,16 @@ export default function IdeasPanel({ question }: { question: IeltsQuestion }) {
           </button>
         )}
       </div>
+
+      {state.status === 'loading' && (
+        <AiProgress
+          compact
+          tone="sky"
+          label="AI đang gợi ý dàn ý hai phía…"
+          estimatedMs={8_000}
+          onCancel={() => abortRef.current?.abort()}
+        />
+      )}
 
       {state.status === 'error' && (
         <p role="alert" className="rounded-xl bg-tone-blush p-3 text-sm text-tone-blush-fg">

@@ -46,8 +46,8 @@ export const createAudioBufferFromBase64 = async (base64: string): Promise<Audio
 };
 
 // --- Generate TTS AudioBuffer (single API call, no playback) ---
-export const generateTTS = async (text: string): Promise<{ buffer: AudioBuffer, base64: string }> => {
-  const base64 = await invokeAi<string>('tts', { text }, { timeoutMs: 120_000 });
+export const generateTTS = async (text: string, signal?: AbortSignal): Promise<{ buffer: AudioBuffer, base64: string }> => {
+  const base64 = await invokeAi<string>('tts', { text }, { timeoutMs: 120_000, signal });
   if (!base64) {
     throw new Error("No audio data returned from TTS");
   }
@@ -349,8 +349,9 @@ function sanitizeLesson(lesson: GeneratedLesson): GeneratedLesson {
 export const generateLessonContent = async (
   inputWords: string,
   level: DifficultyLevel,
-  topic: string
+  topic: string,
+  signal?: AbortSignal,
 ): Promise<GeneratedLesson> => {
-  const data = await invokeAi<GeneratedLesson>('generateLesson', { words: inputWords, level, topic });
+  const data = await invokeAi<GeneratedLesson>('generateLesson', { words: inputWords, level, topic }, { signal });
   return sanitizeLesson(data);
 };

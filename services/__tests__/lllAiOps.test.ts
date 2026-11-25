@@ -3,8 +3,8 @@ import { BadRequest, parseModelJson } from '../../supabase/functions/ai-proxy/li
 import { generateBody } from '../../supabase/functions/ai-proxy/models.ts';
 import { OPS } from '../../supabase/functions/ai-proxy/ops/index.ts';
 import {
-  companionKey, groundDiscover, isPublicHttpsUrl, measuredMinutes, normalizeUrl, openPage, pageTitle, paragraphWords,
-  parseCompanion, parseDiscoverDrafts, parseReflection, urlContextFailed, type FetchLike,
+  companionKey, discoverWithOpenSearch, groundDiscover, isPublicHttpsUrl, measuredMinutes, normalizeUrl, openPage, pageTitle, paragraphWords,
+  parseCompanion, parseDiscoverDrafts, parseDiscoverRequest, parseReflection, searchOpenCatalog, urlContextFailed, type FetchLike,
 } from '../../supabase/functions/ai-proxy/ops/lll.ts';
 import { LLL_CATALOG } from '../../data/lllCatalog';
 import { normalizeLllUrl } from '../lllLogic';
@@ -191,5 +191,73 @@ describe('lllReflect', () => {
       onTopic: true, corrected: 'Sleep helps memory.', natural: '', feedbackVi: 'Tốt.',
     });
     expect(() => parseReflection({ onTopic: true })).toThrow();
+  });
+
+  it('discovers and verifies real open-web articles when Google Search grounding quota is exhausted', async () => {
+    const fetchFn: FetchLike = async (url) => {
+      if (url.startsWith('https://hn.algolia.com/')) {
+        return new Response(
+          JSON.stringify({
+            hits: [
+              { url: 'https://aeon.co/essays/how-sleep-helps-memory', title: 'How sleep helps memory' },
+              { url: 'https://reddit.com/r/sleep', title: 'Skip social' },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
+      }
+      if (url.startsWith('https://en.wikipedia.org/w/api.php')) {
+        return new Response(JSON.stringify({ query: { search: [{ title: 'Sleep and memory' }] } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (url.startsWith('https://simple.wikipedia.org/w/api.php')) {
+        return new Response(JSON.stringify({ query: { search: [{ title: 'Sleep' }] } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (url === 'https://aeon.co/essays/how-sleep-helps-memory') {
+        return new Response(html('How sleep helps memory', 600), { status: 200, headers: { 'content-type': 'text/html' } });
+      }
+      if (url === 'https://en.wikipedia.org/wiki/Sleep_and_memory') {
+        return new Response(html('Sleep and memory - Wikipedia', 450), { status: 200, headers: { 'content-type': 'text/html' } });
+      }
+      return new Response('missing', { status: 404, headers: { 'content-type': 'text/html' } });
+    };
+
+    const candidates = await searchOpenCatalog(['sleep memory'], 'B1', [], fetchFn);
+    expect(candidates.some((c) => c.url === 'https://aeon.co/essays/how-sleep-helps-memory')).toBe(true);
+    expect(candidates.some((c) => c.url.includes('reddit.com'))).toBe(false);
+
+    const run = async (spec: { build: (p: unknown) => unknown }, payload: unknown) => {
+      if (typeof (payload as { query?: unknown })?.query === 'string') {
+        return { model: 'gemini-3.5-flash-lite', data: { queries: ['sleep memory'] }, raw: {} };
+      }
+      spec.build(payload);
+      return {
+        model: 'gemini-3.5-flash-lite',
+        data: {
+          items: [
+            { idx: 0, publisher: 'Aeon', kind: 'essay' as never, level: 'B1', topic: 'health', reasonVi: 'Bài phân tích giấc ngủ.', stanceVi: '' },
+            { idx: 99, publisher: 'Fake', kind: 'article', level: 'B1', topic: 'health', reasonVi: 'Ignored invalid idx', stanceVi: '' },
+          ],
+        },
+        raw: {},
+      };
+    };
+
+    const req = parseDiscoverRequest({ query: 'giấc ngủ và trí nhớ', level: 'B1', minutes: 10 });
+    const out = await discoverWithOpenSearch(req, run as never, fetchFn);
+    expect(out.model).toBe('gemini-3.5-flash-lite');
+    expect(out.data.searchEntryPoint).toBeNull();
+    expect(out.data.items).toHaveLength(1);
+    expect(out.data.items[0]).toMatchObject({
+      url: 'https://aeon.co/essays/how-sleep-helps-memory',
+      title: 'How sleep helps memory',
+      minutes: 4,
+      topic: 'health',
+    });
   });
 });

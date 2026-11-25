@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowUpRight, Bookmark, Check, Loader2, MessageSquareText, ScanText, Sparkles } from 'lucide-react';
 import AddToReviewButton from '../ielts/AddToReviewButton';
 import { field, panel, primaryBtn, secondaryBtn } from '../ui/styles';
-import { aiErrorMessage } from '../../services/aiClient';
+import { aiErrorMessage, isAbortError } from '../../services/aiClient';
+import AiProgress from '../ui/AiProgress';
 import { addWordsToReview } from '../../services/masteryService';
 import { explainReading, type ExplainResult } from '../../services/readingExplainService';
 import { getLllCompanion, reflectLll, type Companion, type Reflection } from '../../services/lllAi';
@@ -40,14 +41,34 @@ export default function LllReader({ open, entry, userId, level, loading, onBack,
   const [answer, setAnswer] = useState(entry?.note ?? '');
   const [reflection, setReflection] = useState<Async<Reflection>>({ kind: 'idle' });
 
+  const companionAbortRef = useRef<AbortController | null>(null);
+  const explainAbortRef = useRef<AbortController | null>(null);
+  const reflectAbortRef = useRef<AbortController | null>(null);
+
   useEffect(() => {
-    let cancelled = false;
+    companionAbortRef.current?.abort();
+    const controller = new AbortController();
+    companionAbortRef.current = controller;
     setCompanion({ kind: 'loading' });
-    getLllCompanion(item.url, item.title, level)
-      .then((value) => { if (!cancelled) setCompanion({ kind: 'done', value }); })
-      .catch((err) => { if (!cancelled) setCompanion({ kind: 'error', message: aiErrorMessage(err) }); });
-    return () => { cancelled = true; };
+    getLllCompanion(item.url, item.title, level, undefined, undefined, controller.signal)
+      .then((value) => { if (!controller.signal.aborted) setCompanion({ kind: 'done', value }); })
+      .catch((err) => {
+        if (isAbortError(err) || controller.signal.aborted) {
+          setCompanion({ kind: 'idle' });
+          return;
+        }
+        setCompanion({ kind: 'error', message: aiErrorMessage(err) });
+      })
+      .finally(() => {
+        if (companionAbortRef.current === controller) companionAbortRef.current = null;
+      });
+    return () => { controller.abort(); };
   }, [item.url, item.title, level, attempt]);
+
+  useEffect(() => () => {
+    explainAbortRef.current?.abort();
+    reflectAbortRef.current?.abort();
+  }, []);
 
   const help = companion.kind === 'done' && companion.value.readable ? companion.value : null;
   const questions = help?.questions ?? [];
@@ -69,21 +90,45 @@ export default function LllReader({ open, entry, userId, level, loading, onBack,
   const runExplain = async () => {
     const text = passage.trim().slice(0, 600);
     if (!text) return;
+    explainAbortRef.current?.abort();
+    const controller = new AbortController();
+    explainAbortRef.current = controller;
     setExplain({ kind: 'loading' });
     try {
-      setExplain({ kind: 'done', value: await explainReading('sentence', text, `${item.title}\n${text}`.slice(0, 2500)) });
+      setExplain({
+        kind: 'done',
+        value: await explainReading('sentence', text, `${item.title}\n${text}`.slice(0, 2500), undefined, controller.signal),
+      });
     } catch (err) {
+      if (isAbortError(err) || controller.signal.aborted) {
+        setExplain({ kind: 'idle' });
+        return;
+      }
       setExplain({ kind: 'error', message: aiErrorMessage(err) });
+    } finally {
+      if (explainAbortRef.current === controller) explainAbortRef.current = null;
     }
   };
   const runReflect = async () => {
     const text = answer.trim();
     if (!text) return;
+    reflectAbortRef.current?.abort();
+    const controller = new AbortController();
+    reflectAbortRef.current = controller;
     setReflection({ kind: 'loading' });
     try {
-      setReflection({ kind: 'done', value: await reflectLll({ title: item.title, question: asked, answer: text.slice(0, 600), level }) });
+      setReflection({
+        kind: 'done',
+        value: await reflectLll({ title: item.title, question: asked, answer: text.slice(0, 600), level }, undefined, controller.signal),
+      });
     } catch (err) {
+      if (isAbortError(err) || controller.signal.aborted) {
+        setReflection({ kind: 'idle' });
+        return;
+      }
       setReflection({ kind: 'error', message: aiErrorMessage(err) });
+    } finally {
+      if (reflectAbortRef.current === controller) reflectAbortRef.current = null;
     }
   };
 
@@ -125,8 +170,24 @@ export default function LllReader({ open, entry, userId, level, loading, onBack,
       <section className={`${panel} space-y-4 p-4 sm:p-6`} aria-labelledby="lll-before">
         <h3 id="lll-before" className={heading}><Sparkles className="h-4 w-4 text-tone-lavender-fg" aria-hidden="true" /> Trước khi đọc</h3>
         {companion.kind === 'loading' && (
-          <p role="status" className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> AI đang {video ? 'xem video' : 'đọc bài'} để tóm tắt và chọn từ khóa…
+          <AiProgress
+            compact
+            tone="lavender"
+            label={`AI đang ${video ? 'phân tích video' : 'đọc bài'} để tóm tắt & chọn từ khóa…`}
+            stages={[video ? 'Xem phụ đề' : 'Mở bài viết', 'Tóm tắt & rút từ khóa']}
+            estimatedMs={12_000}
+            onCancel={() => {
+              companionAbortRef.current?.abort();
+              setCompanion({ kind: 'idle' });
+            }}
+          />
+        )}
+        {companion.kind === 'idle' && (
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            Đã hủy tóm tắt trước khi đọc.{' '}
+            <button type="button" className="font-semibold text-tone-lavender-fg underline" onClick={() => setAttempt((n) => n + 1)}>
+              Tải lại gợi ý AI
+            </button>
           </p>
         )}
         {companion.kind === 'error' && (
@@ -182,6 +243,19 @@ export default function LllReader({ open, entry, userId, level, loading, onBack,
         <button type="button" className={secondaryBtn} disabled={!passage.trim() || explain.kind === 'loading'} onClick={() => void runExplain()}>
           {explain.kind === 'loading' ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ScanText className="h-4 w-4" aria-hidden="true" />} Giải thích
         </button>
+        {explain.kind === 'loading' && (
+          <AiProgress
+            compact
+            tone="aqua"
+            label="AI đang giải thích đoạn văn…"
+            stages={['Dịch nghĩa', 'Tách cấu trúc & từ vựng']}
+            estimatedMs={8_000}
+            onCancel={() => {
+              explainAbortRef.current?.abort();
+              setExplain({ kind: 'idle' });
+            }}
+          />
+        )}
         {explain.kind === 'error' && <p role="alert" className="text-sm text-tone-blush-fg">{explain.message}</p>}
         {explain.kind === 'done' && (
           <div className="space-y-2 rounded-xl bg-tone-aqua/50 p-3 text-sm" role="status">
@@ -224,6 +298,18 @@ export default function LllReader({ open, entry, userId, level, loading, onBack,
             Lưu & đánh dấu đã đọc
           </button>
         </div>
+        {reflection.kind === 'loading' && (
+          <AiProgress
+            compact
+            tone="mint"
+            label="AI đang nhận xét phần ghi chú…"
+            estimatedMs={7_000}
+            onCancel={() => {
+              reflectAbortRef.current?.abort();
+              setReflection({ kind: 'idle' });
+            }}
+          />
+        )}
         {reflection.kind === 'error' && <p role="alert" className="text-sm text-tone-blush-fg">{reflection.message}</p>}
         {reflection.kind === 'done' && (
           <div className="space-y-2 rounded-xl bg-tone-mint/60 p-3 text-sm" role="status">

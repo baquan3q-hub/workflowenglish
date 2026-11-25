@@ -22,6 +22,7 @@ import { analyzeTake, type Transcribe } from '../components/ielts/speaking/analy
 import RecordControls from '../components/ielts/speaking/RecordControls';
 import CuePrep from '../components/ielts/speaking/CuePrep';
 import { errorText, ghostBtn, label, muted, notice, panel, primaryBtn, secondaryBtn } from '../components/ielts/speaking/styles';
+import AiProgress from '../components/ui/AiProgress';
 
 export interface MockSubmission {
   question: IeltsQuestion;
@@ -37,6 +38,7 @@ interface Props {
   onBack: () => void;
   onSubmit: (submission: MockSubmission) => void;
   isGrading: boolean;
+  onCancelGrading?: () => void;
   /** Swapped out in previews and tests. */
   resolveClip?: ResolveClip;
   transcribe?: Transcribe;
@@ -63,6 +65,7 @@ export default function IeltsSpeakingMock({
   onBack,
   onSubmit,
   isGrading,
+  onCancelGrading,
   resolveClip,
   transcribe = transcribeAudioWithGemini,
   script: fixedScript,
@@ -80,19 +83,28 @@ export default function IeltsSpeakingMock({
   const [now, setNow] = useState(Date.now());
   const [micError, setMicError] = useState<string | null>(null);
   const queue = useRef<Promise<void>>(Promise.resolve());
+  const analyzeAbortRefs = useRef<Record<string, AbortController>>({});
   const posRef = useRef(pos);
   posRef.current = pos;
+
+  useEffect(() => () => {
+    Object.values(analyzeAbortRefs.current).forEach((c) => c.abort());
+  }, []);
 
   const item = script.items[pos];
   const part = item?.part ?? 1;
 
   const analyze = (it: MockItem, take: RecordedTake) => {
+    analyzeAbortRefs.current[it.id]?.abort();
+    const controller = new AbortController();
+    analyzeAbortRefs.current[it.id] = controller;
     setResults((r) => ({
       ...r,
       [it.id]: { item: it, take, status: 'working', transcript: '', rawTranscript: null, base64: '', rms: null, error: null },
     }));
     queue.current = queue.current.then(async () => {
-      const a = await analyzeTake(take, transcribe);
+      const a = await analyzeTake(take, transcribe, controller.signal);
+      if (analyzeAbortRefs.current[it.id] === controller) delete analyzeAbortRefs.current[it.id];
       setResults((r) => ({
         ...r,
         [it.id]: {
@@ -103,7 +115,7 @@ export default function IeltsSpeakingMock({
           rawTranscript: a.transcript,
           base64: a.base64,
           rms: a.rms,
-          error: a.error,
+          error: a.aborted ? 'Đã hủy chép lời. Bạn có thể tự gõ lại câu trả lời bên dưới.' : a.error,
         },
       }));
     });
@@ -320,6 +332,15 @@ export default function IeltsSpeakingMock({
             </li>
           ))}
         </ol>
+        {pending && (
+          <AiProgress
+            compact
+            tone="aqua"
+            label="AI đang chuyển giọng nói thành chữ cho các câu đã trả lời…"
+            estimatedMs={10_000}
+            onCancel={() => Object.values(analyzeAbortRefs.current).forEach((c) => c.abort())}
+          />
+        )}
         <button type="button" onClick={submit} disabled={pending || isGrading || ready.length === 0} className={`${primaryBtn} w-full sm:w-auto`}>
           {isGrading ? (
             <>
@@ -331,6 +352,15 @@ export default function IeltsSpeakingMock({
             </>
           )}
         </button>
+        {isGrading && (
+          <AiProgress
+            tone="periwinkle"
+            label="AI đang chấm toàn bộ bài thi Speaking Mock…"
+            stages={['Nghe các phần trả lời', 'Chấm 4 tiêu chí Speaking', 'Tổng hợp band điểm']}
+            estimatedMs={18_000}
+            onCancel={onCancelGrading}
+          />
+        )}
       </div>
     );
   }

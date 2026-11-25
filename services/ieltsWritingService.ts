@@ -11,14 +11,15 @@ export async function gradeWritingTask(
   answer: string,
   essayType: string,
   targetBand: string,
-  taskType: 'task_1' | 'task_2' = 'task_2'
+  taskType: 'task_1' | 'task_2' = 'task_2',
+  signal?: AbortSignal,
 ): Promise<IeltsAiFeedback> {
-  return invokeAi<IeltsAiFeedback>('gradeIeltsWriting', { question, answer, essayType, targetBand, taskType });
+  return invokeAi<IeltsAiFeedback>('gradeIeltsWriting', { question, answer, essayType, targetBand, taskType }, { signal });
 }
 
 /** Task 2 planning help (op ieltsIdeas): ideas per side, phrases and a paragraph plan, never an essay. */
-export async function getWritingIdeas(question: string, essayType: string): Promise<IeltsWritingIdeas> {
-  return invokeAi<IeltsWritingIdeas>('ieltsIdeas', { question, essayType });
+export async function getWritingIdeas(question: string, essayType: string, signal?: AbortSignal): Promise<IeltsWritingIdeas> {
+  return invokeAi<IeltsWritingIdeas>('ieltsIdeas', { question, essayType }, { signal });
 }
 
 // ─── Get Writing Questions ──────────────────────────────────────────

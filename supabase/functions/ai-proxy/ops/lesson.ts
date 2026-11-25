@@ -213,10 +213,10 @@ const recommendationSchema = S.arr(
 export const recommendWords: OpSpec = {
   hourlyLimit: 10,
   models: LIGHT_TEXT_MODELS,
-  timeoutMs: 30_000,
+  timeoutMs: 25_000,
   kind: 'json',
   finalize(data) {
-    if (!Array.isArray(data)) throw new Error('recommendations must be an array');
+    if (!Array.isArray(data) || data.length === 0) throw new Error('recommendations must be a non-empty array');
     return data;
   },
   build(payload) {

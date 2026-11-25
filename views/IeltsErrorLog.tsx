@@ -17,7 +17,8 @@ import {
 import type { IeltsAttempt, SentenceGrade, SentenceItem } from '../types';
 import { getIeltsAttempts } from '../services/ieltsAttemptService';
 import { gradeSentence } from '../services/sentenceService';
-import { aiErrorMessage } from '../services/aiClient';
+import { aiErrorMessage, isAbortError } from '../services/aiClient';
+import AiProgress from '../components/ui/AiProgress';
 import { splitBold, VERDICT_LABELS } from '../services/sentenceLogic';
 import { diffWords } from '../services/writingFeedbackLogic';
 import {
@@ -273,14 +274,28 @@ const Bolded: React.FC<{ text: string }> = ({ text }) => (
 const DrillCard: React.FC<{ item: SentenceItem; index: number; grade: typeof gradeSentence }> = ({ item, index, grade }) => {
   const [answer, setAnswer] = useState('');
   const [state, setState] = useState<DrillState>({ kind: 'idle' });
+  const abortRef = useRef<AbortController | null>(null);
   const id = `drill-${item.id}`;
 
+  useEffect(() => () => abortRef.current?.abort(), []);
+
   const submit = async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setState({ kind: 'grading' });
     try {
-      setState({ kind: 'done', grade: await grade(item, answer, DRILL_LEVEL) });
+      const graded = await grade(item, answer, DRILL_LEVEL, controller.signal);
+      if (controller.signal.aborted) return;
+      setState({ kind: 'done', grade: graded });
     } catch (err) {
+      if (isAbortError(err) || controller.signal.aborted) {
+        setState({ kind: 'idle' });
+        return;
+      }
       setState({ kind: 'error', message: aiErrorMessage(err) });
+    } finally {
+      if (abortRef.current === controller) abortRef.current = null;
     }
   };
 
@@ -309,9 +324,20 @@ const DrillCard: React.FC<{ item: SentenceItem; index: number; grade: typeof gra
         className={`${field} resize-y`}
       />
       {(state.kind === 'idle' || state.kind === 'grading') && (
-        <button type="button" onClick={() => void submit()} disabled={!answer.trim() || state.kind === 'grading'} className={secondaryBtn}>
-          {state.kind === 'grading' ? 'Đang chấm…' : 'Chấm câu này'}
-        </button>
+        <div className="space-y-2">
+          <button type="button" onClick={() => void submit()} disabled={!answer.trim() || state.kind === 'grading'} className={secondaryBtn}>
+            {state.kind === 'grading' ? 'Đang chấm…' : 'Chấm câu này'}
+          </button>
+          {state.kind === 'grading' && (
+            <AiProgress
+              compact
+              tone="sky"
+              label="AI đang chấm câu sửa lỗi…"
+              estimatedMs={7_000}
+              onCancel={() => abortRef.current?.abort()}
+            />
+          )}
+        </div>
       )}
       {state.kind === 'error' && (
         <p role="alert" className="text-sm text-tone-blush-fg">

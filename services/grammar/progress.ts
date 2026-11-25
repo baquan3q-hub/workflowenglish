@@ -1,7 +1,7 @@
 import { lessons, lessonById, stageLessons, stages } from '../../data/grammar/meta';
 import { LEGACY_LESSON } from '../../data/grammar/legacy';
 import type { ItemKind, Level, StageId } from '../../data/grammar/types';
-import type { GrammarGrade } from '../../supabase/functions/ai-proxy/ops/grammar';
+import type { GrammarErrorTag, GrammarGrade } from '../../supabase/functions/ai-proxy/ops/grammar';
 
 export type Mode = 'learn' | 'review' | 'errors' | 'checkpoint' | 'diagnostic';
 export type Result = 'correct' | 'incorrect' | 'pending' | 'finished';
@@ -25,6 +25,8 @@ export interface Attempt {
   typedFallback: boolean;
   delayedReview?: boolean;
   feedback?: GrammarGrade;
+  /** Saved explanation for AI-generated closed drills not in the static bank. */
+  note?: string;
   /** Set on results read from the first version of the module. */
   legacy?: true;
 }
@@ -279,4 +281,24 @@ export function summary(all: Attempt[], snap: Snapshot) {
     delayedRate: rate(delayed),
     total: lessons.length,
   };
+}
+
+/** Most frequent open error tags across all lessons (excluding 'other'). */
+export function topErrorTags(snap: Snapshot, limit = 3): { tag: GrammarErrorTag; count: number }[] {
+  const counts = new Map<GrammarErrorTag, { count: number; latest: string }>();
+  for (const s of snap.stats.values()) {
+    for (const err of s.openErrors) {
+      const tag = err.feedback?.errorTag;
+      if (!tag || tag === 'other') continue;
+      const cur = counts.get(tag);
+      counts.set(tag, {
+        count: (cur?.count ?? 0) + 1,
+        latest: !cur || err.at > cur.latest ? err.at : cur.latest,
+      });
+    }
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1].count - a[1].count || b[1].latest.localeCompare(a[1].latest))
+    .slice(0, limit)
+    .map(([tag, info]) => ({ tag, count: info.count }));
 }

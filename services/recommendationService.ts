@@ -11,7 +11,7 @@
  */
 
 import { supabase } from './supabaseClient';
-import { invokeAi } from './aiClient';
+import { invokeAi, withAbortSignal } from './aiClient';
 import { MasteryLevel, type WordRecommendation } from '../types';
 
 // --- Constants -------------------------------------------------------------
@@ -191,14 +191,34 @@ export async function getMasteredWordsList(userId: string): Promise<string[]> {
  * @param currentLevel   CEFR level (e.g. "B1")
  * @param masteredWords  words to exclude; capped at 50 most recent
  */
+const inflightRecommendations = new Map<string, Promise<WordRecommendation[]>>();
+
 export async function generateRecommendations(
   topTopics: string[],
   currentLevel: string,
   masteredWords: string[],
+  signal?: AbortSignal,
 ): Promise<WordRecommendation[]> {
+  if (signal?.aborted) return withAbortSignal(Promise.resolve([] as WordRecommendation[]), signal);
+  const topics = topTopics.slice(0, 3);
   const limitedMastered = masteredWords.slice(0, MAX_MASTERED_WORDS_IN_PROMPT);
+  const dedupeKey = `${currentLevel}|${topics.join(',')}|${limitedMastered.join(',')}`;
+  const existing = inflightRecommendations.get(dedupeKey);
+  if (existing) return withAbortSignal(existing, signal);
+  const task = fetchRecommendations(topics, currentLevel, limitedMastered).finally(() => {
+    inflightRecommendations.delete(dedupeKey);
+  });
+  inflightRecommendations.set(dedupeKey, task);
+  return withAbortSignal(task, signal);
+}
+
+async function fetchRecommendations(
+  topTopics: string[],
+  currentLevel: string,
+  limitedMastered: string[],
+): Promise<WordRecommendation[]> {
   const parsed = await invokeAi<unknown>('recommendWords', {
-    topics: topTopics.slice(0, 3),
+    topics: topTopics,
     level: currentLevel,
     exclude: limitedMastered,
   });

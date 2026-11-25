@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ArrowRight, CircleAlert, Loader2, ShieldCheck, Sparkles, Trash2 } from 'lucide-react';
 import { GROUP_TYPE_LABELS, PART_DESCRIPTIONS_VI } from '../../../data/ielts/listening';
 import { LISTENING_BLUEPRINTS } from '../../../supabase/functions/ai-proxy/ops/listeningGenerate.ts';
-import { aiErrorMessage } from '../../../services/aiClient';
+import { aiErrorMessage, isAbortError } from '../../../services/aiClient';
+import AiProgress from '../../ui/AiProgress';
 import {
   deleteGeneratedListening,
   DIFFICULTY_LABELS_VI,
@@ -22,7 +23,7 @@ import { panel, primaryBtn, secondaryBtn, tag } from '../../ui/styles';
 /** Service calls, swappable for previews and tests. */
 export interface GeneratedSectionsApi {
   list: (userId: string) => Promise<GeneratedListening[]>;
-  generate: (userId: string, req: GenerateRequest) => Promise<GeneratedListening>;
+  generate: (userId: string, req: GenerateRequest, signal?: AbortSignal) => Promise<GeneratedListening>;
   remove: (id: string) => Promise<boolean>;
 }
 
@@ -67,6 +68,7 @@ export default function GeneratedSections({ userId, onStart, api = defaultApi }:
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -76,20 +78,29 @@ export default function GeneratedSections({ userId, onStart, api = defaultApi }:
       .catch(() => live && setItems([]));
     return () => {
       live = false;
+      abortRef.current?.abort();
     };
   }, [userId]);
 
   const generate = async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setBusy(true);
     setError('');
     try {
-      const item = await apiRef.current.generate(userId, { part, topic: topic.trim(), difficulty });
+      const item = await apiRef.current.generate(userId, { part, topic: topic.trim(), difficulty }, controller.signal);
+      if (controller.signal.aborted) return;
       setItems((prev) => [item, ...(prev ?? [])]);
       setTopic('');
     } catch (err) {
+      if (isAbortError(err) || controller.signal.aborted) return;
       setError(err instanceof GeneratedCheckError ? err.message : aiErrorMessage(err));
     } finally {
-      setBusy(false);
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+        setBusy(false);
+      }
     }
   };
 
@@ -172,6 +183,17 @@ export default function GeneratedSections({ userId, onStart, api = defaultApi }:
             {busy ? 'Thường mất 30–90 giây, kể cả bước kiểm tra.' : 'Tối đa 10 đề mỗi giờ.'}
           </p>
         </div>
+
+        {busy && (
+          <AiProgress
+            tone="sky"
+            label={`AI đang soạn đề Listening Part ${part}…`}
+            detail="Bao gồm bước tự kiểm tra đáp án có trong bài nghe và đúng giới hạn từ."
+            stages={['Viết kịch bản nghe', 'Soạn câu hỏi', 'Kiểm định đề']}
+            estimatedMs={45_000}
+            onCancel={() => abortRef.current?.abort()}
+          />
+        )}
 
         {error && (
           <p role="alert" className="flex items-start gap-2 rounded-xl bg-tone-blush p-3 text-sm text-tone-blush-fg">

@@ -73,7 +73,7 @@ export const Sheet: React.FC<SheetProps> = ({ open, onClose, title, children, fo
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="anim-sheet-up relative flex max-h-[88vh] w-full flex-col rounded-t-2xl bg-white shadow-raised outline-none dark:bg-slate-800 md:max-h-none md:w-[420px] md:rounded-none md:rounded-l-2xl"
+        className="anim-sheet-up relative flex max-h-[88vh] [max-height:88dvh] w-full flex-col rounded-t-2xl bg-white shadow-raised outline-none dark:bg-slate-800 md:max-h-none md:w-[420px] md:rounded-none md:rounded-l-2xl"
       >
         <div className="mx-auto mt-2 h-1.5 w-10 rounded-full bg-slate-300 dark:bg-slate-600 md:hidden" aria-hidden="true" />
         <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-3 dark:border-slate-700">

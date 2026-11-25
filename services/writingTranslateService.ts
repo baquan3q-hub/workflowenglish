@@ -61,7 +61,7 @@ export interface GradedSentence extends TranslationGrade {
   finalScore: number;
 }
 
-export async function gradeSentence(req: GradeRequest): Promise<GradedSentence> {
+export async function gradeSentence(req: GradeRequest, signal?: AbortSignal): Promise<GradedSentence> {
   const { sentence, band, mode } = req;
   // Models from the chosen band up, so a freer answer at a higher band still matches one.
   const models = TRANSLATION_BAND_LIST.filter((b) => b >= band).map((b) => modelFor(sentence, b));
@@ -80,7 +80,7 @@ export async function gradeSentence(req: GradeRequest): Promise<GradedSentence> 
       hintsUsed: req.hintsUsed,
       upgradeFrom: mode === 'upgrade' ? sentence.band6 : undefined,
     },
-    { timeoutMs: 40_000 },
+    { timeoutMs: 40_000, signal },
   );
   const raw = grade.score ?? (grade.verdict === 'correct' ? 90 : grade.verdict === 'acceptable' ? 70 : 40);
   return { ...grade, finalScore: cappedScore(raw, req.hintsUsed) ?? raw };
@@ -137,9 +137,14 @@ export function toTranslationSet(id: string, task: IeltsWritingTask, prompt: str
 }
 
 /** A set for any Writing prompt; saved to the account when possible. Throws AiError or TranslationSetError. */
-export async function generateTranslationSet(userId: string, task: IeltsWritingTask, prompt: string): Promise<TranslationSet> {
+export async function generateTranslationSet(
+  userId: string,
+  task: IeltsWritingTask,
+  prompt: string,
+  signal?: AbortSignal,
+): Promise<TranslationSet> {
   const clean = prompt.trim().slice(0, 2500);
-  const raw = await invokeAi<unknown>('generateTranslationSet', { task, prompt: clean }, { timeoutMs: 160_000 });
+  const raw = await invokeAi<unknown>('generateTranslationSet', { task, prompt: clean }, { timeoutMs: 160_000, signal });
   const problems = translationSetProblems(raw);
   if (problems.length) {
     console.warn('[Translate] generated set failed checks:', problems);

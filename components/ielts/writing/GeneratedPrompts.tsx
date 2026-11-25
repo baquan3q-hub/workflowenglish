@@ -7,7 +7,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowRight, CircleAlert, Loader2, ShieldCheck, Sparkles, Trash2, Wand2 } from 'lucide-react';
 import type { IeltsQuestion } from '../../../types';
-import { aiErrorMessage } from '../../../services/aiClient';
+import { aiErrorMessage, isAbortError } from '../../../services/aiClient';
+import AiProgress from '../../ui/AiProgress';
 import {
   WRITING_DIFFICULTY_HINTS,
   WRITING_TOPIC_IDEAS,
@@ -27,7 +28,7 @@ import { field, ghostBtn, panel, primaryBtn, secondaryBtn, tag } from '../../ui/
 /** Service calls, swappable for previews and tests. */
 export interface GeneratedPromptsApi {
   list: (userId: string) => Promise<GeneratedWritingItem[]>;
-  generate: (userId: string, req: GenerateWritingRequest) => Promise<GeneratedWritingItem>;
+  generate: (userId: string, req: GenerateWritingRequest, signal?: AbortSignal) => Promise<GeneratedWritingItem>;
   remove: (id: string) => Promise<boolean>;
 }
 
@@ -66,6 +67,7 @@ export default function GeneratedPrompts({ userId, onStart, api = defaultApi, on
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -80,6 +82,7 @@ export default function GeneratedPrompts({ userId, onStart, api = defaultApi, on
       .catch(() => live && setItems((prev) => prev ?? []));
     return () => {
       live = false;
+      abortRef.current?.abort();
     };
   }, [userId]);
 
@@ -89,16 +92,24 @@ export default function GeneratedPrompts({ userId, onStart, api = defaultApi, on
   };
 
   const generate = async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setBusy(true);
     setError('');
     try {
-      const item = await apiRef.current.generate(userId, { task, questionType, topic: topic.trim(), difficulty });
+      const item = await apiRef.current.generate(userId, { task, questionType, topic: topic.trim(), difficulty }, controller.signal);
+      if (controller.signal.aborted) return;
       setItems((prev) => [item, ...(prev ?? [])]);
       setTopic('');
     } catch (err) {
+      if (isAbortError(err) || controller.signal.aborted) return;
       setError(err instanceof WritingCheckError ? err.message : aiErrorMessage(err));
     } finally {
-      setBusy(false);
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+        setBusy(false);
+      }
     }
   };
 
@@ -197,6 +208,17 @@ export default function GeneratedPrompts({ userId, onStart, api = defaultApi, on
             {busy ? 'Thường mất 10–40 giây, kể cả bước kiểm tra.' : 'Tối đa 15 đề mỗi giờ.'}
           </p>
         </div>
+
+        {busy && (
+          <AiProgress
+            tone="aqua"
+            label={`AI đang soạn đề Writing ${task === 'task_1' ? 'Task 1' : 'Task 2'}…`}
+            detail="Tự kiểm tra độ dài đề bài và tính hợp lệ của số liệu."
+            stages={['Lập đề bài', 'Kiểm định dữ liệu']}
+            estimatedMs={22_000}
+            onCancel={() => abortRef.current?.abort()}
+          />
+        )}
 
         {error && (
           <p role="alert" className="flex items-start gap-2 rounded-xl border border-tone-blush-border bg-tone-blush p-3 text-sm text-tone-blush-fg">
